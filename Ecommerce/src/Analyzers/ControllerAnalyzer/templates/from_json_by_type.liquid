@@ -1,0 +1,37 @@
+
+{% for import in Imports %}
+import '{{import}}';{% endfor %}
+
+T getJsonType<T>(Type type, Map<String, dynamic> json) {
+  return fromJsonByType[type]!(json) as T;
+}
+
+final fromJsonByType = <Type, Function(Map<String, dynamic> json)>{ {% for classModel in ClassModels %}
+    {{classModel.Name}}: (json) => {{classModel.Name}}.fromJson(json){% if forloop.last == false %},{% endif %}{% endfor %}
+};
+
+StoreJsonSerializableConverter<T>
+  getStoreJsonSerializebleConverter<T extends StoreJsonSerializable>() {
+return StoreJsonSerializableConverter<T>((json) => getJsonType<T>(json)!);
+}
+
+ListConverter<T> getListConverter<T extends StoreJsonSerializable>() {
+return ListConverter<T>(getStoreJsonSerializebleConverter<T>());
+}
+
+ApiResponseConverter<T>
+  getApiResponseConverter<T extends StoreJsonSerializable>() {
+return ApiResponseConverter<T>(getStoreJsonSerializebleConverter<T>());
+}
+
+ApiResponseConverter<List<T>>
+  getListApiResponseConverter<T extends StoreJsonSerializable>() {
+return ApiResponseConverter<List<T>>(getListConverter<T>());
+}
+
+final Map<Type, JsonConverter> jsonConverters = { {% for classModel in ClassModels %}
+  {{classModel.Name}}: getStoreJsonSerializebleConverter<{{classModel.Name}}>(),
+  List<{{classModel.Name}}>: getListConverter<{{classModel.Name}}>(),
+  ApiResponse<{{classModel.Name}}>: getApiResponseConverter<{{classModel.Name}}>(),
+  ApiResponse<List<{{classModel.Name}}>>: getListApiResponseConverter<{{classModel.Name}}>(){% if forloop.last == false %},{% endif %}{% endfor %}
+};

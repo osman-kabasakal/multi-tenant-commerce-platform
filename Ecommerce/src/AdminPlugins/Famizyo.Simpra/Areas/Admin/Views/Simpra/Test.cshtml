@@ -1,0 +1,25 @@
+@model Famizyo.Simpra.Areas.Admin.Models.ConfigureViewModel
+
+@{
+    Layout="_ConfigurePlugin";
+}
+
+<div class="alert alert-info">
+    <h4>Model Test</h4>
+    @if (Model == null)
+    {
+        <p>Model is NULL</p>
+    }
+    else
+    {
+        <p>Model is NOT NULL</p>
+        <p>AccessToken: @(Model.AccessToken ?? "NULL")</p>
+        <p>EnvironmentOptions count: @(Model.EnvironmentOptions?.Count ?? 0)</p>
+        <p>RedisChannelPrefix: @(Model.RedisChannelPrefix ?? "NULL")</p>
+    }
+</div>
+
+<form method="post">
+    <input type="text" name="test" value="test" />
+    <button type="submit">Test</button>
+</form>

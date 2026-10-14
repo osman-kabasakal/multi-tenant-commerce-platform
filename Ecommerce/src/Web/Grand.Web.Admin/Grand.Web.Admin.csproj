@@ -1,0 +1,71 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+    <Import Project="..\..\Build\Grand.Common.props" />
+    <PropertyGroup>
+        <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+        <ServerGarbageCollection>false</ServerGarbageCollection>
+        <EnableDefaultContentItems>false</EnableDefaultContentItems>
+        <UseAppHost>false</UseAppHost>
+        <!--Set GenerateRuntimeConfigurationFiles as true when Admin panel is supposed to works independent-->
+        <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
+    </PropertyGroup>
+    <ItemGroup>
+        <Content Include="Areas\**" CopyToPublishDirectory="Never" />
+        <Content Include="wwwroot\**" CopyToPublishDirectory="PreserveNewest" />
+        <Content Update="App_Data\Resources\Installation\installation.en.xml">
+          <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Update="App_Data\Resources\Installation\installation.pl.xml">
+          <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Update="App_Data\Resources\Upgrade\en_110.xml">
+          <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Update="App_Data\Resources\Upgrade\en_200.xml">
+          <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Update="App_Data\Resources\Upgrade\en_210.xml">
+          <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Update="App_Data\Resources\Upgrade\en_220.xml">
+          <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Update="PdfTemplates\OrderPdfTemplate.cshtml">
+          <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+          <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Update="PdfTemplates\ShipmentPdfTemplate.cshtml">
+          <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+          <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Update="Views\PdfTemplates\OrderPdfTemplate.cshtml">
+          <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+          <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Update="Views\PdfTemplates\ShipmentPdfTemplate.cshtml">
+          <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+          <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Update="Views\Shared\Components\Widget\Default.cshtml">
+          <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+          <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="elFinder.Net.AspNetCore" Version="1.5.0" />
+        <PackageReference Include="elFinder.Net.Core" Version="1.5.0" />
+        <PackageReference Include="elFinder.Net.Drivers.FileSystem" Version="1.5.0" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\Business\Grand.Business.Core\Grand.Business.Core.csproj" />
+        <ProjectReference Include="..\..\Core\Grand.Domain\Grand.Domain.csproj" />
+        <ProjectReference Include="..\..\Core\Grand.Infrastructure\Grand.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\Core\Grand.SharedKernel\Grand.SharedKernel.csproj" />
+        <ProjectReference Include="..\Grand.SharedUIResources\Grand.SharedUIResources.csproj" />
+        <ProjectReference Include="..\Grand.Web.Common\Grand.Web.Common.csproj" />
+        <ProjectReference Include="..\Grand.Web.ExternalSettings\Grand.Web.ExternalSettings.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+      <UpToDateCheckInput Remove="Areas\Admin\Views\PdfTemplates\OrderPdfTemplate.cshtml" />
+      <UpToDateCheckInput Remove="Areas\Admin\Views\PdfTemplates\ShipmentPdfTemplate.cshtml" />
+    </ItemGroup>
+</Project>

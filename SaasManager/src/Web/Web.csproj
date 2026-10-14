@@ -1,0 +1,109 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <SpaRoot>ClientApp\</SpaRoot>
+    <SpaProxyServerUrl>https://localhost:44447</SpaProxyServerUrl>
+    <SpaProxyLaunchCommand>npm start</SpaProxyLaunchCommand>
+    <RootNamespace>SaasManager.Web</RootNamespace>
+    <AssemblyName>SaasManager.Web</AssemblyName>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Application\Application.csproj" />
+    <ProjectReference Include="..\Infrastructure\Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Security.KeyVault.Certificates" />
+    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.AspNetCore.SpaProxy">
+      <!-- The SPA Proxy is only used at development time -->
+      <Publish>false</Publish>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="NSwag.AspNetCore" />
+    <PackageReference Include="NSwag.MSBuild">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Don't publish the SPA source files, but do show them in the project files list -->
+    <Content Remove="$(SpaRoot)**" />
+    <Content Include="..\..\.dockerignore">
+      <Link>.dockerignore</Link>
+    </Content>
+    <None Remove="$(SpaRoot)**" />
+    <None Include="$(SpaRoot)**" Exclude="$(SpaRoot)node_modules\**" />
+    <Content Update="ClientApp\src\assets\logo.svg">
+      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="ClientApp\src\app\modules\" />
+    <Folder Include="ClientApp\src\app\modules\dashboard\pages\dashboard-home\components\" />
+    <Folder Include="ClientApp\src\app\modules\shared\providers\" />
+    <Folder Include="Pages\Shared\" />
+    <Folder Include="Utilities\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <_ContentIncludedByDefault Remove="ClientApp\angular.json" />
+    <_ContentIncludedByDefault Remove="ClientApp\package-lock.json" />
+    <_ContentIncludedByDefault Remove="ClientApp\package.json" />
+    <_ContentIncludedByDefault Remove="ClientApp\tsconfig.app.json" />
+    <_ContentIncludedByDefault Remove="ClientApp\tsconfig.json" />
+    <_ContentIncludedByDefault Remove="ClientApp\tsconfig.spec.json" />
+  </ItemGroup>
+
+  <Target Name="DebugEnsureNodeEnv" BeforeTargets="Build" Condition=" '$(Configuration)' == 'Debug' And !Exists('$(SpaRoot)node_modules') ">
+    <!-- Ensure Node.js is installed -->
+    <Exec Command="node --version" ContinueOnError="true">
+      <Output TaskParameter="ExitCode" PropertyName="ErrorCode" />
+    </Exec>
+    <Error Condition="'$(ErrorCode)' != '0'" Text="Node.js is required to build and run this project. To continue, please install Node.js from https://nodejs.org/, and then restart your command prompt or IDE." />
+    <Message Importance="high" Text="Restoring dependencies using 'npm'. This may take several minutes..." />
+    <Exec WorkingDirectory="$(SpaRoot)" Command="node $(NpmPath) install" />
+  </Target>
+
+  <!-- Auto-generated Open API specification and Angular TypeScript clients -->
+  <PropertyGroup>
+    <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
+  </PropertyGroup>
+
+  <Target Name="NSwag" AfterTargets="PostBuildEvent" Condition=" '$(Configuration)' == 'Debug' And '$(SkipNSwag)' != 'True' ">
+    <Exec ConsoleToMSBuild="true" ContinueOnError="true" WorkingDirectory="$(ProjectDir)" EnvironmentVariables="ASPNETCORE_ENVIRONMENT=Development" Command="$(NSwagExe_Net90) run config.nswag /variables:Configuration=$(Configuration)">
+      <Output TaskParameter="ExitCode" PropertyName="NSwagExitCode" />
+      <Output TaskParameter="ConsoleOutput" PropertyName="NSwagOutput" />
+    </Exec>
+    <Message Text="$(NSwagOutput)" Condition="'$(NSwagExitCode)' == '0'" Importance="low" />
+    <Error Text="$(NSwagOutput)" Condition="'$(NSwagExitCode)' != '0'" />
+  </Target>
+
+<!--  <Target Name="PublishRunWebpack" AfterTargets="ComputeFilesToPublish">-->
+<!--    &lt;!&ndash; As part of publishing, ensure the JS resources are freshly built in production mode &ndash;&gt;-->
+<!--    <Exec WorkingDirectory="$(SpaRoot)" Command="node $(NpmPath) install" />-->
+<!--    <Exec WorkingDirectory="$(SpaRoot)" Command="node $(NpmPath) run build &#45;&#45; &#45;&#45;configuration production" />-->
+
+<!--    &lt;!&ndash; Include the newly-built files in the publish output &ndash;&gt;-->
+<!--    <ItemGroup>-->
+<!--      <DistFiles Include="$(SpaRoot)dist\**; $(SpaRoot)dist-server\**" />-->
+<!--      <ResolvedFileToPublish Include="@(DistFiles->'%(FullPath)')" Exclude="@(ResolvedFileToPublish)">-->
+<!--        <RelativePath>wwwroot\%(RecursiveDir)%(FileName)%(Extension)</RelativePath>-->
+<!--        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>-->
+<!--        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>-->
+<!--      </ResolvedFileToPublish>-->
+<!--    </ItemGroup>-->
+<!--  </Target>-->
+</Project>

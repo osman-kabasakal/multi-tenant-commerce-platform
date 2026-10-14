@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    
+    <ProjectReference Include="..\..\Business\Grand.Business.Core\Grand.Business.Core.csproj" />
+    <ProjectReference Include="..\..\Core\Grand.Domain\Grand.Domain.csproj" />
+    <ProjectReference Include="..\..\Core\Grand.Infrastructure\Grand.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Core\Grand.SharedKernel\Grand.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\API\Grand.Api\Grand.Api.csproj" />
+    <ProjectReference Include="..\..\Web\Grand.Web.Common\Grand.Web.Common.csproj" />
+    <ProjectReference Include="..\..\Web\Grand.Web.ExternalSettings\Grand.Web.ExternalSettings.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+  <PackageReference Include="HtmlAgilityPack" Version="1.12.1" />
+  <PackageReference Include="Keycloak.Net.Core" Version="1.0.30" />
+  <PackageReference Include="Selenium.WebDriver" Version="4.32.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+        <Content Update="appsettings.multitenant.json">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+
+  <ItemGroup>
+        <Content Include="App_Data\**" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" Exclude="App_Data\DataProtectionKeys\*.xml;" />
+        <Content Include="Roslyn\**" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" Exclude="Roslyn\**\*.dll" />
+        <Content Include="wwwroot\**" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" Exclude="wwwroot\assets\images\thumbs\*.jpeg;wwwroot\assets\images\thumbs\*.jpg;wwwroot\assets\images\thumbs\*.png" />
+        <Content Include="Upload\**" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" />
+    </ItemGroup>
+    <Target Name="PublishViews" BeforeTargets="PrepareForPublish">
+        <ItemGroup>
+            <PluginFiles Include="Plugins/**/*" />
+        </ItemGroup>
+        <Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(PublishDir)/Plugins/%(RecursiveDir)" SkipUnchangedFiles="true" />
+    </Target>
+    <!--<PropertyGroup>
+    <EnableDefaultContentItems>false</EnableDefaultContentItems>
+      </PropertyGroup>-->
+    <ItemGroup>
+        <Content Remove="Plugins\**" />
+        <Compile Remove="Plugins\**" />
+        <EmbeddedResource Remove="Plugins\**" />
+        <None Remove="Plugins\**" />
+        <Content Update="Plugins\**">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <None Update="appsettings.multitenant.json">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+    <ItemGroup>
+      <Folder Include="Plugins/" />
+    </ItemGroup>
+</Project>

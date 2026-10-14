@@ -1,0 +1,152 @@
+<div class="container mx-auto px-4 py-8 max-w-6xl">
+  <header class="mb-8">
+    <div class="flex justify-between items-center">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">Mobil Uygulama Yöneticisi</h1>
+        <p class="text-gray-500 mt-1">İşletme uygulamanızın derlemelerini, sürümlerini ve mağaza varlığını yönetin</p>
+      </div>
+      <div class="flex space-x-3">
+        <button class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd" />
+          </svg>
+          Dışa Aktar
+        </button>
+        <a routerLink="/appbuilds/new" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+          </svg>
+          Yeni Derleme
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <ul class="flex border-b">
+      <li class="-mb-px mr-1">
+        <a
+          class="bg-white inline-block py-2 px-4 text-blue-600 font-medium"
+          [class.border-l]="activeTab === 'builds'"
+          [class.border-t]="activeTab === 'builds'"
+          [class.border-r]="activeTab === 'builds'"
+          [class.rounded-t]="activeTab === 'builds'"
+          (click)="setActiveTab('builds')"
+          href="javascript:void(0)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
+            <path fill-rule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clip-rule="evenodd" />
+          </svg>
+          Derlemeler
+        </a>
+      </li>
+      <li class="mr-1">
+        <a
+          class="bg-white inline-block py-2 px-4 text-blue-600 font-medium"
+          [class.border-l]="activeTab === 'releases'"
+          [class.border-t]="activeTab === 'releases'"
+          [class.border-r]="activeTab === 'releases'"
+          [class.rounded-t]="activeTab === 'releases'"
+          (click)="setActiveTab('releases')"
+          href="javascript:void(0)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd" />
+          </svg>
+          Sürümler
+        </a>
+      </li>
+      <li class="mr-1">
+        <a
+          class="bg-white inline-block py-2 px-4 text-blue-600 font-medium"
+          [class.border-l]="activeTab === 'store'"
+          [class.border-t]="activeTab === 'store'"
+          [class.border-r]="activeTab === 'store'"
+          [class.rounded-t]="activeTab === 'store'"
+          (click)="setActiveTab('store')"
+          href="javascript:void(0)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+          </svg>
+          Mağaza Meta Verileri
+        </a>
+      </li>
+      <li class="mr-1">
+        <a
+          class="bg-white inline-block py-2 px-4 text-blue-600 font-medium"
+          [class.border-l]="activeTab === 'screenshots'"
+          [class.border-t]="activeTab === 'screenshots'"
+          [class.border-r]="activeTab === 'screenshots'"
+          [class.rounded-t]="activeTab === 'screenshots'"
+          (click)="setActiveTab('screenshots')"
+          href="javascript:void(0)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M7 2a2 2 0 00-2 2v12a2 2 0 002 2h6a2 2 0 002-2V4a2 2 0 00-2-2H7zm3 14a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+          </svg>
+          Ekran Görüntüleri
+        </a>
+      </li>
+      <li class="mr-1">
+        <a
+          class="bg-white inline-block py-2 px-4 text-blue-600 font-medium"
+          [class.border-l]="activeTab === 'assets'"
+          [class.border-t]="activeTab === 'assets'"
+          [class.border-r]="activeTab === 'assets'"
+          [class.rounded-t]="activeTab === 'assets'"
+          (click)="setActiveTab('assets')"
+          href="javascript:void(0)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd" />
+          </svg>
+          Medya Varlıkları
+        </a>
+      </li>
+    </ul>
+  </div>
+
+  <div class="tab-content mt-6">
+    <div *ngIf="activeTab === 'builds'">
+      <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
+          <div>
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Uygulama Derlemeleri</h3>
+            <p class="mt-1 max-w-2xl text-sm text-gray-500">Farklı platformlar için uygulama derlemelerinizi yönetin</p>
+          </div>
+          <a routerLink="/dashboard/appbuilds/new" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+            Yeni Derleme
+          </a>
+        </div>
+        <div class="px-4 py-5 sm:p-6">
+          <app-build-list></app-build-list>
+        </div>
+      </div>
+
+      <!-- Yeni Yapım Formu için Yer Tutucu -->
+      <!-- Bu tipik olarak ayrı bir rotada olurdu, ancak basitlik için burada bırakacağız -->
+      <!-- <app-new-build-form></app-new-build-form> -->
+    </div>
+
+    <div *ngIf="activeTab === 'releases'" class="text-center py-8 text-gray-500">
+      Sürüm işlevselliği yakında geliyor.
+    </div>
+
+    <div *ngIf="activeTab === 'store'" class="text-center py-8 text-gray-500">
+      Mağaza meta verileri yönetimi yakında geliyor.
+    </div>
+
+    <div *ngIf="activeTab === 'screenshots'" class="text-center py-8 text-gray-500">
+      Ekran görüntüsü yönetimi yakında geliyor.
+    </div>
+
+    <div *ngIf="activeTab === 'assets'" class="text-center py-8 text-gray-500">
+      Medya varlıkları yönetimi yakında geliyor.
+    </div>
+  </div>
+</div>

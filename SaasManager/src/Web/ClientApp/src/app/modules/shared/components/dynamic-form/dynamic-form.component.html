@@ -1,0 +1,110 @@
+<div class="w-full p-6" [ngClass]="{'max-w-lg mx-auto':stateKey !== 'SubscriptionSelectionState'}">
+  <!-- Error Alert -->
+  <div *ngIf="error" class="mb-6 bg-red-50 border border-red-200 text-red-800 rounded-lg p-4">
+    <div class="flex items-center">
+      <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd"
+              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+              clip-rule="evenodd"/>
+      </svg>
+      <span>{{ error }}</span>
+    </div>
+  </div>
+
+  @if (stateKey) {
+
+    @if (stateKey === 'SubscriptionSelectionState') {
+
+
+      <app-subscription-plan-selector
+        class="py-12 md:py-16"
+        (planSelected)="onPlanSelected($event)"
+      >
+      </app-subscription-plan-selector>
+
+    } @else {
+
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" class="space-y-6">
+        <!-- Dynamic Fields -->
+        <div *ngFor="let field of handledFields() | keyvalue" class="space-y-2">
+          <label [for]="field.key" class="block text-sm font-medium text-gray-700">
+            {{ field.value.label }}
+            <span *ngIf="field.value.required" class="text-red-500 ml-1">*</span>
+          </label>
+
+          <!-- Text/Email/Tel Input -->
+          <ng-container *ngIf="['text', 'email', 'tel','number'].includes(field.value.type!)">
+            <input
+              [type]="field.value.type"
+              [id]="field.key"
+              [formControlName]="field.key"
+              [placeholder]="field.value.label"
+              class="w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              [ngClass]="{
+                'border-gray-300': !isFieldInvalid(field.key),
+                'border-red-500': isFieldInvalid(field.key)
+              }"
+            >
+          </ng-container>
+
+          <!-- Textarea Input -->
+          <ng-container *ngIf="field.value.type === 'textarea'">
+            <textarea
+              [id]="field.key"
+              [formControlName]="field.key"
+              [placeholder]="field.value.label"
+              class="w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent min-h-32"
+              [ngClass]="{
+                'border-gray-300': !isFieldInvalid(field.key),
+                'border-red-500': isFieldInvalid(field.key)
+              }"
+            ></textarea>
+          </ng-container>
+
+          <!-- Validation Error Messages -->
+          <div *ngIf="isFieldInvalid(field.key)" class="text-sm text-red-500">
+        <span *ngFor="let vError of getErrorMessages(field.key)">
+              {{ vError }}
+            </span>
+          </div>
+
+          <div class="text-sm text-red-500">
+            @if (serverError && (serverError![field.key])) {
+              @for (seError of serverError![field.key]; track seError) {
+                <span>
+              {{ seError }}
+            </span>
+              }
+            }
+          </div>
+        </div>
+
+        <!-- Timeout Counter -->
+        <div *ngIf="timeLeft > 0" class="text-sm text-gray-500 flex items-center space-x-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span>Kalan süre: {{ timeLeft }} saniye</span>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="flex justify-end">
+          <button
+            type="submit"
+            [disabled]="!form.valid || isSubmitting || (timeoutSeconds>0 && timeLeft === 0) || formSubmitted()"
+            class="px-6 py-2 rounded-md text-white font-medium"
+            [ngClass]="{
+              'bg-blue-600 hover:bg-blue-700': form.valid && !isSubmitting && !(timeoutSeconds>0 && timeLeft === 0) && !formSubmitted(),
+              'bg-gray-400 cursor-not-allowed': !form.valid || isSubmitting || (timeoutSeconds>0 && timeLeft === 0) || formSubmitted()
+            }"
+          >
+            {{ isSubmitting ? 'İşleniyor...' : submitButtonText }}
+          </button>
+        </div>
+      </form>
+
+    }
+  }
+
+</div>

@@ -1,0 +1,177 @@
+{
+  "name": "Data Mapping Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.webhookUrl }}",
+        "authentication": "none",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "platformName",
+              "value": "={{ $json.platformName }}"
+            },
+            {
+              "name": "entityType",
+              "value": "={{ $json.entityType }}"
+            },
+            {
+              "name": "sampleEndpoint",
+              "value": "={{ $json.sampleEndpoint }}"
+            }
+          ]
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "collection": "integration_mappings",
+        "query": {
+          "platformName": "={{ $json.body.platformName }}"
+        }
+      },
+      "id": "get-platform-config",
+      "name": "Get Platform Config",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.sampleEndpoint }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "fetch-sample-data",
+      "name": "Fetch Sample Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sampleData = items[0].json;\nconst entityType = $node[\"Webhook Trigger\"].json.body.entityType;\n\n// Veri yapısını analiz et\nfunction analyzeStructure(obj, path = '') {\n  const fields = [];\n  \n  for (const [key, value] of Object.entries(obj)) {\n    const fieldPath = path ? `${path}.${key}` : key;\n    const fieldType = Array.isArray(value) ? 'array' : typeof value;\n    \n    fields.push({\n      path: fieldPath,\n      type: fieldType,\n      sampleValue: fieldType === 'object' ? null : value\n    });\n    \n    if (fieldType === 'object' && value !== null) {\n      fields.push(...analyzeStructure(value, fieldPath));\n    } else if (fieldType === 'array' && value.length > 0 && typeof value[0] === 'object') {\n      fields.push(...analyzeStructure(value[0], `${fieldPath}[0]`));\n    }\n  }\n  \n  return fields;\n}\n\nconst structure = analyzeStructure(sampleData);\n\n// GrandNode field mapping önerileri\nconst mappingSuggestions = {\n  product: {\n    'name|title|productName': 'Name',\n    'description|desc|fullDescription': 'FullDescription',\n    'shortDescription|summary': 'ShortDescription',\n    'price|cost|amount': 'Price',\n    'sku|code|productCode': 'Sku',\n    'stock|quantity|inventory': 'StockQuantity',\n    'image|picture|photo': 'ProductPictures',\n    'category|categoryId': 'ProductCategories',\n    'active|enabled|published': 'Published',\n    'weight': 'Weight',\n    'width': 'Width',\n    'height': 'Height',\n    'length': 'Length'\n  },\n  category: {\n    'name|title|categoryName': 'Name',\n    'description|desc': 'Description',\n    'parent|parentId|parentCategory': 'ParentCategoryId',\n    'image|picture|icon': 'PictureId',\n    'order|displayOrder|sortOrder': 'DisplayOrder',\n    'active|enabled|published': 'Published',\n    'showOnHomePage': 'ShowOnHomePage',\n    'includeInMenu|showInMenu': 'IncludeInMenu'\n  },\n  order: {\n    'orderNumber|orderId|id': 'OrderNumber',\n    'customer|customerId': 'CustomerId',\n    'email|customerEmail': 'BillingAddress.Email',\n    'total|totalAmount|grandTotal': 'OrderTotal',\n    'items|orderItems|products': 'OrderItems',\n    'status|orderStatus': 'OrderStatusId',\n    'paymentMethod|payment': 'PaymentMethodSystemName',\n    'shippingMethod|shipping': 'ShippingMethod',\n    'createdAt|orderDate|date': 'CreatedOnUtc'\n  }\n};\n\n// Mapping önerilerini oluştur\nconst suggestions = mappingSuggestions[entityType] || {};\nconst mappings = [];\n\nfor (const field of structure) {\n  let grandNodeField = null;\n  \n  // Field adına göre eşleştirme önerisi bul\n  for (const [patterns, targetField] of Object.entries(suggestions)) {\n    const fieldNameLower = field.path.toLowerCase();\n    const patternList = patterns.split('|');\n    \n    if (patternList.some(pattern => fieldNameLower.includes(pattern))) {\n      grandNodeField = targetField;\n      break;\n    }\n  }\n  \n  mappings.push({\n    sourcePath: field.path,\n    sourceType: field.type,\n    targetField: grandNodeField,\n    transformFunction: null,\n    required: false\n  });\n}\n\nreturn [{\n  json: {\n    entityType,\n    structure,\n    mappings,\n    sampleData\n  }\n}];"
+      },
+      "id": "analyze-data-structure",
+      "name": "Analyze Data Structure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const mappingData = items[0].json;\nconst platformName = $node[\"Webhook Trigger\"].json.body.platformName;\n\n// Dönüşüm fonksiyonları oluştur\nconst transformFunctions = {\n  'toBoolean': 'value => value === true || value === \"true\" || value === 1 || value === \"1\"',\n  'toString': 'value => String(value || \"\")',\n  'toNumber': 'value => Number(value) || 0',\n  'toDecimal': 'value => parseFloat(value) || 0',\n  'toDate': 'value => new Date(value).toISOString()',\n  'toArray': 'value => Array.isArray(value) ? value : [value]',\n  'toLowerCase': 'value => String(value).toLowerCase()',\n  'toUpperCase': 'value => String(value).toUpperCase()'\n};\n\n// Mapping'lere dönüşüm fonksiyonları ekle\nconst enhancedMappings = mappingData.mappings.map(mapping => {\n  let transform = null;\n  \n  // Tip uyumsuzluklarını tespit et ve dönüşüm öner\n  if (mapping.targetField) {\n    if (mapping.targetField.includes('Price') || mapping.targetField.includes('Cost')) {\n      transform = 'toDecimal';\n    } else if (mapping.targetField.includes('Published') || mapping.targetField.includes('Active')) {\n      transform = 'toBoolean';\n    } else if (mapping.targetField.includes('Date') || mapping.targetField.includes('CreatedOn')) {\n      transform = 'toDate';\n    } else if (mapping.targetField.includes('Quantity') || mapping.targetField.includes('Order')) {\n      transform = 'toNumber';\n    }\n  }\n  \n  return {\n    ...mapping,\n    transformFunction: transform\n  };\n});\n\n// Validasyon kuralları\nconst validationRules = {\n  product: {\n    'Name': { required: true, maxLength: 400 },\n    'Sku': { required: true, maxLength: 400 },\n    'Price': { required: true, min: 0 },\n    'StockQuantity': { required: false, min: 0 }\n  },\n  category: {\n    'Name': { required: true, maxLength: 400 },\n    'DisplayOrder': { required: false, min: 0 }\n  },\n  order: {\n    'CustomerId': { required: true },\n    'OrderTotal': { required: true, min: 0 }\n  }\n};\n\nconst rules = validationRules[mappingData.entityType] || {};\n\n// Required field'ları işaretle\nconst finalMappings = enhancedMappings.map(mapping => {\n  if (mapping.targetField && rules[mapping.targetField]) {\n    mapping.required = rules[mapping.targetField].required || false;\n  }\n  return mapping;\n});\n\nreturn [{\n  json: {\n    platformName,\n    entityType: mappingData.entityType,\n    mappings: finalMappings,\n    transformFunctions,\n    validationRules: rules\n  }\n}];"
+      },
+      "id": "generate-transform-functions",
+      "name": "Generate Transform Functions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "collection": "field_mappings",
+        "options": {
+          "upsert": true
+        },
+        "updateKey": "mappingKey",
+        "fields": {
+          "values": [
+            {
+              "name": "mappingKey",
+              "value": "={{ $json.platformName }}_{{ $json.entityType }}"
+            },
+            {
+              "name": "platformName",
+              "value": "={{ $json.platformName }}"
+            },
+            {
+              "name": "entityType",
+              "value": "={{ $json.entityType }}"
+            },
+            {
+              "name": "mappings",
+              "value": "={{ JSON.stringify($json.mappings) }}"
+            },
+            {
+              "name": "transformFunctions",
+              "value": "={{ JSON.stringify($json.transformFunctions) }}"
+            },
+            {
+              "name": "validationRules",
+              "value": "={{ JSON.stringify($json.validationRules) }}"
+            },
+            {
+              "name": "updatedAt",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "id": "save-mapping",
+      "name": "Save Field Mapping",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "success"
+            },
+            {
+              "name": "message",
+              "value": "Field mappings created successfully"
+            }
+          ],
+          "number": [
+            {
+              "name": "mappedFields",
+              "value": "={{ $json.mappings.filter(m => m.targetField !== null).length }}"
+            },
+            {
+              "name": "totalFields",
+              "value": "={{ $json.mappings.length }}"
+            }
+          ]
+        }
+      },
+      "id": "response",
+      "name": "Return Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [[{"node": "Get Platform Config", "type": "main", "index": 0}]]
+    },
+    "Get Platform Config": {
+      "main": [[{"node": "Fetch Sample Data", "type": "main", "index": 0}]]
+    },
+    "Fetch Sample Data": {
+      "main": [[{"node": "Analyze Data Structure", "type": "main", "index": 0}]]
+    },
+    "Analyze Data Structure": {
+      "main": [[{"node": "Generate Transform Functions", "type": "main", "index": 0}]]
+    },
+    "Generate Transform Functions": {
+      "main": [[{"node": "Save Field Mapping", "type": "main", "index": 0}]]
+    },
+    "Save Field Mapping": {
+      "main": [[{"node": "Return Success", "type": "main", "index": 0}]]
+    }
+  }
+}

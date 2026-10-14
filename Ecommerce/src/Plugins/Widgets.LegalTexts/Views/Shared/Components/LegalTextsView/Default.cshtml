@@ -1,0 +1,16 @@
+@model List<LegalTextMessageTemplateComponentModel>
+
+
+@foreach(var item in Model){
+@if (item.IsActive)
+{
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">@item.Name</h5>
+        </div>
+        <div class="card-body">
+            @Html.Raw(Encoding.UTF8.GetString(Convert.FromBase64String(item.TemplateText)))
+        </div>
+    </div>
+}
+}

@@ -1,0 +1,7 @@
+namespace SaasManager.Domain.Events;
+
+public enum CacheEvent
+{
+    RemoveKey = 0,
+    RemovePrefix = 2
+}

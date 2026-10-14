@@ -1,0 +1,4 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
+#include "Generated.xcconfig"
+
+NOTIFICATION_EXTENSION_BUNDLE_ID=$(PRODUCT_BUNDLE_IDENTIFIER).NotificationServiceExtension

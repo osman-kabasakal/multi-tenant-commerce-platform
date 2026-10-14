@@ -1,0 +1,300 @@
+{
+  "name": "AI-Powered API Discovery Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.webhookUrl }}",
+        "authentication": "none",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "apiDocUrl",
+              "value": "={{ $json.apiDocUrl }}"
+            },
+            {
+              "name": "credentials",
+              "value": "={{ $json.credentials }}"
+            },
+            {
+              "name": "platformName",
+              "value": "={{ $json.platformName }}"
+            }
+          ]
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.apiDocUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "fetch-api-doc",
+      "name": "Fetch API Documentation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawContent = items[0].json.data;\nconst maxTokens = 70000; // GPT-3.5 için güvenli limit\nconst avgCharsPerToken = 4; // Yaklaşık oran\nconst maxChars = maxTokens * avgCharsPerToken;\n\n// İçeriği temizle ve önemli kısımları çıkar\nfunction extractImportantContent(content) {\n  let cleanContent = content;\n  \n  // HTML ise sadece text içeriğini al\n  if (content.includes('<html') || content.includes('<!DOCTYPE')) {\n    // Script ve style tag'lerini kaldır\n    cleanContent = content\n      .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '')\n      .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')\n      .replace(/<[^>]+>/g, ' ') // HTML tag'lerini kaldır\n      .replace(/\\s+/g, ' ') // Çoklu boşlukları tek boşluk yap\n      .trim();\n  }\n  \n  // API endpoint pattern'lerini bul ve öne çıkar\n  const endpointPatterns = [\n    // HTTP method + path patterns\n    /(GET|POST|PUT|PATCH|DELETE)\\s+\\/[^\\s<>\"\\n\\r]+/gi,\n    /(GET|POST|PUT|PATCH|DELETE):\\s*\\/[^\\s<>\"\\n\\r]+/gi,\n    // URL patterns\n    /https?:\\/\\/[^\\s<>\"\\n\\r]+\\/(api|v\\d+)\\/[^\\s<>\"\\n\\r]+/gi,\n    // API doc sections\n    /endpoint[s]?[:\\s][^\\n\\r]{0,200}/gi,\n    /authentication[:\\s][^\\n\\r]{0,200}/gi,\n    /base[\\s_-]?url[:\\s][^\\n\\r]{0,200}/gi\n  ];\n  \n  let extractedParts = [];\n  \n  // Endpoint'leri bul ve çıkar\n  for (const pattern of endpointPatterns) {\n    const matches = cleanContent.match(pattern) || [];\n    extractedParts.push(...matches);\n  }\n  \n  // OpenAPI/Swagger JSON kontrolü\n  if (content.includes('\"openapi\"') || content.includes('\"swagger\"')) {\n    try {\n      const jsonMatch = content.match(/{[\\s\\S]*}/); // En büyük JSON bloğu\n      if (jsonMatch) {\n        const jsonStr = jsonMatch[0];\n        const jsonObj = JSON.parse(jsonStr);\n        \n        // Sadece önemli kısımları al\n        const importantJson = {\n          openapi: jsonObj.openapi || jsonObj.swagger,\n          info: jsonObj.info,\n          servers: jsonObj.servers,\n          paths: {},\n          components: {\n            securitySchemes: jsonObj.components?.securitySchemes\n          }\n        };\n        \n        // Path'leri sınırlı şekilde ekle\n        const paths = jsonObj.paths || {};\n        let pathCount = 0;\n        for (const [path, methods] of Object.entries(paths)) {\n          if (pathCount >= 50) break; // Maksimum 50 endpoint\n          importantJson.paths[path] = methods;\n          pathCount++;\n        }\n        \n        return JSON.stringify(importantJson, null, 2);\n      }\n    } catch (e) {\n      // JSON parse hatası, normal flow devam eder\n    }\n  }\n  \n  // İçeriği parçalara böl ve önemli kısımları birleştir\n  const sections = [\n    extractedParts.join('\\n'),\n    \n    // API ile ilgili bölümleri ara\n    ...cleanContent.split(/\\n|\\.|\\;/).filter(line => {\n      const lowerLine = line.toLowerCase();\n      return (lowerLine.includes('api') || \n              lowerLine.includes('endpoint') ||\n              lowerLine.includes('authentication') ||\n              lowerLine.includes('product') ||\n              lowerLine.includes('category') ||\n              lowerLine.includes('order') ||\n              lowerLine.includes('item') ||\n              lowerLine.includes('menu')) &&\n             line.length > 10 && line.length < 500;\n    }).slice(0, 100) // İlk 100 relevantline\n  ];\n  \n  let result = sections.join('\\n').substring(0, maxChars);\n  \n  return result;\n}\n\nconst processedContent = extractImportantContent(rawContent);\n\nreturn [{\n  json: {\n    data: processedContent,\n    originalLength: rawContent.length,\n    processedLength: processedContent.length,\n    truncated: rawContent.length > maxChars\n  }\n}];"
+      },
+      "id": "process-content",
+      "name": "Process & Truncate Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [550, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-3.5-turbo",
+        "messages": {
+          "messageType": "simpleMessage",
+          "simpleMessage": "Sen bir API dokümantasyon analiz uzmanısın. Aşağıdaki API dokümantasyonunu analiz et ve SADECE JSON formatında yanıt ver:\n\n```json\n{\n  \"endpoints\": [\n    {\n      \"method\": \"GET/POST/PUT/DELETE\",\n      \"path\": \"/api/path\",\n      \"summary\": \"Endpoint açıklaması\",\n      \"category\": \"product/category/order/other\",\n      \"parameters\": [],\n      \"responses\": {}\n    }\n  ],\n  \"authentication\": {\n    \"type\": \"Bearer Token/API Key/OAuth\",\n    \"description\": \"Auth açıklaması\"\n  },\n  \"baseUrl\": \"https://api.example.com\",\n  \"dataStructures\": {\n    \"product\": {\n      \"id\": \"string\",\n      \"name\": \"string\",\n      \"price\": \"number\"\n    }\n  },\n  \"rateLimit\": {\n    \"limit\": 1000,\n    \"period\": \"hour\"\n  }\n}\n```\n\nÖzellikle şu kategorileri tespit et:\n- **product**: Ürün/item/dish/menu-item endpoint'leri\n- **category**: Kategori/menu/section endpoint'leri  \n- **order**: Sipariş/check/purchase endpoint'leri\n- **other**: Diğer endpoint'ler\n\nDokümantasyon:\n\n{{ $json.data }}"
+        },
+        "options": {}
+      },
+      "id": "analyze-with-ai",
+      "name": "Analyze Documentation with AI",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const aiResponse = items[0].json.message.content;\nconst platformName = $node[\"Webhook Trigger\"].json.body.platformName;\n\ntry {\n  // AI response'u JSON olarak parse et\n  const analysisResult = JSON.parse(aiResponse);\n  \n  // Endpoint'leri kategorilere ayır\n  const categoryEndpoints = (analysisResult.endpoints || []).filter(e => \n    e.category === 'category' || \n    e.path.toLowerCase().includes('category') ||\n    e.path.toLowerCase().includes('menu') ||\n    e.path.toLowerCase().includes('section')\n  );\n  \n  const productEndpoints = (analysisResult.endpoints || []).filter(e => \n    e.category === 'product' || \n    e.path.toLowerCase().includes('product') ||\n    e.path.toLowerCase().includes('item') ||\n    e.path.toLowerCase().includes('dish')\n  );\n  \n  const orderEndpoints = (analysisResult.endpoints || []).filter(e => \n    e.category === 'order' || \n    e.path.toLowerCase().includes('order') ||\n    e.path.toLowerCase().includes('check') ||\n    e.path.toLowerCase().includes('purchase')\n  );\n  \n  return [{\n    json: {\n      platformName,\n      categoryEndpoints,\n      productEndpoints,\n      orderEndpoints,\n      authentication: analysisResult.authentication || {},\n      baseUrl: analysisResult.baseUrl || '',\n      dataStructures: analysisResult.dataStructures || {},\n      rateLimit: analysisResult.rateLimit || {},\n      aiAnalysis: true,\n      analysisTimestamp: new Date().toISOString()\n    }\n  }];\n  \n} catch (error) {\n  // AI response parse edilemezse fallback regex kullan\n  console.log('AI parse failed, using fallback regex');\n  \n  const docContent = $node[\"Process & Truncate Content\"].json.data;\n  const endpoints = [];\n  \n  // Fallback regex parsing\n  const endpointPatterns = [\n    /(GET|POST|PUT|PATCH|DELETE)\\s+(\\/[^\\s<>\\\"\\n\\r]+)/gi,\n    /(GET|POST|PUT|PATCH|DELETE):\\s*(\\/[^\\s<>\\\"\\n\\r]+)/gi\n  ];\n  \n  for (const pattern of endpointPatterns) {\n    let match;\n    while ((match = pattern.exec(docContent)) !== null) {\n      if (match[1] && match[2]) {\n        endpoints.push({\n          method: match[1].toUpperCase(),\n          path: match[2],\n          category: 'other',\n          source: 'fallback'\n        });\n      }\n    }\n  }\n  \n  return [{\n    json: {\n      platformName,\n      categoryEndpoints: endpoints.filter(e => e.path.toLowerCase().includes('category')),\n      productEndpoints: endpoints.filter(e => e.path.toLowerCase().includes('product')),\n      orderEndpoints: endpoints.filter(e => e.path.toLowerCase().includes('order')),\n      authentication: {},\n      baseUrl: '',\n      dataStructures: {},\n      aiAnalysis: false,\n      fallbackUsed: true,\n      error: error.message\n    }\n  }];\n}"
+      },
+      "id": "process-ai-analysis",
+      "name": "Process AI Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1
+      },
+      "id": "split-by-entity",
+      "name": "Split by Entity Type",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const analysisData = items[0].json;\n\n// Her entity type için ayrı ayrı data mapping workflow'unu tetikle\nconst entityTypes = [];\n\nif (analysisData.productEndpoints && analysisData.productEndpoints.length > 0) {\n  entityTypes.push({\n    entityType: 'product',\n    endpoints: analysisData.productEndpoints,\n    sampleEndpoint: analysisData.productEndpoints.find(e => e.method === 'GET')?.path || analysisData.productEndpoints[0]?.path\n  });\n}\n\nif (analysisData.categoryEndpoints && analysisData.categoryEndpoints.length > 0) {\n  entityTypes.push({\n    entityType: 'category',\n    endpoints: analysisData.categoryEndpoints,\n    sampleEndpoint: analysisData.categoryEndpoints.find(e => e.method === 'GET')?.path || analysisData.categoryEndpoints[0]?.path\n  });\n}\n\nif (analysisData.orderEndpoints && analysisData.orderEndpoints.length > 0) {\n  entityTypes.push({\n    entityType: 'order',\n    endpoints: analysisData.orderEndpoints,\n    sampleEndpoint: analysisData.orderEndpoints.find(e => e.method === 'GET')?.path || analysisData.orderEndpoints[0]?.path\n  });\n}\n\nreturn entityTypes.map(entity => ({\n  json: {\n    ...analysisData,\n    currentEntityType: entity.entityType,\n    currentEndpoints: entity.endpoints,\n    currentSampleEndpoint: entity.sampleEndpoint\n  }\n}));"
+      },
+      "id": "prepare-entity-data",
+      "name": "Prepare Entity Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/data-mapping",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "platformName",
+              "value": "={{ $json.platformName }}"
+            },
+            {
+              "name": "entityType",
+              "value": "={{ $json.currentEntityType }}"
+            },
+            {
+              "name": "sampleEndpoint",
+              "value": "={{ $json.baseUrl }}{{ $json.currentSampleEndpoint }}"
+            },
+            {
+              "name": "endpoints",
+              "value": "={{ JSON.stringify($json.currentEndpoints) }}"
+            },
+            {
+              "name": "dataStructures",
+              "value": "={{ JSON.stringify($json.dataStructures) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "trigger-data-mapping",
+      "name": "Trigger Data Mapping Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "collection": "integration_mappings",
+        "operation": "Update",
+        "updateKey": "platformName",
+        "fields": {
+          "values": [
+            {
+              "name": "platformName",
+              "value": "={{ $json.platformName }}"
+            },
+            {
+              "name": "categoryEndpoints",
+              "value": "={{ JSON.stringify($json.categoryEndpoints) }}"
+            },
+            {
+              "name": "productEndpoints",
+              "value": "={{ JSON.stringify($json.productEndpoints) }}"
+            },
+            {
+              "name": "orderEndpoints",
+              "value": "={{ JSON.stringify($json.orderEndpoints) }}"
+            },
+            {
+              "name": "authentication",
+              "value": "={{ JSON.stringify($json.authentication) }}"
+            },
+            {
+              "name": "baseUrl",
+              "value": "={{ $json.baseUrl }}"
+            },
+            {
+              "name": "dataStructures",
+              "value": "={{ JSON.stringify($json.dataStructures) }}"
+            },
+            {
+              "name": "rateLimit",
+              "value": "={{ JSON.stringify($json.rateLimit) }}"
+            },
+            {
+              "name": "aiAnalyzed",
+              "value": "={{ $json.aiAnalysis }}"
+            },
+            {
+              "name": "createdAt",
+              "value": "={{ new Date().toISOString() }}"
+            },
+            {
+              "name": "active",
+              "value": false
+            }
+          ]
+        }
+      },
+      "id": "save-to-mongodb",
+      "name": "Save Integration Config",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $node[\"Split by Entity Type\"].context[\"noItemsLeft\"] }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-batch-complete",
+      "name": "All Entities Processed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "success"
+            },
+            {
+              "name": "message",
+              "value": "API analysis complete, data mapping workflows triggered"
+            },
+            {
+              "name": "platformName",
+              "value": "={{ $node[\"Process AI Analysis\"].json.platformName }}"
+            }
+          ],
+          "number": [
+            {
+              "name": "productEndpoints",
+              "value": "={{ $node[\"Process AI Analysis\"].json.productEndpoints.length }}"
+            },
+            {
+              "name": "categoryEndpoints",
+              "value": "={{ $node[\"Process AI Analysis\"].json.categoryEndpoints.length }}"
+            },
+            {
+              "name": "orderEndpoints",
+              "value": "={{ $node[\"Process AI Analysis\"].json.orderEndpoints.length }}"
+            }
+          ],
+          "boolean": [
+            {
+              "name": "aiAnalyzed",
+              "value": "={{ $node[\"Process AI Analysis\"].json.aiAnalysis }}"
+            }
+          ]
+        }
+      },
+      "id": "final-response",
+      "name": "Return Final Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [2050, 200]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [[{"node": "Fetch API Documentation", "type": "main", "index": 0}]]
+    },
+    "Fetch API Documentation": {
+      "main": [[{"node": "Process & Truncate Content", "type": "main", "index": 0}]]
+    },
+    "Process & Truncate Content": {
+      "main": [[{"node": "Analyze Documentation with AI", "type": "main", "index": 0}]]
+    },
+    "Analyze Documentation with AI": {
+      "main": [[{"node": "Process AI Analysis", "type": "main", "index": 0}]]
+    },
+    "Process AI Analysis": {
+      "main": [[{"node": "Split by Entity Type", "type": "main", "index": 0}]]
+    },
+    "Split by Entity Type": {
+      "main": [[{"node": "Prepare Entity Data", "type": "main", "index": 0}]]
+    },
+    "Prepare Entity Data": {
+      "main": [[{"node": "Trigger Data Mapping Workflow", "type": "main", "index": 0}]]
+    },
+    "Trigger Data Mapping Workflow": {
+      "main": [[{"node": "Save Integration Config", "type": "main", "index": 0}]]
+    },
+    "Save Integration Config": {
+      "main": [[{"node": "All Entities Processed?", "type": "main", "index": 0}]]
+    },
+    "All Entities Processed?": {
+      "main": [
+        [{"node": "Return Final Response", "type": "main", "index": 0}],
+        [{"node": "Split by Entity Type", "type": "main", "index": 0}]
+      ]
+    }
+  }
+}

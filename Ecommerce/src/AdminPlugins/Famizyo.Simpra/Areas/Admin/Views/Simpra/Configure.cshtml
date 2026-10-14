@@ -1,0 +1,1060 @@
+@model Famizyo.Simpra.Areas.Admin.Models.ConfigureViewModel
+
+@{
+    Layout="_ConfigurePlugin";
+    
+    if (Model == null)
+    {
+        <div class="alert alert-danger">Model is null! Please check the controller.</div>
+        return;
+    }
+}
+<div class="row">
+    <div class="col-md-12">
+        <div class="x_panel light form-fit">
+            <div class="x_title">
+                <div class="caption">
+                    <i class="fa fa-cogs"></i>
+                    Simpra Entegrasyon Ayarları
+                </div>
+            </div>
+            <div class="x_content form">
+                <form method="post" id="widget-settings-form" asp-action="Configure" asp-controller="Simpra"
+                      asp-area="Admin">
+                    <div class="panel-group" id="accordion">
+                        <!-- API Settings Panel -->
+                        <div class="panel panel-default">
+                            <div class="panel-heading">
+                                <h4 class="panel-title">
+                                    <a data-toggle="collapse" data-parent="#accordion" href="#api-settings">API
+                                        Ayarları</a>
+                                </h4>
+                            </div>
+                            <div id="api-settings" class="panel-collapse collapse in">
+                                <div class="panel-body">
+                                    <div class="form-body">
+                                        <div class="form-group row">
+                                            <div class="col-md-3 col-sm-3 text-right">
+                                                <admin-label asp-for="AccessToken" class="control-label"/>
+                                            </div>
+                                            <div class="col-md-9 col-sm-9">
+                                                <admin-input asp-for="AccessToken" type="password"/>
+                                                <span asp-validation-for="AccessToken"></span>
+                                                <p class="help-block">Simpra Backoffice'den alacağınız Access Token</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row">
+                                            <div class="col-md-3 col-sm-3 text-right">
+                                                <admin-label asp-for="SimpraEnvironment" class="control-label"/>
+                                            </div>
+                                            <div class="col-md-9 col-sm-9">
+                                                <admin-select asp-items="@(Model.EnvironmentOptions ?? new List<SelectListItem>())"
+                                                              asp-for="SimpraEnvironment"></admin-select>
+                                                <span asp-validation-for="SimpraEnvironment"></span>
+                                                <p class="help-block">Simpra API ortamı</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row">
+                                            <div class="col-md-9 col-md-offset-3">
+                                                <button type="button" id="test-connection" class="btn btn-info">
+                                                    <i class="fa fa-plug"></i> Bağlantıyı Test Et
+                                                </button>
+                                                <span id="connection-result"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Revenue Center Configuration Panel -->
+                        <div class="panel panel-default">
+                            <div class="panel-heading">
+                                <h4 class="panel-title">
+                                    <a data-toggle="collapse" data-parent="#accordion" href="#revenue-center-settings">Mağaza
+                                        Yapılandırması</a>
+                                </h4>
+                            </div>
+                            <div id="revenue-center-settings" class="panel-collapse collapse">
+                                <div class="panel-body">
+                                    <div class="form-body">
+                                        <div class="form-group row">
+                                            <div class="col-md-3 col-sm-3 text-right">
+                                                <admin-label asp-for="RevenueCenterId" class="control-label"/>
+                                            </div>
+                                            <div class="col-md-9 col-sm-9">
+                                                <admin-select asp-items="@(Model.AvailableRevenueCenters ?? new List<SelectListItem>())"
+                                                              asp-for="RevenueCenterId"></admin-select>
+                                                <span asp-validation-for="RevenueCenterId"></span>
+                                                <p class="help-block">Simpra'dan çekilecek revenue center listesi</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row">
+                                            <div class="col-md-3 col-sm-3 text-right">
+                                                <admin-label asp-for="SalesChannelId" class="control-label"/>
+                                            </div>
+                                            <div class="col-md-9 col-sm-9">
+                                                <admin-select asp-items="@(Model.AvailableSalesChannels ?? new List<SelectListItem>())"
+                                                              asp-for="SalesChannelId"></admin-select>
+                                                <span asp-validation-for="SalesChannelId"></span>
+                                                <p class="help-block">Simpra'dan çekilecek sales channel listesi</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row">
+                                            <div class="col-md-3 col-sm-3 text-right">
+                                                <admin-label asp-for="EmployeeId" class="control-label"/>
+                                            </div>
+                                            <div class="col-md-9 col-sm-9">
+                                                <admin-select asp-items="@(Model.AvailableEmployees ?? new List<SelectListItem>())"
+                                                              asp-for="EmployeeId"></admin-select>
+                                                <span asp-validation-for="EmployeeId"></span>
+                                                <p class="help-block">Simpra'dan çekilecek çalışan listesi</p>
+                                            </div>
+                                        </div>
+
+                                        <input asp-for="PropertyId" type="hidden"/>
+
+                                        <div class="form-group row">
+                                            <div class="col-md-9 col-md-offset-3">
+                                                <button type="button" id="refresh-dropdowns" class="btn btn-secondary">
+                                                    <i class="fa fa-refresh"></i> Dropdown Listelerini Yenile
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Product Sync Settings Panel -->
+                        <div class="panel panel-default">
+                            <div class="panel-heading">
+                                <h4 class="panel-title">
+                                    <a data-toggle="collapse" data-parent="#accordion" href="#product-settings">Ürün
+                                        Senkronizasyon Ayarları</a>
+                                </h4>
+                            </div>
+                            <div id="product-settings" class="panel-collapse collapse">
+                                <div class="panel-body">
+                                    <div class="form-body">
+                                        <div class="form-group row">
+                                            <div class="col-md-3 col-sm-3 text-right">
+                                                <admin-label asp-for="EnableProductSync" class="control-label"/>
+                                            </div>
+                                            <div class="col-md-9 col-sm-9">
+                                                <admin-input asp-for="EnableProductSync"/>
+                                                <span asp-validation-for="EnableProductSync"></span>
+                                                <p class="help-block">Ürün senkronizasyonunu etkinleştirir</p>
+                                            </div>
+                                        </div>
+
+                                        <div id="product-sync-details" style="display: none;">
+                                            <div class="form-group row">
+                                                <div class="col-md-3 col-sm-3 text-right">
+                                                    <admin-label asp-for="ExportToSimpra" class="control-label"/>
+                                                </div>
+                                                <div class="col-md-9 col-sm-9">
+                                                    <admin-input asp-for="ExportToSimpra"/>
+                                                    <span asp-validation-for="ExportToSimpra"></span>
+                                                    <p class="help-block">Famizyo'dan Simpra'ya ürün aktarımı</p>
+                                                </div>
+                                            </div>
+
+                                            <div class="form-group row">
+                                                <div class="col-md-3 col-sm-3 text-right">
+                                                    <admin-label asp-for="ImportFromSimpra" class="control-label"/>
+                                                </div>
+                                                <div class="col-md-9 col-sm-9">
+                                                    <admin-input asp-for="ImportFromSimpra"/>
+                                                    <span asp-validation-for="ImportFromSimpra"></span>
+                                                    <p class="help-block">Simpra'dan Famizyo'a ürün aktarımı</p>
+                                                </div>
+                                            </div>
+
+                                            <div class="form-group row">
+                                                <div class="col-md-3 col-sm-3 text-right">
+                                                    <admin-label asp-for="SyncProductPrices" class="control-label"/>
+                                                </div>
+                                                <div class="col-md-9 col-sm-9">
+                                                    <admin-input asp-for="SyncProductPrices"/>
+                                                    <span asp-validation-for="SyncProductPrices"></span>
+                                                    <p class="help-block">Ürün fiyatlarını senkronize et</p>
+                                                </div>
+                                            </div>
+
+                                            <!-- Export specific settings -->
+                                            <div id="export-settings" style="display: none;">
+                                                <h5>Famizyo → Simpra Dışa Aktarım Ayarları</h5>
+
+                                                <div class="form-group row">
+                                                    <div class="col-md-3 col-sm-3 text-right">
+                                                        <admin-label asp-for="SyncCategoryIds" class="control-label"/>
+                                                    </div>
+                                                    <div class="col-md-9 col-sm-9">
+                                                        <admin-input asp-for="SyncCategoryIds"
+                                                                     asp-template="MultiSelect"
+                                                                     asp-selectitem="@(Model.AvailableGrandNodeCategories ?? new List<SelectListItem>())"/>
+                                                        <span asp-validation-for="SyncCategoryIds"></span>
+                                                        <p class="help-block">Simpra'ya aktarılacak Famizyo
+                                                            kategorileri (boş bırakılırsa tüm kategoriler)</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Import specific settings -->
+                                            <div id="import-settings" style="display: none;">
+                                                <h5>Simpra → Famizyo İçe Aktarım Ayarları</h5>
+
+                                                <div class="form-group row">
+                                                    <div class="col-md-3 col-sm-3 text-right">
+                                                        <admin-label asp-for="ImportSimpraCategories"
+                                                                     class="control-label"/>
+                                                    </div>
+                                                    <div class="col-md-9 col-sm-9">
+                                                        <admin-input asp-for="ImportSimpraCategories"
+                                                                     asp-template="MultiSelect"
+                                                                     asp-selectitem="@(Model.AvailableSimpraCategories ?? new List<SelectListItem>())"/>
+                                                        <span asp-validation-for="ImportSimpraCategories"></span>
+                                                        <p class="help-block">Famizyo'a aktarılacak Simpra
+                                                            kategorileri (boş bırakılırsa tüm kategoriler)</p>
+                                                    </div>
+                                                </div>
+                                                
+                                                
+                                                <div class="form-group row">
+                                                    <div class="col-md-3 col-sm-3 text-right">
+                                                        <admin-label asp-for="HomepageCategoryIds"
+                                                                     class="control-label"/>
+                                                    </div>
+                                                    <div class="col-md-9 col-sm-9">
+                                                        <admin-input asp-for="HomepageCategoryIds"
+                                                                     asp-template="MultiSelect"
+                                                                     asp-selectitem="@(Model.AvailableGrandNodeCategories ?? new List<SelectListItem>())"/>
+                                                        <span asp-validation-for="HomepageCategoryIds"></span>
+                                                        <p class="help-block">Simpra ana sayfasında gösterilecek
+                                                            kategoriler</p>
+                                                    </div>
+                                                </div>
+
+                                                <div class="form-group row">
+                                                    <div class="col-md-3 col-sm-3 text-right">
+                                                        <admin-label asp-for="FeaturedProductCategoryIds"
+                                                                     class="control-label"/>
+                                                    </div>
+                                                    <div class="col-md-9 col-sm-9">
+                                                        <admin-input asp-for="FeaturedProductCategoryIds"
+                                                                     asp-template="MultiSelect"
+                                                                     asp-selectitem="@(Model.AvailableGrandNodeCategories ?? new List<SelectListItem>())"/>
+                                                        <span asp-validation-for="FeaturedProductCategoryIds"></span>
+                                                        <p class="help-block">Bu kategorilerdeki ürünler öne çıkan
+                                                            olarak işaretlenir</p>
+                                                    </div>
+                                                </div>
+
+                                                <div class="form-group row">
+                                                    <div class="col-md-3 col-sm-3 text-right">
+                                                        <admin-label asp-for="ImportPhotoFromSimpra"
+                                                                     class="control-label"/>
+                                                    </div>
+                                                    <div class="col-md-9 col-sm-9">
+                                                        <admin-input asp-for="ImportPhotoFromSimpra"/>
+                                                        <span asp-validation-for="ImportPhotoFromSimpra"></span>
+                                                        <p class="help-block">Simpra'dan aktarım sırasında ürün
+                                                            fotoğraflarını güncelle</p>
+                                                    </div>
+                                                </div>
+
+                                                <div class="form-group row">
+                                                    <div class="col-md-3 col-sm-3 text-right">
+                                                        <admin-label asp-for="ForceUpdateSku" class="control-label"/>
+                                                    </div>
+                                                    <div class="col-md-9 col-sm-9">
+                                                        <admin-input asp-for="ForceUpdateSku"/>
+                                                        <span asp-validation-for="ForceUpdateSku"></span>
+                                                        <p class="help-block">Mevcut ürünlerin SKU'larını zorla
+                                                            güncelle</p>
+                                                    </div>
+                                                </div>
+
+                                                <div class="form-group row">
+                                                    <div class="col-md-3 col-sm-3 text-right">
+                                                        <admin-label asp-for="DefaultImportCategoryId"
+                                                                     class="control-label"/>
+                                                    </div>
+                                                    <div class="col-md-9 col-sm-9">
+                                                        <admin-select asp-items="@(Model.AvailableGrandNodeCategories ?? new List<SelectListItem>())"
+                                                                      asp-for="DefaultImportCategoryId"></admin-select>
+                                                        <span asp-validation-for="DefaultImportCategoryId"></span>
+                                                        <p class="help-block">Kategori bulunamadığında kullanılacak
+                                                            varsayılan kategori</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row">
+                                            <div class="col-md-3 col-sm-3 text-right">
+                                                <admin-label asp-for="ProductLayoutId" class="control-label"/>
+                                            </div>
+                                            <div class="col-md-9 col-sm-9">
+                                                <admin-select asp-items="@(Model.AvailableProductLayouts ?? new List<SelectListItem>())"
+                                                              asp-for="ProductLayoutId"></admin-select>
+                                                <span asp-validation-for="ProductLayoutId"></span>
+                                                <p class="help-block">Senkronize edilen ürünler için kullanılacak ürün
+                                                    düzeni</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row">
+                                            <div class="col-md-3 col-sm-3 text-right">
+                                                <admin-label asp-for="TaxCategoryId" class="control-label"/>
+                                            </div>
+                                            <div class="col-md-9 col-sm-9">
+                                                <admin-select asp-items="@(Model.AvailableGrandNodeTaxCategories ?? new List<SelectListItem>())"
+                                                              asp-for="TaxCategoryId"></admin-select>
+                                                <span asp-validation-for="TaxCategoryId"></span>
+                                                <p class="help-block">Simpra'dan aktarılan ürünlere atanacak Famizyo
+                                                    vergi kategorisi</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="form-group row">
+                                            <div class="col-md-3 col-sm-3 text-right">
+                                                <admin-label asp-for="DefaultSimpraMenuItemGroupId" class="control-label"/>
+                                            </div>
+                                            <div class="col-md-9 col-sm-9">
+                                                <admin-select asp-items="@(Model.AvailableSimpraMenuItemGroups ?? new List<SelectListItem>())"
+                                                              asp-for="DefaultSimpraMenuItemGroupId"></admin-select>
+                                                <span asp-validation-for="DefaultSimpraMenuItemGroupId"></span>
+                                                <p class="help-block">Kategori UserField'ında Simpra Menu Item Group ID bulunamadığında kullanılacak varsayılan grup</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Order Settings Panel -->
+                        <div class="panel panel-default">
+                            <div class="panel-heading">
+                                <h4 class="panel-title">
+                                    <a data-toggle="collapse" data-parent="#accordion" href="#order-settings">Sipariş
+                                        Ayarları</a>
+                                </h4>
+                            </div>
+                            <div id="order-settings" class="panel-collapse collapse">
+                                <div class="panel-body">
+                                    <div class="form-body">
+                                        <div class="form-group row">
+                                            <div class="col-md-3 col-sm-3 text-right">
+                                                <admin-label asp-for="EnableOrderStatusSync" class="control-label"/>
+                                            </div>
+                                            <div class="col-md-9 col-sm-9">
+                                                <admin-input asp-for="EnableOrderStatusSync"/>
+                                                <span asp-validation-for="EnableOrderStatusSync"></span>
+                                                <p class="help-block">Sipariş durum senkronizasyonunu etkinleştirir</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row">
+                                            <div class="col-md-3 col-sm-3 text-right">
+                                                <admin-label asp-for="OrderStatusSyncInterval" class="control-label"/>
+                                            </div>
+                                            <div class="col-md-9 col-sm-9">
+                                                <admin-input asp-for="OrderStatusSyncInterval"/>
+                                                <span asp-validation-for="OrderStatusSyncInterval"></span>
+                                                <p class="help-block">Sipariş durumu kontrolü yapılacak dakika
+                                                    aralığı</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Payment Method Mapping Panel -->
+                        <div class="panel panel-default">
+                            <div class="panel-heading">
+                                <h4 class="panel-title">
+                                    <a data-toggle="collapse" data-parent="#accordion" href="#payment-mapping-settings">Ödeme Yöntemi Eşleştirme</a>
+                                </h4>
+                            </div>
+                            <div id="payment-mapping-settings" class="panel-collapse collapse">
+                                <div class="panel-body">
+                                    <div class="form-body">
+                                        <div class="alert alert-info">
+                                            <i class="fa fa-info-circle"></i>
+                                            <strong>Bilgi:</strong> Famizyo'daki ödeme sağlayıcılarını Simpra'daki ödeme tipları ile eşleştirin. Bu eşleştirme sipariş aktarımında kullanılacaktır.
+                                        </div>
+                                        
+                                        <div id="payment-mapping-container">
+                                            @if (Model.AvailablePaymentProviders?.Any() == true)
+                                            {
+                                                @foreach (var provider in Model.AvailablePaymentProviders)
+                                                {
+                                                    <div class="form-group row payment-mapping-row">
+                                                        <div class="col-md-4 col-sm-4 text-right">
+                                                            <label class="control-label">@provider.Text:</label>
+                                                        </div>
+                                                        <div class="col-md-6 col-sm-6">
+                                                            <select name="PaymentMethodMappings[@provider.Value]" 
+                                                                    class="form-control simpra-payment-select"
+                                                                    data-provider-system-name="@(provider.Value??"")">
+                                                                <option value="">Seçiniz</option>
+                                                                @if (Model.AvailableSimpraPaymentTypes?.Any() == true)
+                                                                {
+                                                                    @foreach (var simpraMethod in Model.AvailableSimpraPaymentTypes.Where(x => !string.IsNullOrEmpty(x.Value)))
+                                                                    {
+                                                                        var isSelected = Model.PaymentMethodMappings.ContainsKey(provider.Value) && 
+                                                                                        Model.PaymentMethodMappings[provider.Value] == simpraMethod.Value;
+                                                                        @if (isSelected)
+                                                                        {
+                                                                            <option value="@simpraMethod.Value" selected>@simpraMethod.Text</option>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <option value="@simpraMethod.Value">@simpraMethod.Text</option>
+                                                                        }
+                                                                    }
+                                                                }
+                                                            </select>
+                                                        </div>
+                                                        <div class="col-md-2 col-sm-2">
+                                                            <span class="help-block text-muted">SystemName: @provider.Value</span>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="alert alert-warning">
+                                                    <i class="fa fa-exclamation-triangle"></i>
+                                                    Aktif ödeme sağlayıcısı bulunamadı. Önce ödeme sağlayıcılarını etkinleştirin.
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Service Charge Mapping Panel -->
+                        <div class="panel panel-default">
+                            <div class="panel-heading">
+                                <h4 class="panel-title">
+                                    <a data-toggle="collapse" data-parent="#accordion" href="#service-charge-mapping-settings">Servis Ücreti Eşleştirme</a>
+                                </h4>
+                            </div>
+                            <div id="service-charge-mapping-settings" class="panel-collapse collapse">
+                                <div class="panel-body">
+                                    <div class="form-body">
+                                        <div class="alert alert-info">
+                                            <i class="fa fa-info-circle"></i>
+                                            <strong>Bilgi:</strong> Famizyo'daki ücret türlerini Simpra'daki servis ücretleri ile eşleştirin. Bu eşleştirme sipariş aktarımında kullanılacaktır.
+                                        </div>
+                                        
+                                        <div id="service-charge-mapping-container">
+                                            <!-- Shipping Fee Mapping -->
+                                            <div class="form-group row service-charge-mapping-row">
+                                                <div class="col-md-4 col-sm-4 text-right">
+                                                    <label class="control-label">Kargo Ücreti:</label>
+                                                </div>
+                                                <div class="col-md-6 col-sm-6">
+                                                    <select name="ServiceChargeMappings[shipping]" 
+                                                            class="form-control simpra-service-charge-select">
+                                                        <option value="">Seçiniz</option>
+                                                        @if (Model.AvailableSimpraServiceCharges?.Any() == true)
+                                                        {
+                                                            @foreach (var serviceCharge in Model.AvailableSimpraServiceCharges.Where(x => !string.IsNullOrEmpty(x.Value)))
+                                                            {
+                                                                var isSelected = Model.ServiceChargeMappings.ContainsKey("shipping") && 
+                                                                                Model.ServiceChargeMappings["shipping"] == serviceCharge.Value;
+                                                                @if (isSelected)
+                                                                {
+                                                                    <option value="@serviceCharge.Value" selected>@serviceCharge.Text</option>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <option value="@serviceCharge.Value">@serviceCharge.Text</option>
+                                                                }
+                                                            }
+                                                        }
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-2 col-sm-2">
+                                                    <span class="help-block text-muted">OrderShippingInclTax</span>
+                                                </div>
+                                            </div>
+
+                                            <!-- Payment Fee Mapping -->
+                                            <div class="form-group row service-charge-mapping-row">
+                                                <div class="col-md-4 col-sm-4 text-right">
+                                                    <label class="control-label">Ödeme Ücreti:</label>
+                                                </div>
+                                                <div class="col-md-6 col-sm-6">
+                                                    <select name="ServiceChargeMappings[payment_fee]" 
+                                                            class="form-control simpra-service-charge-select">
+                                                        <option value="">Seçiniz</option>
+                                                        @if (Model.AvailableSimpraServiceCharges?.Any() == true)
+                                                        {
+                                                            @foreach (var serviceCharge in Model.AvailableSimpraServiceCharges.Where(x => !string.IsNullOrEmpty(x.Value)))
+                                                            {
+                                                                var isSelected = Model.ServiceChargeMappings.ContainsKey("payment_fee") && 
+                                                                                Model.ServiceChargeMappings["payment_fee"] == serviceCharge.Value;
+                                                                @if (isSelected)
+                                                                {
+                                                                    <option value="@serviceCharge.Value" selected>@serviceCharge.Text</option>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <option value="@serviceCharge.Value">@serviceCharge.Text</option>
+                                                                }
+                                                            }
+                                                        }
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-2 col-sm-2">
+                                                    <span class="help-block text-muted">PaymentMethodAdditionalFeeInclTax</span>
+                                                </div>
+                                            </div>
+
+                                            <!-- Checkout Attributes Mapping -->
+                                            <h6 class="mt-4">Checkout Attribute Eşleştirmeleri</h6>
+                                            @if (Model.AvailableCheckoutAttributes?.Any() == true)
+                                            {
+                                                @foreach (var attribute in Model.AvailableCheckoutAttributes)
+                                                {
+                                                    @if (attribute.AttributeControlTypeId == Grand.Domain.Catalog.AttributeControlType.TextBox || 
+                                                         attribute.AttributeControlTypeId == Grand.Domain.Catalog.AttributeControlType.MultilineTextbox)
+                                                    {
+                                                        <!-- Text-based attributes - only general mapping -->
+                                                        <div class="form-group row checkout-attribute-mapping-row">
+                                                            <div class="col-md-4 col-sm-4 text-right">
+                                                                <label class="control-label">@(attribute.Name):</label>
+                                                            </div>
+                                                            <div class="col-md-6 col-sm-6">
+                                                                <select name="ServiceChargeMappings[checkout_attribute_@(attribute.Id)]" 
+                                                                        class="form-control simpra-service-charge-select">
+                                                                    <option value="">Seçiniz</option>
+                                                                    @if (Model.AvailableSimpraServiceCharges?.Any() == true)
+                                                                    {
+                                                                        @foreach (var serviceCharge in Model.AvailableSimpraServiceCharges.Where(x => !string.IsNullOrEmpty(x.Value)))
+                                                                        {
+                                                                            var mappingKey = $"checkout_attribute_{attribute.Id}";
+                                                                            var isSelected = Model.ServiceChargeMappings.ContainsKey(mappingKey) && 
+                                                                                            Model.ServiceChargeMappings[mappingKey] == serviceCharge.Value;
+                                                                            @if (isSelected)
+                                                                            {
+                                                                                <option value="@serviceCharge.Value" selected>@serviceCharge.Text</option>
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                <option value="@serviceCharge.Value">@serviceCharge.Text</option>
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-md-2 col-sm-2">
+                                                                <span class="help-block text-muted">@(attribute.AttributeControlTypeId)</span>
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <!-- Value-based attributes - mappings for each value -->
+                                                        <div class="checkout-attribute-group">
+                                                            <h6 class="text-primary">@(attribute.Name) (@(attribute.AttributeControlTypeId))</h6>
+                                                            @if (attribute.CheckoutAttributeValues?.Any() == true)
+                                                            {
+                                                                @foreach (var attributeValue in attribute.CheckoutAttributeValues)
+                                                                {
+                                                                    <div class="form-group row checkout-attribute-value-mapping-row ml-3">
+                                                                        <div class="col-md-4 col-sm-4 text-right">
+                                                                            <label class="control-label">@attributeValue.Name:</label>
+                                                                        </div>
+                                                                        <div class="col-md-6 col-sm-6">
+                                                                            <select name="ServiceChargeMappings[checkout_attribute_@(attribute.Id)_@(attributeValue.Id)]" 
+                                                                                    class="form-control simpra-service-charge-select">
+                                                                                <option value="">Seçiniz</option>
+                                                                                @if (Model.AvailableSimpraServiceCharges?.Any() == true)
+                                                                                {
+                                                                                    @foreach (var serviceCharge in Model.AvailableSimpraServiceCharges.Where(x => !string.IsNullOrEmpty(x.Value)))
+                                                                                    {
+                                                                                        var mappingKey = $"checkout_attribute_{attribute.Id}_{attributeValue.Id}";
+                                                                                        var isSelected = Model.ServiceChargeMappings.ContainsKey(mappingKey) && 
+                                                                                                        Model.ServiceChargeMappings[mappingKey] == serviceCharge.Value;
+                                                                                        @if (isSelected)
+                                                                                        {
+                                                                                            <option value="@serviceCharge.Value" selected>@serviceCharge.Text</option>
+                                                                                        }
+                                                                                        else
+                                                                                        {
+                                                                                            <option value="@serviceCharge.Value">@serviceCharge.Text</option>
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            </select>
+                                                                        </div>
+                                                                        <div class="col-md-2 col-sm-2">
+                                                                            @if (attributeValue.PriceAdjustment != 0)
+                                                                            {
+                                                                                <span class="help-block text-success">+@attributeValue.PriceAdjustment.ToString("C")</span>
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                <span class="help-block text-muted">Ücretsiz</span>
+                                                                            }
+                                                                        </div>
+                                                                    </div>
+                                                                }
+                                                            }
+                                                        </div>
+                                                    }
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="alert alert-warning">
+                                                    <i class="fa fa-exclamation-triangle"></i>
+                                                    Checkout attribute bulunamadı. Önce checkout attribute'leri tanımlayın.
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tax Category Mapping Panel -->
+                        <div class="panel panel-default">
+                            <div class="panel-heading">
+                                <h4 class="panel-title">
+                                    <a data-toggle="collapse" data-parent="#accordion" href="#tax-mapping-settings">Vergi Kategorisi Eşleştirme</a>
+                                </h4>
+                            </div>
+                            <div id="tax-mapping-settings" class="panel-collapse collapse">
+                                <div class="panel-body">
+                                    <div class="form-body">
+                                        <div class="alert alert-info">
+                                            <i class="fa fa-info-circle"></i>
+                                            <strong>Bilgi:</strong> Simpra'daki vergi kategorilerini Famizyo'daki vergi kategorileri ile eşleştirin. Bu eşleştirme ürün aktarımında kullanılacaktır.
+                                        </div>
+                                        
+                                        <div id="tax-mapping-container">
+                                            @if (Model.AvailableSimpraTaxCategories?.Any() == true)
+                                            {
+                                                @foreach (var simpraTax in Model.AvailableSimpraTaxCategories)
+                                                {
+                                                    <div class="form-group row tax-mapping-row">
+                                                        <div class="col-md-4 col-sm-4 text-right">
+                                                            <label class="control-label">@simpraTax.Text:</label>
+                                                        </div>
+                                                        <div class="col-md-6 col-sm-6">
+                                                            <select name="TaxCategoryMappings[@simpraTax.Value]" 
+                                                                    class="form-control grand-tax-select"
+                                                                    data-simpra-tax-id="@simpraTax.Value">
+                                                                <option value="">Seçiniz</option>
+                                                                @if (Model.AvailableGrandNodeTaxCategories?.Any() == true)
+                                                                {
+                                                                    @foreach (var grandTax in Model.AvailableGrandNodeTaxCategories)
+                                                                    {
+                                                                        var isSelected = Model.TaxCategoryMappings.ContainsKey(simpraTax.Value) && 
+                                                                                        Model.TaxCategoryMappings[simpraTax.Value] == grandTax.Value;
+                                                                        @if (isSelected)
+                                                                        {
+                                                                            <option value="@grandTax.Value" selected>@grandTax.Text</option>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <option value="@grandTax.Value">@grandTax.Text</option>
+                                                                        }
+                                                                    }
+                                                                }
+                                                            </select>
+                                                        </div>
+                                                        <div class="col-md-2 col-sm-2">
+                                                            <span class="help-block text-muted">Simpra ID: @simpraTax.Value</span>
+                                                        </div>
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="alert alert-warning">
+                                                    <i class="fa fa-exclamation-triangle"></i>
+                                                    Simpra'da vergi kategorisi bulunamadı. Önce API bağlantısını test edin ve Simpra'da vergi kategorilerinin tanımlı olduğundan emin olun.
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Redis Settings Panel -->
+                        <div class="panel panel-default">
+                            <div class="panel-heading">
+                                <h4 class="panel-title">
+                                    <a data-toggle="collapse" data-parent="#accordion" href="#redis-settings">Redis
+                                        Ayarları</a>
+                                </h4>
+                            </div>
+                            <div id="redis-settings" class="panel-collapse collapse">
+                                <div class="panel-body">
+                                    <div class="form-body">
+                                        <div class="form-group row">
+                                            <div class="col-md-3 col-sm-3 text-right">
+                                                <admin-label asp-for="RedisChannelPrefix" class="control-label"/>
+                                            </div>
+                                            <div class="col-md-9 col-sm-9">
+                                                <admin-input asp-for="RedisChannelPrefix"/>
+                                                <span asp-validation-for="RedisChannelPrefix"></span>
+                                                <p class="help-block">Redis kanalları için prefix</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Manual Sync Operations Panel -->
+                        <div class="panel panel-default">
+                            <div class="panel-heading">
+                                <h4 class="panel-title">
+                                    <a data-toggle="collapse" data-parent="#accordion" href="#manual-sync-settings">Manuel Senkronizasyon</a>
+                                </h4>
+                            </div>
+                            <div id="manual-sync-settings" class="panel-collapse collapse">
+                                <div class="panel-body">
+                                    <div class="form-body">
+                                        <div class="alert alert-info">
+                                            <i class="fa fa-info-circle"></i>
+                                            <strong>Bilgi:</strong> Bu işlemler manuel olarak senkronizasyon başlatır. Otomatik senkronizasyon ayarlarınızdan bağımsız çalışır.
+                                        </div>
+
+                                        <div class="form-group row">
+                                            <div class="col-md-12">
+                                                <h5>Ürün Senkronizasyonu</h5>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row">
+                                            <div class="col-md-6">
+                                                <button type="button" id="sync-products-from-simpra" class="btn btn-success btn-block">
+                                                    <i class="fa fa-download"></i> Simpra'dan Ürünleri İçe Aktar
+                                                </button>
+                                                <p class="help-block">Simpra'daki aktif ürünleri Famizyo'a aktarır</p>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <button type="button" id="sync-products-to-simpra" class="btn btn-info btn-block">
+                                                    <i class="fa fa-upload"></i> Famizyo'dan Ürünleri Dışa Aktar
+                                                </button>
+                                                <p class="help-block">Famizyo'daki ürünleri Simpra'ya aktarır</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row">
+                                            <div class="col-md-6">
+                                                <button type="button" id="sync-categories-from-simpra" class="btn btn-warning btn-block">
+                                                    <i class="fa fa-download"></i> Simpra'dan Kategorileri İçe Aktar
+                                                </button>
+                                                <p class="help-block">Simpra'daki kategori gruplarını Famizyo'a aktarır</p>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <button type="button" id="sync-product-prices" class="btn btn-secondary btn-block">
+                                                    <i class="fa fa-refresh"></i> Ürün Fiyatlarını Güncelle
+                                                </button>
+                                                <p class="help-block">Simpra'dan güncel fiyatları çeker</p>
+                                            </div>
+                                        </div>
+
+                                        <hr/>
+
+                                        <div class="form-group row">
+                                            <div class="col-md-12">
+                                                <h5>Sipariş Senkronizasyonu</h5>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row">
+                                            <div class="col-md-6">
+                                                <button type="button" id="sync-order-statuses" class="btn btn-primary btn-block">
+                                                    <i class="fa fa-refresh"></i> Sipariş Durumlarını Güncelle
+                                                </button>
+                                                <p class="help-block">Simpra'dan sipariş durumlarını kontrol eder</p>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <button type="button" id="export-pending-orders" class="btn btn-success btn-block">
+                                                    <i class="fa fa-upload"></i> Bekleyen Siparişleri Gönder
+                                                </button>
+                                                <p class="help-block">Famizyo'dan Simpra'ya bekleyen siparişleri gönderir</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group row">
+                                            <div class="col-md-12">
+                                                <div id="sync-progress" class="alert alert-info" style="display: none;">
+                                                    <i class="fa fa-spinner fa-spin"></i>
+                                                    <span id="sync-message">Senkronizasyon başlatılıyor...</span>
+                                                </div>
+                                                <div id="sync-result" style="display: none;"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Save Button -->
+                        <div class="panel panel-default">
+                            <div class="panel-body">
+                                <div class="form-group row">
+                                    <div class="col-md-12">
+                                        <input type="submit" id="savegeneralsettings" class="btn btn-primary"
+                                               value="Ayarları Kaydet"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function () {
+        // Show/hide product sync details based on checkbox
+        function toggleProductSyncDetails() {
+            if ($('input[name="EnableProductSync"]').is(':checked')) {
+                $('#product-sync-details').show();
+                toggleExportSettings();
+                toggleImportSettings();
+            } else {
+                $('#product-sync-details').hide();
+            }
+        }
+
+        $('input[name="EnableProductSync"]').change(toggleProductSyncDetails);
+        toggleProductSyncDetails(); // Initialize on page load
+
+        // Show/hide import settings based on import checkbox
+        function toggleImportSettings() {
+            if ($('input[name="ImportFromSimpra"]').is(':checked')) {
+                $('#import-settings').show();
+            } else {
+                $('#import-settings').hide();
+            }
+        }
+
+        $('input[name="ImportFromSimpra"]').change(toggleImportSettings);
+        toggleImportSettings(); // Initialize on page load
+
+        // Show/hide export settings based on export checkbox
+        function toggleExportSettings() {
+            if ($('input[name="ExportToSimpra"]').is(':checked')) {
+                $('#export-settings').show();
+            } else {
+                $('#export-settings').hide();
+            }
+        }
+
+        $('input[name="ExportToSimpra"]').change(toggleExportSettings);
+        toggleExportSettings(); // Initialize on page load
+
+        // Load Simpra dropdown data when access token changes
+        function loadSimpraDropdownData() {
+            var accessToken = $('input[name="AccessToken"]').val();
+            if (!accessToken || accessToken.trim() === '') {
+                return;
+            }
+
+            // Add loading indicators
+            $('select[name="RevenueCenterId"]').prop('disabled', true).html('<option value="">Yükleniyor...</option>');
+            $('select[name="SalesChannelId"]').prop('disabled', true).html('<option value="">Yükleniyor...</option>');
+            $('select[name="EmployeeId"]').prop('disabled', true).html('<option value="">Yükleniyor...</option>');
+
+            $.post('@Url.Action("LoadSimpraData", "Simpra")', function (response) {
+                if (response.success) {
+                    // Populate Revenue Centers
+                    $('select[name="RevenueCenterId"]').prop('disabled', false).html('<option value="">-- Revenue Center Seçin --</option>');
+                    $.each(response.revenueCenters, function (index, item) {
+                        $('select[name="RevenueCenterId"]').append('<option value="' + item.value + '">' + item.text + '</option>');
+                    });
+
+                    // Populate Sales Channels
+                    $('select[name="SalesChannelId"]').prop('disabled', false).html('<option value="">-- Sales Channel Seçin --</option>');
+                    $.each(response.salesChannels, function (index, item) {
+                        $('select[name="SalesChannelId"]').append('<option value="' + item.value + '">' + item.text + '</option>');
+                    });
+
+                    // Populate Employees
+                    $('select[name="EmployeeId"]').prop('disabled', false).html('<option value="">-- Çalışan Seçin --</option>');
+                    $.each(response.employees, function (index, item) {
+                        $('select[name="EmployeeId"]').append('<option value="' + item.value + '">' + item.text + '</option>');
+                    });
+
+                    // Store revenue center data for property_id mapping
+                    window.revenueCentersData = response.revenueCentersWithPropertyIds || [];
+
+                    // Restore previously selected values
+                    var currentRevenueCenterId = '@(Model.RevenueCenterId ?? "")';
+                    var currentSalesChannelId = '@(Model.SalesChannelId ?? "")';
+                    var currentEmployeeId = '@(Model.EmployeeId ?? "")';
+
+                    if (currentRevenueCenterId) {
+                        $('select[name="RevenueCenterId"]').val(currentRevenueCenterId);
+                        updatePropertyIdFromRevenueCenter(currentRevenueCenterId);
+                    }
+                    if (currentSalesChannelId) {
+                        $('select[name="SalesChannelId"]').val(currentSalesChannelId);
+                    }
+                    if (currentEmployeeId) {
+                        $('select[name="EmployeeId"]').val(currentEmployeeId);
+                    }
+
+                } else {
+                    // Error handling
+                    $('select[name="RevenueCenterId"]').prop('disabled', false).html('<option value="">Yükleme hatası</option>');
+                    $('select[name="SalesChannelId"]').prop('disabled', false).html('<option value="">Yükleme hatası</option>');
+                    $('select[name="EmployeeId"]').prop('disabled', false).html('<option value="">Yükleme hatası</option>');
+
+                    if (response.message) {
+                        alert('Veri yükleme hatası: ' + response.message);
+                    }
+                }
+            }).fail(function () {
+                // Network error handling
+                $('select[name="RevenueCenterId"]').prop('disabled', false).html('<option value="">Bağlantı hatası</option>');
+                $('select[name="SalesChannelId"]').prop('disabled', false).html('<option value="">Bağlantı hatası</option>');
+                $('select[name="EmployeeId"]').prop('disabled', false).html('<option value="">Bağlantı hatası</option>');
+                alert('Simpra verilerine bağlanırken hata oluştu. Bağlantınızı kontrol edin.');
+            });
+        }
+
+        // Load dropdown data when access token field loses focus (user finished typing)
+        $('input[name="AccessToken"]').on('blur', function () {
+            loadSimpraDropdownData();
+        });
+
+        // Refresh dropdown button click handler
+        $('#refresh-dropdowns').click(function () {
+            loadSimpraDropdownData();
+        });
+
+        // Function to update property_id based on selected revenue center
+        function updatePropertyIdFromRevenueCenter(revenueCenterId) {
+            if (window.revenueCentersData && revenueCenterId) {
+                var revenueCenter = window.revenueCentersData.find(rc => rc.id === revenueCenterId);
+                if (revenueCenter) {
+                    // Store property_id for use in API calls and update hidden field
+                    window.selectedPropertyId = revenueCenter.propertyId;
+                    $('input[name="PropertyId"]').val(revenueCenter.propertyId);
+                    console.log('Selected Revenue Center Type:', revenueCenter.type, 'Property ID:', revenueCenter.propertyId);
+                }
+            }
+        }
+
+        // Revenue center change handler
+        $('select[name="RevenueCenterId"]').change(function () {
+            var selectedRevenueCenterId = $(this).val();
+            updatePropertyIdFromRevenueCenter(selectedRevenueCenterId);
+        });
+
+        // Test connection button
+        $('#test-connection').click(function () {
+            var button = $(this);
+            var resultSpan = $('#connection-result');
+
+            button.prop('disabled', true);
+            resultSpan.html('<i class="fa fa-spinner fa-spin"></i> Test ediliyor...');
+
+            $.post('@Url.Action("TestConnection", "Simpra")', function (response) {
+                if (response.success) {
+                    resultSpan.html('<span class="text-success"><i class="fa fa-check"></i> ' + response.message + '</span>');
+                    // Auto-load dropdown data after successful connection test
+                    setTimeout(function () {
+                        loadSimpraDropdownData();
+                    }, 500);
+                } else {
+                    resultSpan.html('<span class="text-danger"><i class="fa fa-times"></i> ' + response.message + '</span>');
+                }
+            }).fail(function () {
+                resultSpan.html('<span class="text-danger"><i class="fa fa-times"></i> Bağlantı testi başarısız</span>');
+            }).always(function () {
+                button.prop('disabled', false);
+            });
+        });
+
+        // Manual sync operations
+        function handleSyncOperation(button, url, operationName) {
+            var $button = $(button);
+            var originalText = $button.html();
+            var progressDiv = $('#sync-progress');
+            var resultDiv = $('#sync-result');
+            var messageSpan = $('#sync-message');
+
+            // Disable button and show progress
+            $button.prop('disabled', true);
+            $button.html('<i class="fa fa-spinner fa-spin"></i> İşlem devam ediyor...');
+            
+            progressDiv.show();
+            resultDiv.hide();
+            messageSpan.text(operationName + ' başlatılıyor...');
+
+            $.post(url, function (response) {
+                if (response.success) {
+                    resultDiv.html('<div class="alert alert-success"><i class="fa fa-check"></i> ' + response.message + '</div>');
+                } else {
+                    resultDiv.html('<div class="alert alert-danger"><i class="fa fa-times"></i> ' + response.message + '</div>');
+                }
+            }).fail(function () {
+                resultDiv.html('<div class="alert alert-danger"><i class="fa fa-times"></i> ' + operationName + ' sırasında bir hata oluştu. Lütfen tekrar deneyin.</div>');
+            }).always(function () {
+                // Re-enable button and restore text
+                $button.prop('disabled', false);
+                $button.html(originalText);
+                
+                // Hide progress and show result
+                progressDiv.hide();
+                resultDiv.show();
+                
+                // Auto-hide result after 10 seconds
+                setTimeout(function () {
+                    resultDiv.fadeOut();
+                }, 10000);
+            });
+        }
+
+        // Sync buttons click handlers
+        $('#sync-products-from-simpra').click(function () {
+            handleSyncOperation(this, '@Url.Action("SyncProductsFromSimpra", "Simpra")', 'Simpra\'dan ürün aktarımı');
+        });
+
+        $('#sync-products-to-simpra').click(function () {
+            handleSyncOperation(this, '@Url.Action("SyncProductsToSimpra", "Simpra")', 'Famizyo\'dan Simpra\'ya ürün aktarımı');
+        });
+
+        $('#sync-categories-from-simpra').click(function () {
+            handleSyncOperation(this, '@Url.Action("SyncCategoriesFromSimpra", "Simpra")', 'Simpra\'dan kategori aktarımı');
+        });
+
+        $('#sync-product-prices').click(function () {
+            handleSyncOperation(this, '@Url.Action("SyncProductPrices", "Simpra")', 'Ürün fiyat güncellemesi');
+        });
+
+        $('#sync-order-statuses').click(function () {
+            handleSyncOperation(this, '@Url.Action("SyncOrderStatuses", "Simpra")', 'Sipariş durum senkronizasyonu');
+        });
+
+        $('#export-pending-orders').click(function () {
+            handleSyncOperation(this, '@Url.Action("ExportPendingOrders", "Simpra")', 'Bekleyen sipariş aktarımı');
+        });
+    });
+</script>

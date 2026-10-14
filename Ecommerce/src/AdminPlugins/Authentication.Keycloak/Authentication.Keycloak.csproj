@@ -1,0 +1,76 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+    <Import Project="..\..\Build\Grand.Common.props" />
+    <PropertyGroup>
+        <Nullable>enable</Nullable>
+        <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+    </PropertyGroup>
+
+
+    <PropertyGroup Condition="'$(BuildType)'==''">
+        <OutputPath>..\..\Web\Grand.Web.OnlyAdmin\Plugins\ExternalAuth.Keycloak</OutputPath>
+        <OutDir>$(OutputPath)</OutDir>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+        <OutputPath>$(BaseDir)ExternalAuth.Keycloak</OutputPath>
+        <OutDir>$(OutputPath)</OutDir>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+        <OutputPath>$(BaseDir)ExternalAuth.Keycloak</OutputPath>
+        <OutDir>$(OutputPath)</OutDir>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Update="logo.jpg">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <None Update="appsettings.keycloak.json">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <None Update="Areas\**">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+<!--        <Content Include="Areas\**" CopyToPublishDirectory="PreserveNewest" />-->
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Business\Grand.Business.Authentication\Grand.Business.Authentication.csproj" />
+        <ProjectReference Include="..\..\Business\Grand.Business.Tenants\Grand.Business.Tenants.csproj" />
+        <ProjectReference Include="..\..\Core\Grand.Data\Grand.Data.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+        <ProjectReference Include="..\..\Core\Grand.Domain\Grand.Domain.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+        <ProjectReference Include="..\..\Core\Grand.Infrastructure\Grand.Infrastructure.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+        <ProjectReference Include="..\..\Core\Grand.SharedKernel\Grand.SharedKernel.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+        <ProjectReference Include="..\..\Web\Grand.Web.Common\Grand.Web.Common.csproj">
+            <Private>false</Private>
+            <ExcludeAssets>all</ExcludeAssets>
+        </ProjectReference>
+        <ProjectReference Include="..\..\Business\Grand.Business.Core\Grand.Business.Core.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Aspire.Keycloak.Authentication" Version="8.2.2-preview.1.24521.5" />
+        <PackageReference Include="Flurl.Http" Version="4.0.2" />
+        <PackageReference Include="Keycloak.Net.Core" Version="1.0.30" />
+    </ItemGroup>
+
+    <Target Name="CopyFile" AfterTargets="AfterBuild">
+        <ItemGroup>
+            <CopyFiles Include="$(NuGetPackageRoot)/aspire.keycloak.authentication/8.2.2-preview.1.24521.5/lib/net8.0/*.dll" />
+            <CopyFiles Include="$(NuGetPackageRoot)/microsoft.aspnetcore.authentication.openidconnect/8.0.10/lib/net8.0/*.dll" />
+            <CopyFiles Include="$(NuGetPackageRoot)/keycloak.net.core/1.0.30/lib/net8.0/*.dll" />
+            <CopyFiles Include="$(NuGetPackageRoot)/flurl.http/4.0.2/lib/net6.0/*.dll" />
+        </ItemGroup>
+        <Copy SourceFiles="@(CopyFiles)" DestinationFolder="$(OutDir)/" />
+    </Target>
+</Project>

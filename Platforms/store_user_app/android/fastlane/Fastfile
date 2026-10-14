@@ -1,0 +1,169 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:android)
+
+platform :android do
+  desc "Deploy a new version to the Google Play Beta track"
+  lane :beta do |options|
+    # Get flavor from options or environment variable
+    flavor = options[:flavor] || ENV["FLAVOR"] || "asksekerle"
+    
+    # Get package name from environment variable or use default based on flavor
+    package_name = ENV["PACKAGE_NAME"] || "com.famizyo.#{flavor}"
+    
+    # Get version name and code from environment variables
+    version_name = ENV["VERSION_NAME"]
+    version_code = ENV["VERSION_CODE"]
+    
+    # Get Google Play JSON key path from environment variable
+    json_key_path = ENV["GOOGLE_PLAY_JSON_KEY_PATH"]
+    
+    # Validate required parameters
+    UI.user_error!("GOOGLE_PLAY_JSON_KEY_PATH environment variable is required") unless json_key_path
+    UI.user_error!("VERSION_NAME environment variable is required") unless version_name
+    UI.user_error!("VERSION_CODE environment variable is required") unless version_code
+    
+    UI.message("Deploying #{flavor} flavor to Google Play Beta")
+    UI.message("Package name: #{package_name}")
+    UI.message("Version: #{version_name} (#{version_code})")
+    
+    # Build the AAB (Android App Bundle)
+    gradle(
+      task: "bundle",
+      flavor: flavor,
+      build_type: "Release",
+      properties: {
+        "versionName" => version_name,
+        "versionCode" => version_code
+      }
+    )
+    
+    # Upload to Google Play Beta track
+    upload_to_play_store(
+      package_name: package_name,
+      track: "beta",
+      release_status: "draft", # Change to "completed" for automatic release
+      aab: "../build/app/outputs/bundle/#{flavor}Release/app-#{flavor}-release.aab",
+      json_key: json_key_path,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+    
+    UI.success("Successfully uploaded #{flavor} to Google Play Beta track!")
+  end
+  
+  desc "Deploy a new version to the Google Play Production track"
+  lane :production do |options|
+    # Get flavor from options or environment variable
+    flavor = options[:flavor] || ENV["FLAVOR"] || "asksekerle"
+    
+    # Get package name from environment variable or use default based on flavor
+    package_name = ENV["PACKAGE_NAME"] || "com.famizyo.#{flavor}"
+    
+    # Get version name and code from environment variables
+    version_name = ENV["VERSION_NAME"]
+    version_code = ENV["VERSION_CODE"]
+    
+    # Get Google Play JSON key path from environment variable
+    json_key_path = ENV["GOOGLE_PLAY_JSON_KEY_PATH"]
+    
+    # Validate required parameters
+    UI.user_error!("GOOGLE_PLAY_JSON_KEY_PATH environment variable is required") unless json_key_path
+    UI.user_error!("VERSION_NAME environment variable is required") unless version_name
+    UI.user_error!("VERSION_CODE environment variable is required") unless version_code
+    
+    UI.important("⚠️  You are about to deploy to PRODUCTION!")
+    UI.message("Deploying #{flavor} flavor to Google Play Production")
+    UI.message("Package name: #{package_name}")
+    UI.message("Version: #{version_name} (#{version_code})")
+    
+    # Build the AAB (Android App Bundle)
+    gradle(
+      task: "bundle",
+      flavor: flavor,
+      build_type: "Release",
+      properties: {
+        "versionName" => version_name,
+        "versionCode" => version_code
+      }
+    )
+    
+    # Upload to Google Play Production track
+    upload_to_play_store(
+      package_name: package_name,
+      track: "production",
+      release_status: "draft", # Change to "completed" for automatic release
+      aab: "../build/app/outputs/bundle/#{flavor}Release/app-#{flavor}-release.aab",
+      json_key: json_key_path,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+    
+    UI.success("Successfully uploaded #{flavor} to Google Play Production track!")
+  end
+  
+  desc "Build AAB for a specific flavor"
+  lane :build do |options|
+    # Get flavor from options or environment variable
+    flavor = options[:flavor] || ENV["FLAVOR"] || "asksekerle"
+    
+    # Get version name and code from environment variables
+    version_name = ENV["VERSION_NAME"]
+    version_code = ENV["VERSION_CODE"]
+    
+    UI.message("Building #{flavor} flavor")
+    UI.message("Version: #{version_name} (#{version_code})") if version_name && version_code
+    
+    # Build the AAB (Android App Bundle)
+    gradle(
+      task: "bundle",
+      flavor: flavor,
+      build_type: "Release",
+      properties: {
+        "versionName" => version_name,
+        "versionCode" => version_code
+      }.compact # Remove nil values
+    )
+    
+    UI.success("Successfully built AAB for #{flavor}!")
+    UI.message("AAB location: build/app/outputs/bundle/#{flavor}Release/app-#{flavor}-release.aab")
+  end
+  
+  desc "Validate Google Play Store setup"
+  lane :validate_play_store do |options|
+    # Get package name from environment variable
+    package_name = ENV["PACKAGE_NAME"] || "com.famizyo.asksekerle"
+    
+    # Get Google Play JSON key path from environment variable
+    json_key_path = ENV["GOOGLE_PLAY_JSON_KEY_PATH"]
+    
+    # Validate required parameters
+    UI.user_error!("GOOGLE_PLAY_JSON_KEY_PATH environment variable is required") unless json_key_path
+    
+    UI.message("Validating Google Play Store setup...")
+    UI.message("Package name: #{package_name}")
+    UI.message("JSON key path: #{json_key_path}")
+    
+    # Validate the connection to Google Play
+    validate_play_store_json_key(
+      json_key: json_key_path
+    )
+    
+    UI.success("Google Play Store setup is valid!")
+  end
+end

@@ -1,0 +1,28 @@
+import 'package:json_annotation/json_annotation.dart';
+{%- for import in Imports %}
+import '{{ import }}';
+{%- endfor %}
+
+part '{{ FileName }}.g.dart';
+
+@JsonSerializable()
+class {{ ClassName }} {
+  {{ ClassName }}({
+    {%- for prop in Properties %}
+    this.{{ prop.Name }},
+    {%- endfor %}
+  });
+
+  {%- for prop in Properties %}
+  {%- if prop.Name != prop.OriginalName %}
+  @JsonKey(name: '{{ prop.OriginalName }}')
+  {%- endif %}
+  {{ prop.DartType }}{% if prop.IsNullable %}?{% endif %} {{ prop.Name }};
+  {%- endfor %}
+
+  factory {{ ClassName }}.fromJson(Map<String, dynamic> json) =>
+      _${{ ClassName }}FromJson(json);
+
+  Map<String, dynamic> toJson() =>
+      _${{ ClassName }}ToJson(this);
+}

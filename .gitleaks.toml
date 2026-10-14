@@ -1,0 +1,8 @@
+[extend]
+useDefault = true
+
+# Google API enum value, not a credential. Keep this exception exact.
+[[allowlists]]
+description = "Google IAM RSA algorithm enum"
+regexTarget = "match"
+regexes = ['KeyAlgorithm = "KEY_ALG_RSA_2048"']

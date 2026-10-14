@@ -1,0 +1,46 @@
+version: '3.4'
+
+services:
+  grand.web:
+    image: ${DOCKER_REGISTRY-}grandnode/grandnode2:latest
+    ports:
+      - 80
+      - 443
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=https://+:443;http://+:80
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=${HTTPS_CERT_PASSWORD:?Set your own certificate password}
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/aspnetapp.pfx
+    volumes:
+      - ~/.aspnet/https:/https:ro
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - "db"
+  db:
+    image: mongo
+
+  grand.web.multitenant:
+    image: grand.web.multitenant
+    build:
+      context: .
+      dockerfile: Grand.Web.MultiTenant/Dockerfile
+
+  grand.web.multitenant-1:
+    image: grand.web.multitenant-1
+    build:
+      context: .
+      dockerfile: src/Web/Grand.Web.MultiTenant/Dockerfile
+
+  grand.web.multitenant-2:
+    image: grand.web.multitenant-2
+    build:
+      context: .
+      dockerfile: src/Web/Grand.Web.MultiTenant/Dockerfile
+
+  garnd.web.saasmanager:
+    image: garnd.web.saasmanager
+    build:
+      context: .
+      dockerfile: src/Web/Garnd.Web.SaasManager/Dockerfile

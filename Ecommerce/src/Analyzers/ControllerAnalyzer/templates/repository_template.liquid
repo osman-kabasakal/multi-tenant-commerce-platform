@@ -1,0 +1,32 @@
+import 'package:injectable/injectable.dart';
+import 'package:store_user_app/core/data/repository/base_repository.dart';
+import 'package:store_user_app/core/models/network/api_response.dart';
+
+{% for import in Imports %}import '{{import}}';
+{% endfor %}
+
+@lazySingleton
+class {{FeatureName}}Repository extends BaseRepository {
+  final {{FeatureName}}DataSource _dataSource;
+
+  {{FeatureName}}Repository(this._dataSource, super.decorator, super.eventBus);
+
+  {% for endpoint in Endpoints %}
+  Future<{{endpoint.EntityType}}?> {{endpoint.ActionName}}({% for param in endpoint.Params %}
+    {{param.Type}}{% if param.IsOptional %} ?{% endif %} {{param.Name}}{% if forloop.last == false %}, {% endif %}{% endfor %}) async
+     {
+    return await decorator.execute<{{endpoint.EntityType}}>(
+      operationName: "{{endpoint.Url}}",
+      cacheKey: generateCacheKey("{{endpoint.Url}}", [{% for param in endpoint.Params %}
+          {{param.Name}}{% if forloop.last == false %}, {% endif %}{% endfor %}
+      ]),
+      cacheDuration: null,
+      operation: () async {
+        return await _dataSource.{{endpoint.ActionName}}({% for param in endpoint.Params %}
+            {{param.Name}}{% if forloop.last == false %}, {% endif %}{% endfor %}
+        );
+      },
+    );
+  }
+  {% endfor %}
+}

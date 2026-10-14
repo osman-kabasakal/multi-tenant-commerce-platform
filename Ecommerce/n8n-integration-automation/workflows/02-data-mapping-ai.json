@@ -1,0 +1,333 @@
+{
+  "name": "AI-Powered Data Mapping Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.webhookUrl }}",
+        "authentication": "none",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "platformName",
+              "value": "={{ $json.platformName }}"
+            },
+            {
+              "name": "entityType",
+              "value": "={{ $json.entityType }}"
+            },
+            {
+              "name": "sampleEndpoint",
+              "value": "={{ $json.sampleEndpoint }}"
+            },
+            {
+              "name": "endpoints",
+              "value": "={{ $json.endpoints }}"
+            },
+            {
+              "name": "dataStructures",
+              "value": "={{ $json.dataStructures }}"
+            }
+          ]
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "collection": "integration_mappings",
+        "query": {
+          "platformName": "={{ $json.body.platformName }}"
+        }
+      },
+      "id": "get-platform-config",
+      "name": "Get Platform Config",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.sampleEndpoint }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "fetch-sample-data",
+      "name": "Fetch Sample Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-3.5-turbo",
+        "messages": {
+          "messageType": "simpleMessage",
+          "simpleMessage": "Sen bir veri eşleme uzmanısın. Aşağıdaki {{ $node[\"Webhook Trigger\"].json.body.entityType }} verilerini GrandNode e-ticaret sistemine eşlemelisin.\n\n**GrandNode {{ $node[\"Webhook Trigger\"].json.body.entityType }} Alanları:**\n\n{% if $node[\"Webhook Trigger\"].json.body.entityType === \"product\" %}\n- Name (zorunlu): Ürün adı\n- Sku (zorunlu): Ürün kodu\n- Price (zorunlu): Fiyat\n- FullDescription: Detaylı açıklama\n- ShortDescription: Kısa açıklama\n- StockQuantity: Stok miktarı\n- Weight: Ağırlık\n- Published: Yayınlama durumu (boolean)\n- ProductCategories: Kategori ilişkileri\n- ProductPictures: Ürün resimleri\n{% elif $node[\"Webhook Trigger\"].json.body.entityType === \"category\" %}\n- Name (zorunlu): Kategori adı\n- Description: Açıklama\n- ParentCategoryId: Üst kategori ID\n- PictureId: Resim ID\n- Published: Yayınlama durumu (boolean)\n- DisplayOrder: Sıralama\n- ShowOnHomePage: Ana sayfada göster (boolean)\n- IncludeInMenu: Menüde göster (boolean)\n{% elif $node[\"Webhook Trigger\"].json.body.entityType === \"order\" %}\n- OrderNumber: Sipariş numarası\n- CustomerId: Müşteri ID\n- OrderTotal: Toplam tutar\n- OrderItems: Sipariş kalemleri\n- OrderStatusId: Sipariş durumu ID\n- PaymentMethodSystemName: Ödeme yöntemi\n- CreatedOnUtc: Oluşturulma tarihi\n- BillingAddress: Fatura adresi\n{% endif %}\n\n**Platform Verisi:**\n```json\n{{ JSON.stringify($json, null, 2) }}\n```\n\nLütfen bu platform verilerini GrandNode alanlarına eşleyen bir JSON mapping döndür:\n\n```json\n{\n  \"mappings\": [\n    {\n      \"sourcePath\": \"platform_field_path\",\n      \"targetField\": \"GrandNode_Field_Name\",\n      \"transformFunction\": \"transformation_function_name\",\n      \"required\": true/false,\n      \"confidence\": 0.9\n    }\n  ],\n  \"transformFunctions\": {\n    \"function_name\": \"JavaScript transformation code\"\n  },\n  \"validationRules\": {\n    \"required_fields\": [],\n    \"data_types\": {}\n  }\n}\n```\n\nTransform fonksiyonları şunlar olabilir:\n- toBoolean, toString, toNumber, toDecimal, toDate\n- toLowerCase, toUpperCase\n- parsePrice (fiyat dönüşümü)\n- formatDate (tarih formatı)\n- extractId (ID çıkarma)\n\nConfidence değeri 0-1 arasında olmalı (ne kadar emin olduğun)."
+        },
+        "options": {}
+      },
+      "id": "analyze-mapping-with-ai",
+      "name": "Analyze Field Mapping with AI",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const aiResponse = items[0].json.message.content;\nconst platformName = $node[\"Webhook Trigger\"].json.body.platformName;\nconst entityType = $node[\"Webhook Trigger\"].json.body.entityType;\n\ntry {\n  // AI response'u JSON olarak parse et\n  const mappingResult = JSON.parse(aiResponse);\n  \n  // Built-in transform fonksiyonları\n  const builtInTransforms = {\n    'toBoolean': 'value => value === true || value === \"true\" || value === 1 || value === \"1\" || value === \"yes\"',\n    'toString': 'value => String(value || \"\")',\n    'toNumber': 'value => Number(value) || 0',\n    'toDecimal': 'value => parseFloat(value) || 0',\n    'toDate': 'value => new Date(value).toISOString()',\n    'toLowerCase': 'value => String(value).toLowerCase()',\n    'toUpperCase': 'value => String(value).toUpperCase()',\n    'parsePrice': 'value => parseFloat(String(value).replace(/[^0-9.]/g, \"\")) || 0',\n    'formatDate': 'value => new Date(value).toISOString().split(\"T\")[0]',\n    'extractId': 'value => typeof value === \"object\" ? value.id : value',\n    'arrayToString': 'value => Array.isArray(value) ? value.join(\", \") : value',\n    'firstImageUrl': 'value => Array.isArray(value) ? value[0] : value'\n  };\n  \n  // Transform fonksiyonlarını birleştir\n  const allTransforms = {\n    ...builtInTransforms,\n    ...(mappingResult.transformFunctions || {})\n  };\n  \n  // Mapping'leri zenginleştir\n  const enhancedMappings = (mappingResult.mappings || []).map(mapping => {\n    // Confidence değeri ekle\n    if (!mapping.confidence) {\n      mapping.confidence = 0.7; // Default confidence\n    }\n    \n    // Required field kontrolü\n    const requiredFields = {\n      product: ['Name', 'Sku', 'Price'],\n      category: ['Name'],\n      order: ['OrderTotal']\n    };\n    \n    if (requiredFields[entityType] && requiredFields[entityType].includes(mapping.targetField)) {\n      mapping.required = true;\n    }\n    \n    return mapping;\n  });\n  \n  // Validation rules\n  const validationRules = {\n    product: {\n      'Name': { required: true, maxLength: 400 },\n      'Sku': { required: true, maxLength: 400 },\n      'Price': { required: true, min: 0, type: 'decimal' },\n      'StockQuantity': { required: false, min: 0, type: 'integer' }\n    },\n    category: {\n      'Name': { required: true, maxLength: 400 },\n      'DisplayOrder': { required: false, min: 0, type: 'integer' }\n    },\n    order: {\n      'OrderTotal': { required: true, min: 0, type: 'decimal' },\n      'OrderNumber': { required: false, maxLength: 100 }\n    }\n  };\n  \n  return [{\n    json: {\n      platformName,\n      entityType,\n      mappings: enhancedMappings,\n      transformFunctions: allTransforms,\n      validationRules: validationRules[entityType] || {},\n      aiGenerated: true,\n      averageConfidence: enhancedMappings.reduce((sum, m) => sum + m.confidence, 0) / enhancedMappings.length,\n      highConfidenceMappings: enhancedMappings.filter(m => m.confidence > 0.8).length,\n      totalMappings: enhancedMappings.length\n    }\n  }];\n  \n} catch (error) {\n  console.log('AI mapping parse failed, using manual mapping');\n  \n  // Fallback manual mapping\n  const sampleData = $node[\"Fetch Sample Data\"].json;\n  const manualMappings = [];\n  \n  // Basit field matching\n  const fieldMappings = {\n    product: {\n      'name|title|productName': 'Name',\n      'sku|code|productCode': 'Sku',\n      'price|cost|amount': 'Price',\n      'description|desc': 'FullDescription',\n      'stock|quantity': 'StockQuantity'\n    },\n    category: {\n      'name|title|categoryName': 'Name',\n      'description|desc': 'Description',\n      'parent|parentId': 'ParentCategoryId'\n    },\n    order: {\n      'total|amount|orderTotal': 'OrderTotal',\n      'orderNumber|orderId': 'OrderNumber',\n      'customer|customerId': 'CustomerId'\n    }\n  };\n  \n  const mappings = fieldMappings[entityType] || {};\n  \n  // Sample data field'larını tara\n  for (const [key, value] of Object.entries(sampleData)) {\n    for (const [patterns, targetField] of Object.entries(mappings)) {\n      if (patterns.split('|').some(pattern => key.toLowerCase().includes(pattern))) {\n        manualMappings.push({\n          sourcePath: key,\n          targetField,\n          transformFunction: null,\n          required: false,\n          confidence: 0.6\n        });\n        break;\n      }\n    }\n  }\n  \n  return [{\n    json: {\n      platformName,\n      entityType,\n      mappings: manualMappings,\n      transformFunctions: {},\n      validationRules: {},\n      aiGenerated: false,\n      fallbackUsed: true,\n      error: error.message\n    }\n  }];\n}"
+      },
+      "id": "process-ai-mapping",
+      "name": "Process AI Mapping",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const mappingData = items[0].json;\n\n// Test mapping ile sample data'yı dönüştürmeyi dene\nconst sampleData = $node[\"Fetch Sample Data\"].json;\nconst testResults = [];\nlet successCount = 0;\n\nfor (const mapping of mappingData.mappings) {\n  try {\n    // Source path'den değeri al\n    let value = sampleData;\n    const pathParts = mapping.sourcePath.split('.');\n    \n    for (const part of pathParts) {\n      if (part.includes('[0]')) {\n        const fieldName = part.replace('[0]', '');\n        value = value[fieldName] ? value[fieldName][0] : null;\n      } else {\n        value = value ? value[part] : null;\n      }\n    }\n    \n    // Transform fonksiyonunu uygula\n    if (value !== null && mapping.transformFunction && mappingData.transformFunctions[mapping.transformFunction]) {\n      const transformFn = eval(`(${mappingData.transformFunctions[mapping.transformFunction]})`);\n      value = transformFn(value);\n    }\n    \n    testResults.push({\n      sourcePath: mapping.sourcePath,\n      targetField: mapping.targetField,\n      originalValue: sampleData[mapping.sourcePath],\n      transformedValue: value,\n      success: true,\n      confidence: mapping.confidence\n    });\n    \n    successCount++;\n  } catch (error) {\n    testResults.push({\n      sourcePath: mapping.sourcePath,\n      targetField: mapping.targetField,\n      error: error.message,\n      success: false,\n      confidence: mapping.confidence\n    });\n  }\n}\n\nconst testScore = successCount / mappingData.mappings.length;\n\nreturn [{\n  json: {\n    ...mappingData,\n    testResults,\n    testScore,\n    mappingQuality: testScore > 0.8 ? 'high' : testScore > 0.6 ? 'medium' : 'low',\n    readyForProduction: testScore > 0.7 && mappingData.averageConfidence > 0.7\n  }\n}];"
+      },
+      "id": "test-mapping-quality",
+      "name": "Test Mapping Quality",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "collection": "field_mappings",
+        "options": {
+          "upsert": true
+        },
+        "updateKey": "mappingKey",
+        "fields": {
+          "values": [
+            {
+              "name": "mappingKey",
+              "value": "={{ $json.platformName }}_{{ $json.entityType }}"
+            },
+            {
+              "name": "platformName",
+              "value": "={{ $json.platformName }}"
+            },
+            {
+              "name": "entityType",
+              "value": "={{ $json.entityType }}"
+            },
+            {
+              "name": "mappings",
+              "value": "={{ JSON.stringify($json.mappings) }}"
+            },
+            {
+              "name": "transformFunctions",
+              "value": "={{ JSON.stringify($json.transformFunctions) }}"
+            },
+            {
+              "name": "validationRules",
+              "value": "={{ JSON.stringify($json.validationRules) }}"
+            },
+            {
+              "name": "testResults",
+              "value": "={{ JSON.stringify($json.testResults) }}"
+            },
+            {
+              "name": "testScore",
+              "value": "={{ $json.testScore }}"
+            },
+            {
+              "name": "mappingQuality",
+              "value": "={{ $json.mappingQuality }}"
+            },
+            {
+              "name": "averageConfidence",
+              "value": "={{ $json.averageConfidence }}"
+            },
+            {
+              "name": "readyForProduction",
+              "value": "={{ $json.readyForProduction }}"
+            },
+            {
+              "name": "aiGenerated",
+              "value": "={{ $json.aiGenerated }}"
+            },
+            {
+              "name": "updatedAt",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "id": "save-mapping",
+      "name": "Save Field Mapping",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.readyForProduction }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-production-ready",
+      "name": "Production Ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "collection": "integration_mappings",
+        "query": {
+          "platformName": "={{ $json.platformName }}"
+        },
+        "updateFields": {
+          "values": [
+            {
+              "name": "{{ $json.entityType }}MappingReady",
+              "value": true
+            },
+            {
+              "name": "{{ $json.entityType }}MappingQuality",
+              "value": "={{ $json.mappingQuality }}"
+            }
+          ]
+        }
+      },
+      "id": "update-integration-status",
+      "name": "Update Integration Status",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1850, 200]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "success"
+            },
+            {
+              "name": "message",
+              "value": "Field mapping created and tested successfully"
+            },
+            {
+              "name": "mappingQuality",
+              "value": "={{ $json.mappingQuality }}"
+            }
+          ],
+          "number": [
+            {
+              "name": "mappedFields",
+              "value": "={{ $json.mappings.length }}"
+            },
+            {
+              "name": "testScore",
+              "value": "={{ $json.testScore }}"
+            },
+            {
+              "name": "averageConfidence",
+              "value": "={{ $json.averageConfidence }}"
+            }
+          ],
+          "boolean": [
+            {
+              "name": "readyForProduction",
+              "value": "={{ $json.readyForProduction }}"
+            },
+            {
+              "name": "aiGenerated",
+              "value": "={{ $json.aiGenerated }}"
+            }
+          ]
+        }
+      },
+      "id": "success-response",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [2050, 200]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "warning"
+            },
+            {
+              "name": "message",
+              "value": "Mapping created but needs manual review"
+            },
+            {
+              "name": "mappingQuality",
+              "value": "={{ $json.mappingQuality }}"
+            }
+          ],
+          "number": [
+            {
+              "name": "testScore",
+              "value": "={{ $json.testScore }}"
+            }
+          ]
+        }
+      },
+      "id": "warning-response",
+      "name": "Warning Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [2050, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [[{"node": "Get Platform Config", "type": "main", "index": 0}]]
+    },
+    "Get Platform Config": {
+      "main": [[{"node": "Fetch Sample Data", "type": "main", "index": 0}]]
+    },
+    "Fetch Sample Data": {
+      "main": [[{"node": "Analyze Field Mapping with AI", "type": "main", "index": 0}]]
+    },
+    "Analyze Field Mapping with AI": {
+      "main": [[{"node": "Process AI Mapping", "type": "main", "index": 0}]]
+    },
+    "Process AI Mapping": {
+      "main": [[{"node": "Test Mapping Quality", "type": "main", "index": 0}]]
+    },
+    "Test Mapping Quality": {
+      "main": [[{"node": "Save Field Mapping", "type": "main", "index": 0}]]
+    },
+    "Save Field Mapping": {
+      "main": [[{"node": "Production Ready?", "type": "main", "index": 0}]]
+    },
+    "Production Ready?": {
+      "main": [
+        [{"node": "Update Integration Status", "type": "main", "index": 0}],
+        [{"node": "Warning Response", "type": "main", "index": 0}]
+      ]
+    },
+    "Update Integration Status": {
+      "main": [[{"node": "Success Response", "type": "main", "index": 0}]]
+    }
+  }
+}

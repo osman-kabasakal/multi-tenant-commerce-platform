@@ -1,0 +1,139 @@
+<div class="container max-w-7xl mx-auto py-8 px-4">
+    <h1 class="text-2xl font-bold mb-6">Veritabanı Sorguları</h1>
+    
+    <div class="mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="md:col-span-3">
+                <div class="card bg-white shadow-md rounded-lg">
+                    <div class="card-body p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-lg font-semibold">SQL Sorgusu</h2>
+                            <div class="flex items-center">
+                                <label for="apiKey" class="mr-2 text-sm text-gray-600">API Anahtarı:</label>
+                                <input 
+                                    id="apiKey"
+                                    type="password" 
+                                    [(ngModel)]="apiKey" 
+                                    class="px-2 py-1 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    placeholder="API anahtarı girin">
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <textarea
+                                [(ngModel)]="sqlQuery"
+                                class="w-full h-48 p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                                placeholder="SELECT * FROM businesses LIMIT 10"></textarea>
+                        </div>
+                        <div class="flex justify-end">
+                            <button 
+                                (click)="executeQuery()"
+                                class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                                Çalıştır
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="md:col-span-1">
+                <div class="card bg-white shadow-md rounded-lg">
+                    <div class="card-body p-6">
+                        <h2 class="text-lg font-semibold mb-4">Tablolar</h2>
+                        <div class="mb-4">
+                            <input 
+                                type="text" 
+                                [(ngModel)]="tableFilter"
+                                class="w-full p-2 border rounded-md mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Tablo ara...">
+                            
+                            <ul class="max-h-96 overflow-y-auto">
+                                <li *ngFor="let table of filteredTables" 
+                                    class="py-1 px-2 hover:bg-gray-100 cursor-pointer rounded text-sm"
+                                    (click)="selectTable(table)">
+                                    {{table}}
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div *ngIf="selectedTable" class="mb-8">
+        <div class="card bg-white shadow-md rounded-lg">
+            <div class="card-body p-6">
+                <h2 class="text-lg font-semibold mb-4">Tablo Yapısı: {{selectedTable}}</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kolon Adı</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Veri Tipi</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Null?</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Varsayılan Değer</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr *ngFor="let column of tableColumns">
+                                <td class="px-6 py-2 whitespace-nowrap text-sm font-medium text-gray-900">{{column.name}}</td>
+                                <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-500">{{column.dataType}}</td>
+                                <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-500">{{column.isNullable ? 'YES' : 'NO'}}</td>
+                                <td class="px-6 py-2 whitespace-nowrap text-sm text-gray-500">{{column.defaultValue}}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div *ngIf="queryResult && queryResult.length > 0" class="mb-8">
+        <div class="card bg-white shadow-md rounded-lg">
+            <div class="card-body p-6">
+                <h2 class="text-lg font-semibold mb-4">Sonuçlar ({{queryResult.length}} satır)</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th *ngFor="let header of getResultHeaders()" 
+                                    class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    {{header}}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr *ngFor="let row of queryResult">
+                                <td *ngFor="let header of getResultHeaders()" 
+                                    class="px-6 py-2 whitespace-nowrap text-sm text-gray-500">
+                                    {{formatValue(row[header])}}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div *ngIf="queryAffectedRows !== null" class="mb-8">
+        <div class="card bg-white shadow-md rounded-lg">
+            <div class="card-body p-6">
+                <div class="text-lg font-semibold text-green-600">
+                    {{queryAffectedRows}} satır etkilendi
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div *ngIf="errorMessage" class="mb-8">
+        <div class="card bg-red-50 border border-red-200 shadow-md rounded-lg">
+            <div class="card-body p-6">
+                <h2 class="text-lg font-semibold text-red-600 mb-2">Hata</h2>
+                <div class="text-red-600">
+                    {{errorMessage}}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

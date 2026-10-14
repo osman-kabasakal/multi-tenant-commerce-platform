@@ -1,0 +1,102 @@
+@{
+    Layout = "_ConfigurePlugin";
+}
+<input id="active-menu-item" type="hidden" value="/Admin/Shipping/Providers"/>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="x_panel light form-fit">
+            <div class="x_title">
+                <div class="caption">
+                    <i class="fa fa-map-marker"></i>
+                    @Loc["Plugins.Shipping.FixedRateShipping.DeliveryAreas"]
+                </div>
+                <div class="actions">
+                    <div class="btn-group btn-group-devided">
+                        <a href="@Url.Action("CreateDeliveryArea")" class="btn default">@Loc["Admin.Common.AddNew"]</a>
+                    </div>
+                </div>
+            </div>
+            <div class="x_content form">
+                <div class="form-horizontal">
+                    <div class="form-body">
+                        <div class="x_content">
+                            <div id="delivery-areas-grid"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function () {
+        $("#delivery-areas-grid").kendoGrid({
+            dataSource: {
+                transport: {
+                    read: {
+                        url: "@Html.Raw(Url.Action("DeliveryAreasList", "ShippingFixedRate"))",
+                        type: "POST",
+                        dataType: "json",
+                        data: addAntiForgeryToken
+                    }
+                },
+                schema: {
+                    data: "Data",
+                    total: "Total",
+                    errors: "Errors"
+                },
+                error: function(e) {
+                    display_kendoui_grid_error(e);
+                    this.cancelChanges();
+                },
+                serverPaging: true,
+                serverFiltering: true,
+                serverSorting: true
+            },
+            pageable: {
+                refresh: true,
+                numeric: false,
+                previousNext: false,
+                info: false
+            },
+            editable: {
+                confirmation: false,
+                mode: "inline"
+            },
+            scrollable: false,
+            columns: [{
+                field: "Name",
+                title: "@Loc["Plugins.Shipping.FixedRateShipping.DeliveryArea.Fields.Name"]",
+                width: 200
+            }, {
+                field: "ShippingMethodName",
+                title: "@Loc["Plugins.Shipping.FixedRateShipping.Fields.ShippingMethodName"]",
+                width: 200
+            }, {
+                field: "ShippingRate",
+                title: "@Loc["Plugins.Shipping.FixedRateShipping.DeliveryArea.Fields.ShippingRate"]",
+                width: 100
+            }, {
+                field: "MinimumOrderAmount",
+                title: "@Loc["Plugins.Shipping.FixedRateShipping.DeliveryArea.Fields.MinimumOrderAmount"]",
+                width: 150
+            }, {
+                field: "UseFreeShipping",
+                title: "@Loc["Plugins.Shipping.FixedRateShipping.DeliveryArea.Fields.UseFreeShipping"]",
+                width: 120,
+                template: '# if(UseFreeShipping) {# <i class="fa fa-check true-icon"></i> #} else {# <i class="fa fa-close false-icon"></i> #} #'
+            }, {
+                field: "FreeShippingOrderAmount",
+                title: "@Loc["Plugins.Shipping.FixedRateShipping.DeliveryArea.Fields.FreeShippingOrderAmount"]",
+                width: 180
+            }, {
+                field: "Id",
+                title: "@Loc["Admin.Common.Edit"]",
+                width: 150,
+                template: '<a href="@Url.Action("EditDeliveryArea")?id=#=Id#&shippingMethodId=#=ShippingMethodId#">@Loc["Admin.Common.Edit"]</a>'
+            }]
+        });
+    });
+</script>

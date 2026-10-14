@@ -1,0 +1,153 @@
+@model LegalTextMessageTemplateListModel
+@{
+    ViewBag.Title = Loc["LegalTexts.Plugin.LegalTextMessageTemplate.List.Title"];
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="x_panel light form-fit">
+            <div class="x_title">
+                <div class="caption">
+                    <i class="fa fa-list-alt"></i>
+                    @Loc["LegalTexts.Plugin.LegalTextMessageTemplate.Title"]
+                </div>
+                <div class="actions btn-group btn-group-devided">
+                    <a href="@Url.Action("Create")" class="btn green"><i class="fa fa-plus"></i><span
+                            class="d-none d-sm-inline"> @Loc["Admin.Common.AddNew"] </span></a>
+                </div>
+            </div>
+            <div class="x_content form">
+                <div class="form-horizontal">
+                    <div class="form-body">
+                        <div class="row align-items-end mb-1">
+                            <div class="col-md-3 col-sm-12 col-12">
+                                <div class="form-group mb-0">
+                                    <admin-label asp-for="SelectedCategoryName"
+                                        class="d-flex flex-column align-items-start mw-100 px-0 text-left" />
+                                    <admin-select asp-for="SelectedCategoryName"
+                                        asp-items="Model.AvailableCategories" />
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-12 col-12">
+                                <div class="form-group mb-0">
+                                    <admin-label asp-for="SearchName"
+                                        class="d-flex flex-column align-items-start mw-100 px-0 text-left" />
+                                    <admin-input asp-for="SearchName" />
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-12 col-12">
+                                <div class="form-group mb-0">
+                                    <admin-label asp-for="IsActive"
+                                        class="d-flex flex-column align-items-start mw-100 px-0 text-left" />
+                                    <admin-input asp-for="IsActive" />
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-sm-12 col-12 mt-md-0 mt-3">
+                                <div class="form-actions">
+                                    <button class="btn btn-success filter-submit" id="search-templates">
+                                        <i class="fa fa-search"></i> @Loc["Admin.Common.Search"]
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="x_content">
+                        <div id="legal-texts-grid"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+<script>
+    $(document).ready(function () {
+        $("#legal-texts-grid").kendoGrid({
+            dataSource: {
+                transport: {
+                    read: {
+                        url: "@Html.Raw(Url.Action("List", "ContractManagement", new { area = "Admin" }))",
+                        type: "POST",
+                        dataType: "json",
+                        data: additionalData
+                    }
+                },
+                schema: {
+                    data: "Data",
+                    total: "Total",
+                    errors: "Errors"
+                },
+                error: function (e) {
+                    display_kendoui_grid_error(e);
+                    this.cancelChanges();
+                },
+                pageSize: 20,
+                serverPaging: true,
+                serverFiltering: true,
+                serverSorting: true
+            },
+            pageable: {
+                refresh: true,
+                pageSizes: [20, 50, 100, 200],
+                buttonCount: 5
+            },
+            editable: false,
+            scrollable: false,
+            columns: [{
+                field: "Name",
+                title: "@Loc["LegalTexts.Plugin.LegalTextMessageTemplate.Fields.Name"]",
+                width: 300
+            }, {
+                field: "Category",
+                title: "@Loc["LegalTexts.Plugin.LegalTextMessageTemplate.Fields.Category"]",
+                width: 200
+            }, {
+                field: "Order",
+                title: "@Loc["LegalTexts.Plugin.LegalTextMessageTemplate.Fields.Order"]",
+                width: 200
+            }, {
+                field: "IsActive",
+                title: "@Loc["LegalTexts.Plugin.LegalTextMessageTemplate.Fields.IsActive"]",
+                width: 100,
+                headerAttributes: { style: "text-align:center" },
+                attributes: { style: "text-align:center" },
+                template: '# if(IsActive) {# <i class="fa fa-check" aria-hidden="true" style="color:green"></i> #} else {# <i class="fa fa-times" aria-hidden="true" style="color:red"></i> #} #'
+            }, {
+                field: "Id",
+                title: "@Loc["Admin.Common.Edit"]",
+                width: 100,
+                template: '<a class="btn btn-sm btn-default" href="Edit/#=Id#"><i class="fa fa-pencil"></i> @Loc["Admin.Common.Edit"]</a>'
+            }]
+        });
+    });
+</script>
+
+<script>
+
+    $(document).ready(function () {
+        //search button
+        $('#search-templates').click(function () {
+            //search
+            var grid = $('#templates-grid').data('kendoGrid');
+            grid.dataSource.read();
+        });
+
+        $("#@Html.IdFor(model => model.SearchName)").keydown(function (event) {
+            if (event.keyCode == 13) {
+                $("#search-templates").click();
+                return false;
+            }
+        });
+
+    });
+
+    function additionalData() {
+        var data = {
+            SelectedCategoryName: $('#SelectedCategoryName').val(),
+            SearchName: $("#@Html.IdFor(model => model.SearchName)").val(),
+            IsActive: $("#@Html.IdFor(model => model.IsActive)").val()
+        };
+        addAntiForgeryToken(data);
+        return data;
+    }
+</script>

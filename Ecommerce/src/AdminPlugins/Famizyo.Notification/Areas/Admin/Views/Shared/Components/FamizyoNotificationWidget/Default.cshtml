@@ -1,0 +1,49 @@
+@using Famizyo.Notification
+@{
+    var audioSoundMp3 = "/Plugins/Famizyo.Notification/Assets/Sound/order_notification.mp3";
+}
+
+<script src="/Plugins/Famizyo.Notification/Assets/Scripts/signalr.js"></script>
+<script src="/Plugins/Famizyo.Notification/Assets/Scripts/order_notification.js"></script>
+<link rel="stylesheet" href="/Plugins/Famizyo.Notification/Assets/Styles/notification-styles.css" />
+
+<audio id="orderAudio" style="display: none"
+       autoplay muted
+>
+    @* <source src="@audioSound" type="audio/wav"> *@
+    <source src="@audioSoundMp3" type="audio/mpeg">
+
+    Tarayıcınız ses çalmayı desteklemiyor.
+</audio>
+
+<button id="notify-button" class="btn btn-primary" onclick="notifyPlay()" style="display: none;">play</button>
+
+<!-- Notification permission modal dialog -->
+<div class="modal fade" id="notificationPermissionModal" tabindex="-1" role="dialog" aria-labelledby="notificationPermissionModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="notificationPermissionModalLabel">
+          <i class="fa fa-bell notification-info-icon"></i>Sesli Bildirim İzni
+        </h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info" role="alert">
+          <i class="fa fa-info-circle"></i> Yeni siparişleri kaçırmamanız için sesli bildirim sistemini kullanmanızı öneririz.
+        </div>
+        <p>Yeni sipariş geldiğinde sesli bildirim almak için izin vermeniz gerekmektedir. Bu izin, sadece bu tarayıcı için bir kere verilmesi yeterlidir.</p>
+        <p>Eğer izin vermezseniz, yeni siparişler yalnızca ekranda görünecek ancak sesli uyarı olmayacaktır.</p>
+        <p><strong>Not:</strong> Tarayıcı izinlerini etkinleştirmek için "İzin Ver" düğmesine tıklayın. Küçük bir test sesi çalınacaktır.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Daha Sonra</button>
+        <button type="button" class="btn btn-primary" id="requestNotificationPermission">
+          <i class="fa fa-check"></i> İzin Ver
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

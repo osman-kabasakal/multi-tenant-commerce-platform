@@ -1,0 +1,43 @@
+<!-- Responsive Navbar -->
+<nav class="bg-white shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex justify-between h-16">
+      <div class="flex items-center">
+        <div class="text-xl md:text-2xl font-bold text-indigo-600">
+          <img src="images/logo.svg"  alt="Famizyo tech" width="200">
+        </div>
+      </div>
+      <!-- Mobil Menu Button -->
+      <div class="flex md:hidden items-center">
+        <button type="button" class="text-gray-600 hover:text-gray-900" id="mobileMenuBtn" (click)="toggleMobileMenu()">
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </button>
+      </div>
+      <!-- Desktop Menu -->
+      <div class="hidden md:flex items-center space-x-4">
+        <a href="#" class="text-gray-600 hover:text-gray-900">Özellikler</a>
+        <a href="#" class="text-gray-600 hover:text-gray-900">Fiyatlandırma</a>
+        <a href="#" class="text-gray-600 hover:text-gray-900">İletişim</a>
+        <a [routerLink]="'/register'" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">
+          Hemen Başla
+        </a>
+      </div>
+    </div>
+    @if (mobileMenuVisible){
+      <!-- Mobile Menu -->
+      <div [ngClass]="{'hidden':!mobileMenuVisible}" class="md:hidden" id="mobileMenu">
+        <div class="px-2 pt-2 pb-3 space-y-1">
+          <a href="#" class="block px-3 py-2 text-gray-600 hover:text-gray-900">Özellikler</a>
+          <a href="#" class="block px-3 py-2 text-gray-600 hover:text-gray-900">Fiyatlandırma</a>
+          <a href="#" class="block px-3 py-2 text-gray-600 hover:text-gray-900">İletişim</a>
+          <a [routerLink]="'register'" class="w-full mt-2 bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">
+            Hemen Başla
+          </a>
+        </div>
+      </div>
+    }
+
+  </div>
+</nav>

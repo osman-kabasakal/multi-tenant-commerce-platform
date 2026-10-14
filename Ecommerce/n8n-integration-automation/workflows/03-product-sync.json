@@ -1,0 +1,266 @@
+{
+  "name": "Product Sync Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "collection": "integration_mappings",
+        "query": {
+          "active": true
+        }
+      },
+      "id": "get-active-integrations",
+      "name": "Get Active Integrations",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {},
+      "id": "split-integrations",
+      "name": "Split by Integration",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "collection": "field_mappings",
+        "query": {
+          "mappingKey": "={{ $json.platformName }}_product"
+        }
+      },
+      "id": "get-product-mapping",
+      "name": "Get Product Mapping",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const integration = items[0].json;\nconst productEndpoints = JSON.parse(integration.productEndpoints || '[]');\nconst servers = JSON.parse(integration.servers || '[]');\n\n// En uygun product endpoint'i seç\nconst listEndpoint = productEndpoints.find(ep => \n  ep.method === 'GET' && !ep.path.includes('{') && !ep.path.includes(':id')\n);\n\nif (!listEndpoint) {\n  throw new Error('No suitable product list endpoint found');\n}\n\n// Base URL'i belirle\nconst baseUrl = servers.length > 0 ? servers[0].url : '';\nconst fullUrl = baseUrl + listEndpoint.path;\n\nreturn [{\n  json: {\n    ...integration,\n    productListUrl: fullUrl,\n    method: listEndpoint.method\n  }\n}];"
+      },
+      "id": "prepare-api-request",
+      "name": "Prepare API Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.productListUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "pagination": {
+            "paginationMode": "responseContainsNextURL",
+            "nextURL": "={{ $response.body.next }}",
+            "paginationCompleteWhen": "receiveSpecificStatusCodes",
+            "statusCodesWhenComplete": "404"
+          }
+        }
+      },
+      "id": "fetch-products",
+      "name": "Fetch Products from Platform",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const products = items[0].json;\nconst mapping = $node[\"Get Product Mapping\"].json[0];\nconst mappingRules = JSON.parse(mapping.mappings || '[]');\nconst transformFunctions = JSON.parse(mapping.transformFunctions || '{}');\n\n// Transform fonksiyonlarını hazırla\nconst transforms = {};\nfor (const [name, code] of Object.entries(transformFunctions)) {\n  transforms[name] = eval(`(${code})`);\n}\n\n// Ürünleri dönüştür\nfunction transformProduct(product) {\n  const grandNodeProduct = {\n    ExternalId: product.id || product._id || product.productId,\n    Published: true,\n    CreatedOnUtc: new Date().toISOString()\n  };\n  \n  for (const rule of mappingRules) {\n    if (!rule.targetField) continue;\n    \n    // Nested path'leri handle et\n    let value = product;\n    const pathParts = rule.sourcePath.split('.');\n    \n    for (const part of pathParts) {\n      if (part.includes('[0]')) {\n        const fieldName = part.replace('[0]', '');\n        value = value[fieldName] ? value[fieldName][0] : null;\n      } else {\n        value = value ? value[part] : null;\n      }\n    }\n    \n    // Transform uygula\n    if (value !== null && value !== undefined && rule.transformFunction && transforms[rule.transformFunction]) {\n      value = transforms[rule.transformFunction](value);\n    }\n    \n    // GrandNode field'ına ata\n    if (rule.targetField.includes('.')) {\n      // Nested field\n      const [parent, child] = rule.targetField.split('.');\n      if (!grandNodeProduct[parent]) {\n        grandNodeProduct[parent] = {};\n      }\n      grandNodeProduct[parent][child] = value;\n    } else {\n      grandNodeProduct[rule.targetField] = value;\n    }\n  }\n  \n  return grandNodeProduct;\n}\n\n// Array veya object kontrolü\nconst productList = Array.isArray(products) ? products : \n                   (products.data || products.items || products.products || [products]);\n\nconst transformedProducts = productList.map(transformProduct);\n\nreturn transformedProducts.map(product => ({ json: product }));"
+      },
+      "id": "transform-products",
+      "name": "Transform to GrandNode Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/token/create",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Email",
+              "value": "={{ $credentials.grandNodeEmail }}"
+            },
+            {
+              "name": "Token",
+              "value": "={{ $credentials.grandNodeApiToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-grandnode-token",
+      "name": "Get GrandNode Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 10
+      },
+      "id": "batch-products",
+      "name": "Batch Products",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/odata/Product",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $node[\"Get GrandNode Token\"].json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "",
+              "value": "={{ $json }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "create-update-product",
+      "name": "Create/Update Product in GrandNode",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2050, 300]
+    },
+    {
+      "parameters": {
+        "collection": "sync_logs",
+        "options": {},
+        "fields": {
+          "values": [
+            {
+              "name": "platformName",
+              "value": "={{ $node[\"Split by Integration\"].json.platformName }}"
+            },
+            {
+              "name": "syncType",
+              "value": "product"
+            },
+            {
+              "name": "status",
+              "value": "={{ $json.error ? \"error\" : \"success\" }}"
+            },
+            {
+              "name": "productId",
+              "value": "={{ $json.Id || $json.ExternalId }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.error ? $json.error.message : \"Product synced successfully\" }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "id": "log-sync-result",
+      "name": "Log Sync Result",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2250, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $node[\"Batch Products\"].context[\"noItemsLeft\"] }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-batch-complete",
+      "name": "Check Batch Complete",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2450, 300]
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [[{"node": "Get Active Integrations", "type": "main", "index": 0}]]
+    },
+    "Get Active Integrations": {
+      "main": [[{"node": "Split by Integration", "type": "main", "index": 0}]]
+    },
+    "Split by Integration": {
+      "main": [[{"node": "Get Product Mapping", "type": "main", "index": 0}]]
+    },
+    "Get Product Mapping": {
+      "main": [[{"node": "Prepare API Request", "type": "main", "index": 0}]]
+    },
+    "Prepare API Request": {
+      "main": [[{"node": "Fetch Products from Platform", "type": "main", "index": 0}]]
+    },
+    "Fetch Products from Platform": {
+      "main": [[{"node": "Transform to GrandNode Format", "type": "main", "index": 0}]]
+    },
+    "Transform to GrandNode Format": {
+      "main": [[{"node": "Get GrandNode Token", "type": "main", "index": 0}]]
+    },
+    "Get GrandNode Token": {
+      "main": [[{"node": "Batch Products", "type": "main", "index": 0}]]
+    },
+    "Batch Products": {
+      "main": [[{"node": "Create/Update Product in GrandNode", "type": "main", "index": 0}]]
+    },
+    "Create/Update Product in GrandNode": {
+      "main": [[{"node": "Log Sync Result", "type": "main", "index": 0}]]
+    },
+    "Log Sync Result": {
+      "main": [[{"node": "Check Batch Complete", "type": "main", "index": 0}]]
+    },
+    "Check Batch Complete": {
+      "main": [
+        [{"node": "Batch Products", "type": "main", "index": 0}],
+        [{"node": "Split by Integration", "type": "main", "index": 0}]
+      ]
+    }
+  }
+}

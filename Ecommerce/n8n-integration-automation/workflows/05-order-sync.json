@@ -1,0 +1,368 @@
+{
+  "name": "Order Sync Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every 2 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "collection": "integration_mappings",
+        "query": {
+          "active": true
+        }
+      },
+      "id": "get-active-integrations",
+      "name": "Get Active Integrations",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {},
+      "id": "split-integrations",
+      "name": "Split by Integration",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "collection": "field_mappings",
+        "query": {
+          "mappingKey": "={{ $json.platformName }}_order"
+        }
+      },
+      "id": "get-order-mapping",
+      "name": "Get Order Mapping",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "collection": "sync_logs",
+        "query": {
+          "platformName": "={{ $json.platformName }}",
+          "syncType": "order"
+        },
+        "sort": {
+          "timestamp": -1
+        },
+        "limit": 1
+      },
+      "id": "get-last-sync",
+      "name": "Get Last Sync Time",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const integration = items[0].json;\nconst orderEndpoints = JSON.parse(integration.orderEndpoints || '[]');\nconst servers = JSON.parse(integration.servers || '[]');\nconst lastSync = $node[\"Get Last Sync Time\"].json[0];\n\n// En uygun order endpoint'i seç\nconst listEndpoint = orderEndpoints.find(ep => \n  ep.method === 'GET' && !ep.path.includes('{') && !ep.path.includes(':id')\n);\n\nif (!listEndpoint) {\n  throw new Error('No suitable order list endpoint found');\n}\n\n// Base URL'i belirle\nconst baseUrl = servers.length > 0 ? servers[0].url : '';\nlet fullUrl = baseUrl + listEndpoint.path;\n\n// Son senkronizasyon zamanından sonraki siparişleri çek\nif (lastSync && lastSync.timestamp) {\n  const lastSyncTime = new Date(lastSync.timestamp);\n  const fromTime = lastSyncTime.toISOString();\n  \n  // Yaygın query parameter formatları\n  const separator = fullUrl.includes('?') ? '&' : '?';\n  \n  // Farklı platformlar için date filter formatları\n  if (fullUrl.includes('adisyo')) {\n    fullUrl += `${separator}from=${fromTime}`;\n  } else if (fullUrl.includes('simpra')) {\n    fullUrl += `${separator}startDate=${fromTime}`;\n  } else {\n    // Genel format\n    fullUrl += `${separator}created_at_min=${fromTime}`;\n  }\n}\n\nreturn [{\n  json: {\n    ...integration,\n    orderListUrl: fullUrl,\n    method: listEndpoint.method,\n    lastSyncTime: lastSync ? lastSync.timestamp : null\n  }\n}];"
+      },
+      "id": "prepare-api-request",
+      "name": "Prepare API Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.orderListUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "pagination": {
+            "paginationMode": "responseContainsNextURL",
+            "nextURL": "={{ $response.body.next }}",
+            "paginationCompleteWhen": "receiveSpecificStatusCodes",
+            "statusCodesWhenComplete": "404"
+          }
+        }
+      },
+      "id": "fetch-orders",
+      "name": "Fetch Orders from Platform",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const orders = items[0].json;\nconst mapping = $node[\"Get Order Mapping\"].json[0];\nconst mappingRules = JSON.parse(mapping.mappings || '[]');\nconst transformFunctions = JSON.parse(mapping.transformFunctions || '{}');\n\n// Transform fonksiyonlarını hazırla\nconst transforms = {};\nfor (const [name, code] of Object.entries(transformFunctions)) {\n  transforms[name] = eval(`(${code})`);\n}\n\n// Sipariş ve sipariş detaylarını dönüştür\nfunction transformOrder(order) {\n  const grandNodeOrder = {\n    ExternalId: order.id || order._id || order.orderId,\n    OrderStatusId: 10, // Pending\n    PaymentStatusId: 10, // Pending\n    ShippingStatusId: 10, // Not yet shipped\n    CreatedOnUtc: new Date().toISOString(),\n    OrderItems: []\n  };\n  \n  // Temel sipariş bilgilerini map et\n  for (const rule of mappingRules) {\n    if (!rule.targetField || rule.targetField.includes('OrderItems')) continue;\n    \n    let value = order;\n    const pathParts = rule.sourcePath.split('.');\n    \n    for (const part of pathParts) {\n      if (part.includes('[0]')) {\n        const fieldName = part.replace('[0]', '');\n        value = value[fieldName] ? value[fieldName][0] : null;\n      } else {\n        value = value ? value[part] : null;\n      }\n    }\n    \n    if (value !== null && value !== undefined && rule.transformFunction && transforms[rule.transformFunction]) {\n      value = transforms[rule.transformFunction](value);\n    }\n    \n    // Nested field handling\n    if (rule.targetField.includes('.')) {\n      const parts = rule.targetField.split('.');\n      let current = grandNodeOrder;\n      \n      for (let i = 0; i < parts.length - 1; i++) {\n        if (!current[parts[i]]) {\n          current[parts[i]] = {};\n        }\n        current = current[parts[i]];\n      }\n      \n      current[parts[parts.length - 1]] = value;\n    } else {\n      grandNodeOrder[rule.targetField] = value;\n    }\n  }\n  \n  // Sipariş detaylarını dönüştür\n  const orderItems = order.items || order.orderItems || order.products || [];\n  \n  for (const item of orderItems) {\n    const orderItem = {\n      ProductId: item.productId || item.product_id,\n      ProductName: item.name || item.productName || item.product_name,\n      Quantity: item.quantity || 1,\n      UnitPrice: item.price || item.unitPrice || 0,\n      TotalPrice: (item.quantity || 1) * (item.price || item.unitPrice || 0)\n    };\n    \n    grandNodeOrder.OrderItems.push(orderItem);\n  }\n  \n  // Toplam tutarı hesapla\n  if (!grandNodeOrder.OrderTotal) {\n    grandNodeOrder.OrderTotal = grandNodeOrder.OrderItems.reduce((sum, item) => sum + item.TotalPrice, 0);\n  }\n  \n  return grandNodeOrder;\n}\n\n// Array veya object kontrolü\nconst orderList = Array.isArray(orders) ? orders : \n                 (orders.data || orders.items || orders.orders || [orders]);\n\nconst transformedOrders = orderList.map(transformOrder);\n\nreturn transformedOrders.map(order => ({ json: order }));"
+      },
+      "id": "transform-orders",
+      "name": "Transform to GrandNode Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/token/create",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Email",
+              "value": "={{ $credentials.grandNodeEmail }}"
+            },
+            {
+              "name": "Token",
+              "value": "={{ $credentials.grandNodeApiToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-grandnode-token",
+      "name": "Get GrandNode Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:5000/api/order/exists/{{ $json.ExternalId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $node[\"Get GrandNode Token\"].json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "check-existing-order",
+      "name": "Check Existing Order",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2050, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.exists }}",
+              "value2": false
+            }
+          ]
+        }
+      },
+      "id": "order-not-exists",
+      "name": "Order Not Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const orderData = $node[\"Transform to GrandNode Format\"].json;\n\n// Customer bilgilerini işle\nlet customerId = null;\n\n// Eğer email varsa customer'ı bul veya oluştur\nif (orderData.BillingAddress && orderData.BillingAddress.Email) {\n  // Bu aşamada customer check edilecek\n  // Şimdilik guest customer olarak işaretleyelim\n  customerId = null; // Guest customer\n}\n\n// Order total kontrolü\nif (!orderData.OrderTotal || orderData.OrderTotal <= 0) {\n  throw new Error('Invalid order total');\n}\n\n// Order items kontrolü\nif (!orderData.OrderItems || orderData.OrderItems.length === 0) {\n  throw new Error('Order must have at least one item');\n}\n\nreturn [{\n  json: {\n    ...orderData,\n    CustomerId: customerId,\n    OrderGuid: require('crypto').randomUUID(),\n    OrderNumber: orderData.OrderNumber || `ORD-${Date.now()}`,\n    StoreId: '', // Default store\n    OrderStatusId: 10, // Pending\n    PaymentStatusId: 10, // Pending\n    ShippingStatusId: 10 // Not yet shipped\n  }\n}];"
+      },
+      "id": "prepare-order-data",
+      "name": "Prepare Order Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [2450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/order/create",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $node[\"Get GrandNode Token\"].json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "",
+              "value": "={{ $json }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-order",
+      "name": "Create Order in GrandNode",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2650, 300]
+    },
+    {
+      "parameters": {
+        "collection": "sync_logs",
+        "options": {},
+        "fields": {
+          "values": [
+            {
+              "name": "platformName",
+              "value": "={{ $node[\"Split by Integration\"].json.platformName }}"
+            },
+            {
+              "name": "syncType",
+              "value": "order"
+            },
+            {
+              "name": "status",
+              "value": "={{ $json.error ? \"error\" : \"success\" }}"
+            },
+            {
+              "name": "orderId",
+              "value": "={{ $json.Id || $json.ExternalId }}"
+            },
+            {
+              "name": "orderNumber",
+              "value": "={{ $json.OrderNumber }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.error ? $json.error.message : \"Order synced successfully\" }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "id": "log-sync-result",
+      "name": "Log Sync Result",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2850, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sipariş durumu güncellemeleri için webhook gönder\nconst orderData = items[0].json;\nconst platformName = $node[\"Split by Integration\"].json.platformName;\n\n// Platform'a sipariş alındı bildirimi gönder\nif (orderData.Id && orderData.ExternalId) {\n  const webhookPayload = {\n    platformName,\n    orderId: orderData.ExternalId,\n    grandNodeOrderId: orderData.Id,\n    status: 'received',\n    timestamp: new Date().toISOString()\n  };\n  \n  return [{ json: webhookPayload }];\n}\n\nreturn [{ json: { status: 'no_webhook_needed' } }];"
+      },
+      "id": "prepare-webhook",
+      "name": "Prepare Platform Webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [3050, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "value2": "no_webhook_needed"
+            }
+          ]
+        }
+      },
+      "id": "check-webhook-needed",
+      "name": "Webhook Needed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [3250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $node[\"Split by Integration\"].json.webhookUrl }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "",
+              "value": "={{ $json }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-webhook",
+      "name": "Send Platform Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [3450, 200]
+    }
+  ],
+  "connections": {
+    "Every 2 Minutes": {
+      "main": [[{"node": "Get Active Integrations", "type": "main", "index": 0}]]
+    },
+    "Get Active Integrations": {
+      "main": [[{"node": "Split by Integration", "type": "main", "index": 0}]]
+    },
+    "Split by Integration": {
+      "main": [[{"node": "Get Order Mapping", "type": "main", "index": 0}]]
+    },
+    "Get Order Mapping": {
+      "main": [[{"node": "Get Last Sync Time", "type": "main", "index": 0}]]
+    },
+    "Get Last Sync Time": {
+      "main": [[{"node": "Prepare API Request", "type": "main", "index": 0}]]
+    },
+    "Prepare API Request": {
+      "main": [[{"node": "Fetch Orders from Platform", "type": "main", "index": 0}]]
+    },
+    "Fetch Orders from Platform": {
+      "main": [[{"node": "Transform to GrandNode Format", "type": "main", "index": 0}]]
+    },
+    "Transform to GrandNode Format": {
+      "main": [[{"node": "Get GrandNode Token", "type": "main", "index": 0}]]
+    },
+    "Get GrandNode Token": {
+      "main": [[{"node": "Check Existing Order", "type": "main", "index": 0}]]
+    },
+    "Check Existing Order": {
+      "main": [[{"node": "Order Not Exists?", "type": "main", "index": 0}]]
+    },
+    "Order Not Exists?": {
+      "main": [
+        [{"node": "Prepare Order Data", "type": "main", "index": 0}],
+        []
+      ]
+    },
+    "Prepare Order Data": {
+      "main": [[{"node": "Create Order in GrandNode", "type": "main", "index": 0}]]
+    },
+    "Create Order in GrandNode": {
+      "main": [[{"node": "Log Sync Result", "type": "main", "index": 0}]]
+    },
+    "Log Sync Result": {
+      "main": [[{"node": "Prepare Platform Webhook", "type": "main", "index": 0}]]
+    },
+    "Prepare Platform Webhook": {
+      "main": [[{"node": "Webhook Needed?", "type": "main", "index": 0}]]
+    },
+    "Webhook Needed?": {
+      "main": [
+        [],
+        [{"node": "Send Platform Webhook", "type": "main", "index": 0}]
+      ]
+    }
+  }
+}

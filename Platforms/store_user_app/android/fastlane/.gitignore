@@ -1,0 +1,13 @@
+# Fastlane
+report.xml
+test_output/
+.env
+.env.*
+!.env.example
+
+# Google Play JSON keys
+*.json
+
+# Build artifacts
+*.apk
+*.aab

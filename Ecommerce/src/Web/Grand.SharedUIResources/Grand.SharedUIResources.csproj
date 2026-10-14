@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+    <Import Project="..\..\Build\Grand.Common.props" />
+   
+    <ItemGroup>
+      <Folder Include="wwwroot\" />
+    </ItemGroup>
+   
+    <ItemGroup>
+      <Content Update="wwwroot\administration\build\images\famizyoLogo.png">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
+</Project>

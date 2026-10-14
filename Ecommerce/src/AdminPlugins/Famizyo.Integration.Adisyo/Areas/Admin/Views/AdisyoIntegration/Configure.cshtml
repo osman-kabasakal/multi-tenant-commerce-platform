@@ -1,0 +1,108 @@
+@model ConfigureViewModel
+
+@{
+    Layout = "_ConfigurePlugin";
+    ViewBag.Title = "Adisyo Entegrasyon Yapılandırma";
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="x_panel light form-fit">
+            <div class="x_title">
+                <div class="caption">
+                    <i class="fa fa-cogs"></i>
+                    Adisyo Entegrasyon Ayarları
+                </div>
+            </div>
+            
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert alert-success alert-dismissible">
+                    <button type="button" class="close" data-dismiss="alert">&times;</button>
+                    @TempData["SuccessMessage"]
+                </div>
+            }
+            
+            @if (Model.ConnectionTestResult.HasValue)
+            {
+                <div class="alert @(Model.ConnectionTestResult.Value ? "alert-success" : "alert-danger") alert-dismissible">
+                    <button type="button" class="close" data-dismiss="alert">&times;</button>
+                    @Model.ConnectionTestMessage
+                </div>
+            }
+
+            <div class="x_content form">
+                <partial name="_Settings.cshtml" model="Model"/>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function() {
+        // Helper function to show notifications
+        function showNotification(message, type) {
+            if (typeof toastr !== 'undefined') {
+                // Use toastr if available
+                if (type === 'success') {
+                    toastr.success(message);
+                } else {
+                    toastr.error(message);
+                }
+            } else {
+                // Fallback to alert and console
+                alert(message);
+                console.log(type + ': ' + message);
+            }
+        }
+        
+        $('#test-connection-btn').click(function() {
+            var btn = $(this);
+            var originalText = btn.text();
+            btn.text('Test ediliyor...').prop('disabled', true);
+            
+            $.ajax({
+                url: '@Url.Action("TestConnection")',
+                type: 'POST',
+                data: $('#widget-settings-form').serialize(),
+                success: function(response) {
+                    if (response.success) {
+                        showNotification(response.message, 'success');
+                    } else {
+                        showNotification(response.message, 'error');
+                    }
+                },
+                error: function() {
+                    showNotification('Bağlantı testi sırasında bir hata oluştu.', 'error');
+                },
+                complete: function() {
+                    btn.text(originalText).prop('disabled', false);
+                }
+            });
+        });
+        
+        $('#sync-products-btn').click(function() {
+            var btn = $(this);
+            var originalText = btn.text();
+            btn.text('Senkronize ediliyor...').prop('disabled', true);
+            
+            $.ajax({
+                url: '@Url.Action("SyncProducts")',
+                type: 'POST',
+                success: function(response) {
+                    if (response.success) {
+                        showNotification(response.message, 'success');
+                    } else {
+                        showNotification(response.message, 'error');
+                    }
+                },
+                error: function() {
+                    showNotification('Ürün senkronizasyonu sırasında bir hata oluştu.', 'error');
+                },
+                complete: function() {
+                    btn.text(originalText).prop('disabled', false);
+                }
+            });
+        });
+    });
+</script>

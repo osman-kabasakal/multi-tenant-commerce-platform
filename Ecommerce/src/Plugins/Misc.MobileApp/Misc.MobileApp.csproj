@@ -1,0 +1,82 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+    <Import Project="..\..\Build\Grand.Common.props" />
+    <PropertyGroup>
+        <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(BuildType)'==''">
+        <OutputPath>..\..\Web\Grand.Web.OnlyAdmin\Plugins\Misc.MobileApp</OutputPath>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+        <OutputPath>$(BaseDir)Misc.MobileApp\</OutputPath>
+        <OutDir>$(OutputPath)</OutDir>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+        <OutputPath>$(BaseDir)Misc.MobileApp\</OutputPath>
+        <OutDir>$(OutputPath)</OutDir>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../Web/Grand.SharedUIResources/Grand.SharedUIResources.csproj">
+            <private>false</private>
+            <ExcludeAssets>all</ExcludeAssets>
+        </ProjectReference>
+
+        <ProjectReference Include="../../Web/Grand.Web.ExternalSettings/Grand.Web.ExternalSettings.csproj">
+            <Private>false</Private>
+            <ExcludeAssets>all</ExcludeAssets>
+        </ProjectReference>
+        <ProjectReference Include="..\..\Core\Grand.Data\Grand.Data.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+        <ProjectReference Include="..\..\Core\Grand.Domain\Grand.Domain.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+        <ProjectReference Include="..\..\Core\Grand.Infrastructure\Grand.Infrastructure.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+        <ProjectReference Include="..\..\Core\Grand.SharedKernel\Grand.SharedKernel.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+        <ProjectReference Include="..\..\Web\Grand.Web.Common\Grand.Web.Common.csproj">
+            <Private>false</Private>
+            <ExcludeAssets>all</ExcludeAssets>
+        </ProjectReference>
+        <ProjectReference Include="..\..\Business\Grand.Business.Core\Grand.Business.Core.csproj">
+            <Private>false</Private>
+        </ProjectReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="logo.jpg">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+
+
+<!--        <None Update="Assets\**">-->
+<!--            <CopyToOutputDirectory>Always</CopyToOutputDirectory>-->
+<!--        </None>-->
+
+        <!-- <None Update="Areas\Admin\Views\**">
+              <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+              <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+            </None> -->
+<!--        <Content Include="Areas\Admin\Views\**" CopyToPublishDirectory="Always" />-->
+<!--        <Content Include="Views\**" CopyToPublishDirectory="Always" />-->
+
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Twilio" Version="7.14.3" />
+    </ItemGroup>
+
+    <Target Name="CopyFile" AfterTargets="AfterBuild">
+        <ItemGroup>
+            <CopyFiles Include="$(NuGetPackageRoot)\twilio\7.11.1\lib\net6.0\*.dll" />
+        </ItemGroup>
+        <Copy SourceFiles="@(CopyFiles)" DestinationFolder="$(BaseDir)Misc.MobileApp\" />
+    </Target>
+
+</Project>

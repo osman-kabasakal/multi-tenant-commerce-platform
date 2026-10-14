@@ -1,0 +1,14 @@
+@if (localDemo) {
+  <aside aria-label="Yerel demo bilgisi" class="border-b p-4 text-sm">
+    <strong>Yerel demo · iki hazır mağaza</strong>
+    <p class="mt-1">Bu yönetim paneli önizlemedir. Yeni mağaza oluşturma, ödeme ve buluta yayınlama bu profilde kapalıdır.</p>
+    <nav aria-label="Demo bağlantıları" class="mt-2 flex flex-wrap gap-4">
+      <a class="underline" href="http://demo-a.localhost:18090">Kahve mağazası</a>
+      <a class="underline" href="http://demo-b.localhost:18090">Kitap mağazası</a>
+      <a class="underline" href="http://demo-a.localhost:18083/Admin">Mağaza yönetimi</a>
+      <a class="underline" href="/api/Auth/login?returnUrl=/">Keycloak ile giriş</a>
+      <a class="underline" href="/api">API belgeleri</a>
+    </nav>
+  </aside>
+}
+<router-outlet></router-outlet>

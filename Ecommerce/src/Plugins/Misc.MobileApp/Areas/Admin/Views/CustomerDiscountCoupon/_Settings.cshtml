@@ -1,0 +1,127 @@
+@using Misc.MobileApp.Domain.Enums
+@model SendCouponCodeNotificationSettings
+
+
+<form method="post" id="widget-settings-form" asp-action="Configure" asp-controller="CustomerDiscountCoupon" asp-area="Admin">
+    <div id="smsProviderSelection" class="panel-group">
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h4 class="panel-title">
+                    <a data-toggle="collapse" href="#generalSettings" aria-expanded="true" aria-controls="generalSettings">
+                        @Loc["Admin.Common.GeneralSettings"]
+                    </a>
+                </h4>
+            </div>
+            <div id="generalSettings" class="panel-collapse collapse in" aria-expanded="true">
+                <div class="panel-body">
+                    <div class="form-body">
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="SmsProvider" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-select asp-for="SmsProvider" asp-items="Model.SmsProvider.ToSelectList(Context)"/>
+                                <span asp-validation-for="SmsProvider"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="DiscountId" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="DiscountId"/>
+                                <span asp-validation-for="DiscountId"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="provider_@(((int)SmsProviders.Twilio).ToString())" class="panel-group" style="display: @(Model.SmsProvider == SmsProviders.Twilio ? "block" : "none")">
+        <div class="panel panel-default">
+            <div class="panel-body">
+                <div class="form-body">
+                    <div class="form-group">
+                        <admin-label asp-for="TwilioAccountSid"/>
+                        <div class="col-md-9 col-sm-9">
+                            <admin-input asp-for="TwilioAccountSid"/>
+                            <span asp-validation-for="TwilioAccountSid"></span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <admin-label asp-for="TwilioAuthToken"/>
+                        <div class="col-md-9 col-sm-9">
+                            <admin-input asp-for="TwilioAuthToken"/>
+                            <span asp-validation-for="TwilioAuthToken"></span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <admin-label asp-for="TwilioPhoneNumber"/>
+                        <div class="col-md-9 col-sm-9">
+                            <admin-input asp-for="TwilioPhoneNumber"/>
+                            <span asp-validation-for="TwilioPhoneNumber"></span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <input type="submit" id="savegeneralsettings" class="btn default" value="@Loc["Admin.Common.Save"]"/>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="provider_@(((int)SmsProviders.NetGsm).ToString())" class="panel-group" style="display: @(Model.SmsProvider == SmsProviders.NetGsm ? "block" : "none")">
+        <div class="panel panel-default">
+            <div class="panel-body">
+                <div class="form-body">
+                    
+                    <div class="form-group">
+                        <admin-label asp-for="MsgHeader"/>
+                        <div class="col-md-9 col-sm-9">
+                            <admin-input asp-for="MsgHeader"/>
+                            <span asp-validation-for="MsgHeader"></span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <admin-label asp-for="Username"/>
+                        <div class="col-md-9 col-sm-9">
+                            <admin-input asp-for="Username"/>
+                            <span asp-validation-for="Username"></span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <admin-label asp-for="Password"/>
+                        <div class="col-md-9 col-sm-9">
+                            <admin-input asp-for="Password"/>
+                            <span asp-validation-for="Password"></span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <input type="submit" id="savegeneralsettings" class="btn default" value="@Loc["Admin.Common.Save"]"/>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<script>
+    $(document).ready(function () {
+        // Toggle visibility of SMS provider settings based on selected provider
+        $('#SmsProvider').change(function () {
+            var selectedProvider = $(this).val();
+            $('.panel-group:not(#smsProviderSelection)').hide();
+            $('#provider_' + selectedProvider).show();
+        });
+
+        // Initial setup to show the correct provider settings
+        var initialProvider = $('#SmsProvider').val();
+        if(initialProvider){
+            $('.panel-group:not(#smsProviderSelection)').hide();
+            $('#provider_' + initialProvider).show();
+        }
+        
+    });
+</script>

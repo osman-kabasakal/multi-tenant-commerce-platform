@@ -1,0 +1,176 @@
+@model Payments.Iyzico.Models.IyzicoPaymentInfoModel
+@{
+    Layout = "";
+    var hasStoredCards = Model.StoredUserCards?.Any() ?? false;
+}
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4>Ödeme Bilgileri</h4>
+                    <img src="@Model.IyzicoBrandImageUrl" alt="Iyzico" style="height: 30px;" />
+                </div>
+                <div class="card-body">
+                    @if (hasStoredCards)
+                    {
+                        <div class="form-group mb-4">
+                            <label for="savedCards">Kayıtlı Kartlarınız</label>
+                            <select id="savedCards" class="form-control">
+                                <option value="">Yeni Kart ile Öde</option>
+                                @foreach (var card in Model.StoredUserCards)
+                                {
+                                    <option value="@card.CardToken" selected="@(Model.SelectedCardToken == card.CardToken)">
+                                        @card.CardAlias - @card.BinNumber
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                    }
+
+                    <form id="creditCardForm" class="@(hasStoredCards && !string.IsNullOrEmpty(Model.SelectedCardToken) ? "d-none" : "")">
+                        @foreach (var field in Model.CreditCardFormData)
+                        {
+                            <div class="form-group mb-3">
+                                <label for="@field.Key">@field.Value.Label</label>
+                                @{
+                                    var validationAttributes = string.Join(" ", field.Value.Validations.Select(v => $"{v.Key}=\"{v.Value}\""));
+                                }
+                                <input type="@field.Value.Type" 
+                                       class="form-control" 
+                                       id="@field.Key" 
+                                       name="@field.Key"
+                                       placeholder="@field.Value.Label"
+                                       @Html.Raw(field.Value.Required ? "required" : "") 
+                                       @Html.Raw(validationAttributes)/>
+                                @if (field.Value.ValidationMessages.Any())
+                                {
+                                    <div class="invalid-feedback">
+                                        @foreach (var message in field.Value.ValidationMessages)
+                                        {
+                                            <span>@message.Value</span><br />
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </form>
+
+                    <div id="installmentOptions" class="mt-4 d-none">
+                        <h5>Taksit Seçenekleri</h5>
+                        <div class="form-group">
+                            <select id="installmentCount" class="form-control">
+                                <!-- Taksit seçenekleri AJAX ile doldurulacak -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-4">
+                        <button type="button" id="paymentButton" class="btn btn-primary">Ödemeyi Tamamla</button>
+                    </div>
+
+                    <div class="text-center mt-4">
+                        <img src="@Model.CreditCardBrandUrl" alt="Credit Card Brands" style="max-height: 40px;" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            let binTimeout;
+            const installmentQueryUrl = '@Model.InstallmentQueryUrl';
+            const savedCardsSelect = document.getElementById('savedCards');
+            const creditCardForm = document.getElementById('creditCardForm');
+
+            if (savedCardsSelect) {
+                savedCardsSelect.addEventListener('change', function () {
+                    const selectedValue = this.value;
+                    if (selectedValue === '') {
+                        creditCardForm.classList.remove('d-none');
+                    } else {
+                        creditCardForm.classList.add('d-none');
+                        // Kayıtlı kart için taksit sorgulama
+                        queryInstallments(selectedValue);
+                    }
+                });
+            }
+
+            // Kart numarası girildiğinde bin sorgulama
+            const cardNumberInput = document.querySelector('input[name="cardNumber"]');
+            if (cardNumberInput) {
+                cardNumberInput.addEventListener('input', function () {
+                    clearTimeout(binTimeout);
+                    const cardNumber = this.value.replace(/\D/g, '');
+                    
+                    if (cardNumber.length >= 6) {
+                        binTimeout = setTimeout(() => {
+                            const bin = cardNumber.substring(0, 6);
+                            queryBin(bin);
+                        }, 500);
+                    }
+                });
+            }
+
+            function queryBin(bin) {
+                fetch(`${binQueryUrl}?bin=${bin}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            queryInstallments(null, bin);
+                        }
+                    })
+                    .catch(error => console.error('Bin sorgulama hatası:', error));
+            }
+
+            function queryInstallments(cardToken = null, bin = null) {
+                const data = cardToken ? { cardToken } : { bin };
+                const queryString = new URLSearchParams(data).toString();
+                
+                fetch(`${installmentQueryUrl}?${queryString}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success && data.installmentOptions?.length > 0) {
+                            const installmentSelect = document.getElementById('installmentCount');
+                            const installmentOptions = document.getElementById('installmentOptions');
+                            
+                            installmentSelect.innerHTML = '';
+                            
+                            data.installmentOptions.forEach(option => {
+                                const optionElement = document.createElement('option');
+                                optionElement.value = option.count;
+                                optionElement.textContent = `${option.count} Taksit - ${option.monthlyAmount} TL x ${option.count}`;
+                                installmentSelect.appendChild(optionElement);
+                            });
+
+                            installmentOptions.classList.remove('d-none');
+                        }
+                    })
+                    .catch(error => console.error('Taksit sorgulama hatası:', error));
+            }
+
+            // Form validation
+            creditCardForm.addEventListener('submit', function (event) {
+                event.preventDefault();
+                let isValid = true;
+                const inputs = this.querySelectorAll('input[required], input[minlength], input[maxlength], input[pattern]');
+                
+                inputs.forEach(input => {
+                    input.classList.remove('is-invalid');
+                    if (!input.validity.valid) {
+                        isValid = false;
+                        input.classList.add('is-invalid');
+                    }
+                });
+
+                if (isValid) {
+                    // Form geçerliyse burada işlem yapılabilir
+                }
+            });
+        });
+    </script>
+}

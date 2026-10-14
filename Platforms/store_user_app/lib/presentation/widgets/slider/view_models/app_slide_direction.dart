@@ -1,0 +1,4 @@
+enum AppSlideDirection {
+  vertical,
+  horizontal,
+}

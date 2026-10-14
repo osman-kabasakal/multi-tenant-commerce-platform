@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  webapp:
+    image: ${IMAGE_NAME:-backendrider}
+    build:
+      context: .
+      dockerfile: dev.Dockerfile
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-latest}
+        - GIT_BRANCH=${GIT_BRANCH:-main}
+        - BUILD_TYPE=${BUILD_TYPE:-Backend}
+        - PROJECT_NAME=${PROJECT_NAME:-Grand.Web.OnlyAdmin}
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - AZURE_TENANT_ID=cff8136d-c6ac-4eb1-96fd-71d33f47167f
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+      - AZURE_CLIENT_ID=35bc8a26-725e-4a76-a88b-ea8bca1b120e
+      - services__centralappkeycloak__http__0=https://identity.commerce.test
+      - ConnectionStrings__kvUri=https://vault.example.invalid
+      - LOCAL_DOCKER_ID=555
+      - WEBSITE_HOSTNAME=ask-sekerle.commerce.test
+      - WEBSITE_INSTANCE_ID=d0479c132f3a2e0dcd143ec70f59b3856a45fe0f96fa5f79102de6c6c655b99b
+      - PATH_BASE=/
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    volumes:
+      - app-data:/app/App_Data
+
+volumes:
+  app-data:

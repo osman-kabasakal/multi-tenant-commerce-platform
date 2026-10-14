@@ -1,0 +1,43 @@
+import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:store_user_app/presentation/widgets/app/widgets/app_error_widget.dart';
+import 'package:store_user_app/presentation/widgets/components/providers/component_providers.dart';
+import 'package:store_user_app/presentation/widgets/layout/view/load_component_when_visible.dart';
+import 'package:store_user_app/presentation/widgets/products/widgets/app_section_product_collection_widget.dart';
+import 'package:store_user_app/presentation/widgets/skeletons/widgets/product_collection_widget_sceleton.dart';
+import 'package:uuid/uuid.dart';
+
+class CustomerRecomendedProducts extends StatefulHookConsumerWidget {
+  const CustomerRecomendedProducts({super.key});
+
+  @override
+  ConsumerState<ConsumerStatefulWidget> createState() =>
+      _CustomerRecomendedProductsState();
+}
+
+class _CustomerRecomendedProductsState
+    extends ConsumerState<CustomerRecomendedProducts> {
+  bool isVisible = false;
+  final skeletonWidget = ProductCollectionWidgetSceleton();
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 150),
+      child: ref.watch(customerRecomendedProductsProvider).when(
+            data: (data) => data.isEmpty
+                ? SizedBox.shrink()
+                : AppSectionProductCollectionWidget(
+                    products: data,
+                    title: 'Beğeneceğiniz Ürünler',
+                  ),
+            error: (err, stack) => AppErrorWidget(
+              message:
+                  'Ürünleriniz yüklenemedi lütfen daha sonra tekrar deneyiniz.',
+            ),
+            loading: () {
+              return skeletonWidget;
+            },
+          ),
+    );
+  }
+}

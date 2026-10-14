@@ -1,0 +1,11 @@
+import 'package:json_annotation/json_annotation.dart';
+
+@JsonEnum(valueField: 'value')
+enum {{ EnumName }} {
+  {% for enumValue in Values %}
+  @JsonValue({{ enumValue.Value }})
+  {{ enumValue.Name }}({{ enumValue.Value }}){% if forloop.last == false %},{% endif %}{% if forloop.last == true %};{% endif %}{% endfor %}
+
+  final int value;
+  const {{ EnumName }}(this.value);
+}

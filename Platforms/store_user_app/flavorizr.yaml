@@ -1,0 +1,17 @@
+flavors:
+  demo:
+    app:
+      name: Commerce Demo
+    android:
+      applicationId: dev.commerce.demo
+      generateDummyAssets: false
+      customConfig:
+        manifestPlaceholders["deepLinkHost"]: '"demo-a.localhost"'
+    ios:
+      bundleId: dev.commerce.demo
+      generateDummyAssets: false
+      variables:
+        DEEP_LINK_HOST:
+          value: demo-a.localhost
+        NOTIFICATION_EXTENSION_BUNDLE_ID:
+          value: dev.commerce.demo.NotificationServiceExtension

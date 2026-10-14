@@ -1,0 +1,23 @@
+import 'package:dio/dio.dart';
+import 'package:injectable/injectable.dart';
+import 'package:retrofit/retrofit.dart';
+
+{% for import in DartFileInfo.Imports %}
+import '{{import}}';{% endfor %}
+
+part '{{DartFileInfo.Name}}.g.dart';
+
+@RestApi()
+@lazySingleton
+abstract class {{DartFileInfo.InstanceName}}DataSource {
+  @factoryMethod
+  factory {{DartFileInfo.InstanceName}}DataSource(Dio dio) {
+    return _{{DartFileInfo.InstanceName}}DataSource(dio);
+  }
+  {% for endpoint in Endpoints %}
+  @{{endpoint.Method}}('{{endpoint.Path}}')
+  {% if endpoint.IsExtra %}@Extra({'responseType': {{endpoint.ResponseType}}()}){% endif %}
+  Future<{{endpoint.ResponseType}}> {{endpoint.Name}}({% for param in endpoint.Params %}
+      @{{param.Decorator}}({% if param.Decorator != "Body" || param.Decorator != "Field" %}'{{param.Name}}'{% endif %}) {{param.Type}}{% if param.IsOptional %}?{% endif %} {{param.Name}}{% if forloop.last == false %},{% endif %}{% endfor %});
+  {% endfor %}
+}

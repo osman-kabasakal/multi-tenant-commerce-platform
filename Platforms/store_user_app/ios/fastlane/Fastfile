@@ -1,0 +1,99 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+default_platform(:ios)
+
+platform :ios do
+  desc "Push a new beta build to TestFlight"
+  lane :beta do
+    app_store_connect_api_key(
+      key_id: ENV["KEY_ID"],
+      issuer_id: ENV["ISSUER_ID"],
+      key_filepath: "keyfilepath",
+      duration: 1200, # optional (maximum 1200)
+      in_house: false # optional but may be required if using match/sigh
+    )
+    build_app(
+      skip_build_archive: true,
+      archive_path: "../build/ios/archive/Runner.xcarchive",
+      workspace: "Runner.xcworkspace", 
+      scheme: "flavor",
+      configuration: "Release-flavor"
+    )
+    tester_group = ENV["TESTER_GROUP"]
+    upload_to_testflight(
+      demo_account_required: true,
+      groups: [tester_group], # Replace with your TestFlight group name
+      notify_external_testers: true,
+      expire_previous_builds: true,
+      distribute_external: true,
+      changelog: "Added
+
+                  Minimum Order Amount Notifications: Added minimum order amount display and notifications across homepage, category, search, and cart pages
+                  Free Shipping Notifications: Implemented free shipping threshold notifications for regional shipping transactions on key pages (homepage, category, search, cart)
+                  Enhanced Error Handling: Added error display functionality for shipping method selection screen
+                  Demo Account System: Integrated demo account login system with predefined credentials for testing purposes
+                  Guest Checkout Support: Enabled purchasing without account registration requirement
+
+                  Improved
+
+                  User Experience: Enhanced shopping flow with clear shipping cost information
+                  Error Visibility: Better error communication during shipping method selection
+                  Testing Capabilities: Streamlined testing process with demo account functionality
+
+                  Technical Notes
+
+                  Demo account reserved specifically for Apple testing procedures
+                  Fallback registration option available if demo credentials fail
+                  Regional shipping calculations integrated across multiple page templates",
+      beta_app_review_info: {
+        contact_email: "maintainer@example.invalid",
+        contact_first_name: "Osman",
+        contact_last_name: "Kabasakal",
+        contact_phone: ENV["CONTACT_PHONE"],
+        demo_account_name: "apple@commerce.test",
+        demo_account_password: "CHANGE_ME",
+        notes: "In this version, minimum order amount and free shipping notifications for regional shipping transactions have been added to the homepage, category, search and cart pages. If there are errors on the shipping method selection screen, they are shown. Although you do not need an account to make purchases, you can log in with the email and password specified in the demo account information. If the email and password do not work, you can register for this account; this account is reserved for Apple testing. Thanks for your review."
+      },
+      localized_app_info: {
+        "default": {
+          feedback_email: "maintainer@example.invalid",
+          description: "flavor uygulaması için testflighta yüklenmiştir"
+        }
+      },
+      localized_build_info: {
+        "default": {
+          whats_new: "🚀 Enhanced Shopping Experience
+                      Free Shipping & Order Minimums Made Clear
+
+                      We've added clear notifications about minimum order amounts and free shipping thresholds throughout your shopping journey. You'll now see these important details on the homepage, category pages, search results, and in your cart.
+                      Better Error Handling
+                      Having trouble with shipping options? We now show clear error messages on the shipping method selection screen to help you resolve any issues quickly.
+                      Flexible Account Options
+                      Shop your way! You can now make purchases without creating an account, or log in using our demo credentials for testing purposes.
+
+                      🛍️ Key Improvements
+
+                      Transparent Shipping Costs: Know exactly when you qualify for free shipping
+                      Clear Order Requirements: See minimum order amounts upfront
+                      Guest Checkout: Purchase without the hassle of account creation
+                      Demo Testing: Use provided test credentials for seamless evaluation
+
+                      📱 For Testers & Reviewers
+                      Use the demo account credentials provided for testing. If you encounter login issues, you can register using the same credentials - this account is specifically reserved for Apple review processes."
+        }
+      }
+    )
+  end
+end

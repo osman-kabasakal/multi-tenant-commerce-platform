@@ -1,0 +1,354 @@
+@model ConfigureViewModel
+
+<form method="post" id="widget-settings-form" asp-action="Configure" asp-controller="AdisyoIntegration" asp-area="Admin">
+    <div class="panel-group">
+        <!-- API Settings Panel -->
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h4 class="panel-title">
+                    <a data-toggle="collapse" href="#api-settings">API Ayarları</a>
+                </h4>
+            </div>
+            <div id="api-settings" class="panel-collapse collapse in">
+                <div class="panel-body">
+                    <div class="form-body">
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="ApiKey" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="ApiKey" />
+                                <span asp-validation-for="ApiKey"></span>
+                                <p class="help-block">Adisyo tarafından sağlanan API anahtarınız</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="ApiSecret" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="ApiSecret" />
+                                <span asp-validation-for="ApiSecret"></span>
+                                <p class="help-block">Adisyo tarafından sağlanan API gizli anahtarınız</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="Consumer" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="Consumer" />
+                                <span asp-validation-for="Consumer"></span>
+                                <p class="help-block">Entegrasyon tüketici adı (varsayılan: Sabir)</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="BaseUrl" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="BaseUrl" />
+                                <span asp-validation-for="BaseUrl"></span>
+                                <p class="help-block">Adisyo API base URL'i</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-9 col-md-offset-3">
+                                <button type="button" id="test-connection-btn" class="btn btn-info">
+                                    <i class="fa fa-plug"></i> Bağlantıyı Test Et
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Sync Settings Panel -->
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h4 class="panel-title">
+                    <a data-toggle="collapse" href="#product-settings">Ürün Senkronizasyon Ayarları</a>
+                </h4>
+            </div>
+            <div id="product-settings" class="panel-collapse collapse">
+                <div class="panel-body">
+                    <div class="form-body">
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="EnableProductSync" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="EnableProductSync" />
+                                <span asp-validation-for="EnableProductSync"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="ProductMappingStrategy" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-select asp-items="Model.ProductMappingStrategies" asp-for="ProductMappingStrategy"></admin-select>
+                                <span asp-validation-for="ProductMappingStrategy"></span>
+                                <p class="help-block">Ürünlerin nasıl eşleştirileceğini belirler</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="SelectedCategoryIds" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="SelectedCategoryIds" asp-template="MultiSelect" asp-selectitem="Model.AvailableCategories"/>
+                                <span asp-validation-for="SelectedCategoryIds"></span>
+                                <p class="help-block">Senkronize edilecek kategorileri seçin (çoklu seçim)</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="SyncCategoryIds" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="SyncCategoryIds" asp-template="MultiSelect" asp-selectitem="Model.AvailableSyncCategories"/>
+                                <span asp-validation-for="SyncCategoryIds"></span>
+                                <p class="help-block">Aktarılacak kategorileri seçin</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="HomepageCategoryIds" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="HomepageCategoryIds" asp-template="MultiSelect" asp-selectitem="Model.AvailableHomepageCategories"/>
+                                <span asp-validation-for="HomepageCategoryIds"></span>
+                                <p class="help-block">Ana sayfada gösterilecek kategorileri seçin</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="FeaturedProductCategoryIds" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="FeaturedProductCategoryIds" asp-template="MultiSelect" asp-selectitem="Model.AvailableFeaturedCategories"/>
+                                <span asp-validation-for="FeaturedProductCategoryIds"></span>
+                                <p class="help-block">Öne çıkan ürün kategorilerini seçin</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="IngredientPropertyName" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="IngredientPropertyName" />
+                                <span asp-validation-for="IngredientPropertyName"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="MapOtherPropertiesAsSpecifications" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="MapOtherPropertiesAsSpecifications" />
+                                <span asp-validation-for="MapOtherPropertiesAsSpecifications"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="ProductLayoutId" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-select asp-items="Model.AvailableProductLayouts" asp-for="ProductLayoutId"></admin-select>
+                                <span asp-validation-for="ProductLayoutId"></span>
+                                <p class="help-block">Senkronize edilen ürünler için kullanılacak ürün düzeni</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="TaxCategoryId" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-select asp-items="Model.AvailableTaxCategories" asp-for="TaxCategoryId"></admin-select>
+                                <span asp-validation-for="TaxCategoryId"></span>
+                                <p class="help-block">Senkronize edilen ürünler için kullanılacak vergi kategorisi</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="ServiceFeeCategoryId" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-select asp-items="Model.AvailableCategories" asp-for="ServiceFeeCategoryId"></admin-select>
+                                <span asp-validation-for="ServiceFeeCategoryId"></span>
+                                <p class="help-block">Siparişler için hizmet bedellerinin ekleneceği kategori</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-9 col-md-offset-3">
+                                <button type="button" id="sync-products-btn" class="btn btn-success">
+                                    <i class="fa fa-refresh"></i> Ürünleri Senkronize Et
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Method Mapping Panel -->
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h4 class="panel-title">
+                    <a data-toggle="collapse" href="#payment-mapping-settings">Ödeme Yöntemi Eşleştirme</a>
+                </h4>
+            </div>
+            <div id="payment-mapping-settings" class="panel-collapse collapse">
+                <div class="panel-body">
+                    <div class="form-body">
+                        <div class="alert alert-info">
+                            <i class="fa fa-info-circle"></i>
+                            <strong>Bilgi:</strong> GrandNode'daki ödeme sağlayıcılarını Adisyo'daki ödeme tipları ile eşleştirin. Bu eşleştirme sipariş aktarımında kullanılacaktır.
+                        </div>
+                        
+                        <div id="payment-mapping-container">
+                            @if (Model.AvailablePaymentProviders?.Any() == true)
+                            {
+                                @foreach (var provider in Model.AvailablePaymentProviders)
+                                {
+                                    <div class="form-group payment-mapping-row">
+                                        <div class="col-md-4 col-sm-4 text-right">
+                                            <label class="control-label">@provider.Text:</label>
+                                        </div>
+                                        <div class="col-md-6 col-sm-6">
+                                            <select name="PaymentMethodMappings[@provider.Value]" 
+                                                    class="form-control adisyo-payment-select"
+                                                    data-provider-system-name="@provider.Value">
+                                                <option value="">Seçiniz</option>
+                                                @if (Model.AdisyoPaymentMethods?.Any() == true)
+                                                {
+                                                    @foreach (var adisyoMethod in Model.AdisyoPaymentMethods.Where(x => !string.IsNullOrEmpty(x.Value)))
+                                                    {
+                                                        var isSelected = Model.PaymentMethodMappings.ContainsKey(provider.Value) && 
+                                                                        Model.PaymentMethodMappings[provider.Value].ToString() == adisyoMethod.Value;
+                                                        @if (isSelected)
+                                                        {
+                                                            <option value="@adisyoMethod.Value" selected>@adisyoMethod.Text</option>
+                                                        }
+                                                        else
+                                                        {
+                                                            <option value="@adisyoMethod.Value">@adisyoMethod.Text</option>
+                                                        }
+                                                    }
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2 col-sm-2">
+                                            <span class="help-block text-muted">SystemName: @provider.Value</span>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <div class="alert alert-warning">
+                                    <i class="fa fa-exclamation-triangle"></i>
+                                    Aktif ödeme sağlayıcısı bulunamadı. Önce ödeme sağlayıcılarını etkinleştirin.
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order Settings Panel -->
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h4 class="panel-title">
+                    <a data-toggle="collapse" href="#order-settings">Sipariş Ayarları</a>
+                </h4>
+            </div>
+            <div id="order-settings" class="panel-collapse collapse">
+                <div class="panel-body">
+                    <div class="form-body">
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="OrderType" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-select asp-items="Model.OrderTypes" asp-for="OrderType"></admin-select>
+                                <span asp-validation-for="OrderType"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="PaymentMethodId" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-select asp-items="Model.PaymentMethods" asp-for="PaymentMethodId"></admin-select>
+                                <span asp-validation-for="PaymentMethodId"></span>
+                                <p class="help-block">Varsayılan ödeme yöntemi (eşleştirme bulunamadığında kullanılır)</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="EnableOrderStatusSync" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="EnableOrderStatusSync" />
+                                <span asp-validation-for="EnableOrderStatusSync"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="OrderStatusSyncInterval" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="OrderStatusSyncInterval" />
+                                <span asp-validation-for="OrderStatusSyncInterval"></span>
+                                <p class="help-block">Sipariş durumu kontrolü yapılacak dakika aralığı</p>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <div class="col-md-3 col-sm-3 text-right">
+                                <admin-label asp-for="EnableOrderCancellation" class="control-label"/>
+                            </div>
+                            <div class="col-md-9 col-sm-9">
+                                <admin-input asp-for="EnableOrderCancellation" />
+                                <span asp-validation-for="EnableOrderCancellation"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Save Button -->
+        <div class="panel panel-default">
+            <div class="panel-body">
+                <div class="form-group">
+                    <div class="col-md-12">
+                        <input type="submit" id="savegeneralsettings" class="btn btn-primary" value="Ayarları Kaydet"/>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>

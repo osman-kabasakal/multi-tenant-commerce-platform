@@ -1,0 +1,315 @@
+{
+  "name": "Category Sync Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every 10 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "collection": "integration_mappings",
+        "query": {
+          "active": true
+        }
+      },
+      "id": "get-active-integrations",
+      "name": "Get Active Integrations",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {},
+      "id": "split-integrations",
+      "name": "Split by Integration",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "collection": "field_mappings",
+        "query": {
+          "mappingKey": "={{ $json.platformName }}_category"
+        }
+      },
+      "id": "get-category-mapping",
+      "name": "Get Category Mapping",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const integration = items[0].json;\nconst categoryEndpoints = JSON.parse(integration.categoryEndpoints || '[]');\nconst servers = JSON.parse(integration.servers || '[]');\n\n// En uygun category endpoint'i seç\nconst listEndpoint = categoryEndpoints.find(ep => \n  ep.method === 'GET' && !ep.path.includes('{') && !ep.path.includes(':id')\n);\n\nif (!listEndpoint) {\n  throw new Error('No suitable category list endpoint found');\n}\n\n// Base URL'i belirle\nconst baseUrl = servers.length > 0 ? servers[0].url : '';\nconst fullUrl = baseUrl + listEndpoint.path;\n\nreturn [{\n  json: {\n    ...integration,\n    categoryListUrl: fullUrl,\n    method: listEndpoint.method\n  }\n}];"
+      },
+      "id": "prepare-api-request",
+      "name": "Prepare API Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.categoryListUrl }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "fetch-categories",
+      "name": "Fetch Categories from Platform",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const categories = items[0].json;\nconst mapping = $node[\"Get Category Mapping\"].json[0];\nconst mappingRules = JSON.parse(mapping.mappings || '[]');\nconst transformFunctions = JSON.parse(mapping.transformFunctions || '{}');\n\n// Transform fonksiyonlarını hazırla\nconst transforms = {};\nfor (const [name, code] of Object.entries(transformFunctions)) {\n  transforms[name] = eval(`(${code})`);\n}\n\n// Kategori hiyerarşisini düzenlemek için parent-child ilişkilerini takip et\nconst categoryMap = new Map();\nconst rootCategories = [];\nconst childCategories = [];\n\n// Kategorileri dönüştür\nfunction transformCategory(category) {\n  const grandNodeCategory = {\n    ExternalId: category.id || category._id || category.categoryId,\n    Published: true,\n    ShowOnHomePage: false,\n    IncludeInMenu: true,\n    DisplayOrder: 0,\n    CreatedOnUtc: new Date().toISOString()\n  };\n  \n  for (const rule of mappingRules) {\n    if (!rule.targetField) continue;\n    \n    // Nested path'leri handle et\n    let value = category;\n    const pathParts = rule.sourcePath.split('.');\n    \n    for (const part of pathParts) {\n      if (part.includes('[0]')) {\n        const fieldName = part.replace('[0]', '');\n        value = value[fieldName] ? value[fieldName][0] : null;\n      } else {\n        value = value ? value[part] : null;\n      }\n    }\n    \n    // Transform uygula\n    if (value !== null && value !== undefined && rule.transformFunction && transforms[rule.transformFunction]) {\n      value = transforms[rule.transformFunction](value);\n    }\n    \n    // GrandNode field'ına ata\n    grandNodeCategory[rule.targetField] = value;\n  }\n  \n  return grandNodeCategory;\n}\n\n// Array veya object kontrolü\nconst categoryList = Array.isArray(categories) ? categories : \n                    (categories.data || categories.items || categories.categories || [categories]);\n\nconst transformedCategories = categoryList.map(transformCategory);\n\n// Parent-child ilişkilerini düzenle\nfor (const category of transformedCategories) {\n  categoryMap.set(category.ExternalId, category);\n  \n  if (category.ParentCategoryId) {\n    childCategories.push(category);\n  } else {\n    rootCategories.push(category);\n  }\n}\n\n// Önce root kategorileri, sonra child kategorileri sırayla\nconst orderedCategories = [...rootCategories, ...childCategories];\n\nreturn orderedCategories.map(category => ({ json: category }));"
+      },
+      "id": "transform-categories",
+      "name": "Transform to GrandNode Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/api/token/create",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Email",
+              "value": "={{ $credentials.grandNodeEmail }}"
+            },
+            {
+              "name": "Token",
+              "value": "={{ $credentials.grandNodeApiToken }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-grandnode-token",
+      "name": "Get GrandNode Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:5000/odata/Category?$filter=ExternalId eq '{{ $json.ExternalId }}'",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $node[\"Get GrandNode Token\"].json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "check-existing-category",
+      "name": "Check Existing Category",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.value && $json.value.length > 0 }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "category-exists",
+      "name": "Category Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2050, 300]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "http://localhost:5000/odata/Category/{{ $node[\"Check Existing Category\"].json.value[0].Id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $node[\"Get GrandNode Token\"].json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "",
+              "value": "={{ Object.assign($node[\"Transform to GrandNode Format\"].json, { Id: $node[\"Check Existing Category\"].json.value[0].Id }) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-category",
+      "name": "Update Category",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2250, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5000/odata/Category",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $node[\"Get GrandNode Token\"].json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "",
+              "value": "={{ $node[\"Transform to GrandNode Format\"].json }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-category",
+      "name": "Create Category", 
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2250, 400]
+    },
+    {
+      "parameters": {
+        "collection": "sync_logs",
+        "options": {},
+        "fields": {
+          "values": [
+            {
+              "name": "platformName",
+              "value": "={{ $node[\"Split by Integration\"].json.platformName }}"
+            },
+            {
+              "name": "syncType",
+              "value": "category"
+            },
+            {
+              "name": "status",
+              "value": "={{ $json.error ? \"error\" : \"success\" }}"
+            },
+            {
+              "name": "categoryId",
+              "value": "={{ $json.Id || $json.ExternalId }}"
+            },
+            {
+              "name": "action",
+              "value": "={{ $node[\"Category Exists?\"].context.true ? \"update\" : \"create\" }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.error ? $json.error.message : \"Category synced successfully\" }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "id": "log-sync-result",
+      "name": "Log Sync Result",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [2450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parent kategori ID'lerini güncelle\nconst categoryData = items[0].json;\nconst platformName = $node[\"Split by Integration\"].json.platformName;\n\n// Eğer parent kategori varsa, GrandNode'daki ID'sini bul\nif (categoryData.ParentCategoryId) {\n  // MongoDB'den parent kategori mapping'ini bul\n  const parentMappingQuery = {\n    collection: \"category_mappings\",\n    query: {\n      platformName: platformName,\n      externalId: categoryData.ParentCategoryId\n    }\n  };\n  \n  // Bu kısmı ayrı bir node olarak implementedin\n  return [{ json: { needsParentUpdate: true, ...categoryData } }];\n}\n\nreturn [{ json: { needsParentUpdate: false, ...categoryData } }];"
+      },
+      "id": "handle-parent-relations",
+      "name": "Handle Parent Relations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [2650, 300]
+    }
+  ],
+  "connections": {
+    "Every 10 Minutes": {
+      "main": [[{"node": "Get Active Integrations", "type": "main", "index": 0}]]
+    },
+    "Get Active Integrations": {
+      "main": [[{"node": "Split by Integration", "type": "main", "index": 0}]]
+    },
+    "Split by Integration": {
+      "main": [[{"node": "Get Category Mapping", "type": "main", "index": 0}]]
+    },
+    "Get Category Mapping": {
+      "main": [[{"node": "Prepare API Request", "type": "main", "index": 0}]]
+    },
+    "Prepare API Request": {
+      "main": [[{"node": "Fetch Categories from Platform", "type": "main", "index": 0}]]
+    },
+    "Fetch Categories from Platform": {
+      "main": [[{"node": "Transform to GrandNode Format", "type": "main", "index": 0}]]
+    },
+    "Transform to GrandNode Format": {
+      "main": [[{"node": "Get GrandNode Token", "type": "main", "index": 0}]]
+    },
+    "Get GrandNode Token": {
+      "main": [[{"node": "Check Existing Category", "type": "main", "index": 0}]]
+    },
+    "Check Existing Category": {
+      "main": [[{"node": "Category Exists?", "type": "main", "index": 0}]]
+    },
+    "Category Exists?": {
+      "main": [
+        [{"node": "Update Category", "type": "main", "index": 0}],
+        [{"node": "Create Category", "type": "main", "index": 0}]
+      ]
+    },
+    "Update Category": {
+      "main": [[{"node": "Log Sync Result", "type": "main", "index": 0}]]
+    },
+    "Create Category": {
+      "main": [[{"node": "Log Sync Result", "type": "main", "index": 0}]]
+    },
+    "Log Sync Result": {
+      "main": [[{"node": "Handle Parent Relations", "type": "main", "index": 0}]]
+    }
+  }
+}

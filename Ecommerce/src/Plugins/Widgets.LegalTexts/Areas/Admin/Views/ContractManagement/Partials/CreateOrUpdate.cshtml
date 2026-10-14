@@ -1,0 +1,16 @@
+@model LegalTextMessageTemplateModel
+
+<div asp-validation-summary="All"></div>
+<input asp-for="Id" type="hidden"/>
+
+<admin-tabstrip name="template-edit">
+    <items>
+        <tabstrip-item text="@Loc["Admin.Content.MessageTemplates.Info"]" tab-index="0">
+            <content>
+                <div>
+                    <partial name="Partials/CreateOrUpdate.TabInfo" model="Model"/>
+                </div>
+            </content>
+        </tabstrip-item>
+    </items>
+</admin-tabstrip>

@@ -1,0 +1,92 @@
+<div class="min-h-screen bg-gray-100">
+  <!-- Sidebar -->
+  <aside [class.translate-x-0]="sidebarOpen"
+         [class.-translate-x-full]="!sidebarOpen"
+         class="fixed top-0 left-0 z-40 w-64 h-full transition-transform bg-white border-r border-gray-200">
+    <!-- Logo -->
+    <div class="flex items-center justify-between h-16 px-4 border-b border-gray-200">
+      <div class="flex items-center">
+        <div class="w-8 h-8 bg-blue-600 rounded-lg"></div>
+        <span class="ml-2 text-lg font-semibold">SaaS Platform</span>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex flex-col gap-1 p-4">
+      <ng-container *ngFor="let item of menuItems">
+        <a *ngIf="hasRequiredRole(item)"
+           [routerLink]="item.route"
+           [routerLinkActiveOptions]="{ exact: true }"
+           routerLinkActive="bg-gray-100 text-blue-600"
+           class="flex items-center gap-3 px-3 py-2 text-gray-600 rounded-lg hover:bg-gray-50">
+          <i [class]="'w-5 h-5 lucide-' + item.icon"></i>
+          <span>{{ item.title }}</span>
+        </a>
+      </ng-container>
+    </nav>
+
+    <!-- Bottom Section -->
+    <div class="absolute bottom-0 w-full p-4 border-t border-gray-200">
+      <button (click)="logout()"
+              class="flex items-center gap-3 w-full px-3 py-2 text-red-600 rounded-lg hover:bg-red-50">
+        <i class="w-5 h-5 lucide-log-out"></i>
+        <span>Çıkış Yap</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <div [class.ml-64]="sidebarOpen"
+       [class.ml-0]="!sidebarOpen"
+       class="transition-margin duration-300">
+    <!-- Header -->
+    <header class="fixed top-0 right-0 z-30 flex items-center justify-between h-16 px-6 bg-white border-b border-gray-200"
+            [style.width]="sidebarOpen ? 'calc(100% - 16rem)' : '100%'">
+      <div class="flex items-center gap-4">
+        <button (click)="toggleSidebar()"
+                class="p-2 rounded-lg hover:bg-gray-100">
+          <i class="w-5 h-5 lucide-menu"></i>
+        </button>
+
+        <div class="relative">
+          <i class="absolute left-3 top-2.5 w-5 h-5 text-gray-400 lucide-search"></i>
+          <input
+            type="text"
+            placeholder="Ara..."
+            class="pl-10 pr-4 py-2 w-64 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+        </div>
+      </div>
+
+      <div class="flex items-center gap-4">
+        <button class="relative p-2 rounded-lg hover:bg-gray-100">
+          <i class="w-5 h-5 lucide-bell"></i>
+          <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+        </button>
+
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-blue-600"></div>
+          <span class="font-medium">{{ userName() }}</span>
+          <i class="w-4 h-4 lucide-chevron-down"></i>
+        </div>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <main class="pt-16 min-h-screen">
+      <router-outlet></router-outlet>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 px-6 py-4">
+      <div class="flex items-center justify-between">
+        <div class="text-sm text-gray-600">
+          Bir sorun mu var? <a href="#" class="text-blue-600 hover:text-blue-800">Destek ekibine ulaşın</a>
+        </div>
+        <div class="text-sm text-gray-500">
+          ©{{ currentDate | date: 'yyyy' }} SaaS E-ticaret Platformu
+        </div>
+      </div>
+    </footer>
+  </div>
+</div>

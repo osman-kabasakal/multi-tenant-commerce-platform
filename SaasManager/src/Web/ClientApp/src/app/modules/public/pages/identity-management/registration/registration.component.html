@@ -1,0 +1,28 @@
+<!-- email-registration.component.html -->
+<div class="flex min-h-screen bg-gray-50">
+  <div class="w-full   p-6">
+    <!-- Logo ve Başlık -->
+    <div class="text-center mb-8">
+      <h2 class="text-2xl font-bold text-gray-900">5 Gün Ücretsiz Deneyin</h2>
+      <p class="mt-2 text-gray-600">Hemen kaydolun ve işletmenizi dijitale taşıyın</p>
+    </div>
+
+    <div class=" px-4">
+      <ng-container *ngIf="currentStep$() as step">
+        @if(step){
+          <app-dynamic-form
+            [fields]="step.expectedParams!"
+            [timeoutSeconds]="step.timeoutSeconds??0"
+            [validationToken]="step.validationToken??'0'"
+            [error]="step.operationErrorMessage??null"
+            [serverError]="step.errors"
+            [stateKey]="step.currentStep??null"
+            (formSubmit)="onSubmit($event)">
+
+          </app-dynamic-form>
+        }
+      </ng-container>
+    </div>
+
+  </div>
+</div>

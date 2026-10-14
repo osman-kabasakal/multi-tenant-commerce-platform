@@ -1,0 +1,47 @@
+name: commerce-local-demo
+services:
+  mongo:
+    image: mongo:8.0
+    ports: ["127.0.0.1:27028:27017"]
+    volumes: ["mongo-data:/data/db"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  redis:
+    image: redis:7.4-alpine
+    ports: ["127.0.0.1:16389:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: commerce_saas
+      POSTGRES_USER: commerce_demo
+      POSTGRES_PASSWORD: ${DEMO_POSTGRES_PASSWORD:?Run scripts/demo.py prepare first}
+    ports: ["127.0.0.1:15439:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U commerce_demo -d commerce_saas"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: demo-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${DEMO_KEYCLOAK_PASSWORD:?Run scripts/demo.py prepare first}
+      KC_HTTP_PORT: 18080
+      KC_HOSTNAME: http://localhost:18080
+      KC_HEALTH_ENABLED: 'true'
+    ports: ["127.0.0.1:18080:18080"]
+    volumes: ["keycloak-data:/opt/keycloak/data", "./.local/realm:/opt/keycloak/data/import:ro"]
+volumes:
+  mongo-data:
+  postgres-data:
+  keycloak-data:

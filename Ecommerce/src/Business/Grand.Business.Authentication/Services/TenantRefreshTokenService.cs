@@ -1,0 +1,89 @@
+
+using Grand.Business.Core.Interfaces.Authentication;
+using Grand.Business.Core.Interfaces.Common.Directory;
+using Grand.Domain.Customers;
+using Grand.Domain.Security;
+using Grand.Infrastructure.Configuration;
+using Grand.Infrastructure.Extensions;
+using Grand.Infrastructure.MultiTenant;
+using Microsoft.AspNetCore.Http;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+
+namespace Grand.Business.Authentication.Services;
+
+public class TenantRefreshTokenService : IRefreshTokenService
+{
+    private readonly TenantFrontendAPIConfig _apiConfig;
+    private readonly IUserFieldService _userFieldService;
+    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ITenantSecretService _tenantSecretService;
+
+    public TenantRefreshTokenService(
+        IUserFieldService userFieldService, 
+        TenantFrontendAPIConfig apiConfig,
+        IHttpContextAccessor httpContextAccessor,
+        ITenantSecretService tenantSecretService)
+    {
+        _userFieldService = userFieldService;
+        _apiConfig = apiConfig;
+        _httpContextAccessor = httpContextAccessor;
+        _tenantSecretService = tenantSecretService;
+    }
+
+    public string GenerateRefreshToken()
+    {
+        var randomNumber = new byte[32];
+        using var rng = RandomNumberGenerator.Create();
+        rng.GetBytes(randomNumber);
+        return Convert.ToBase64String(randomNumber);
+    }
+
+    public async Task<RefreshToken> SaveRefreshTokenToCustomer(Customer customer, string refreshToken)
+    {
+        var token = new RefreshToken {
+            RefreshId = Guid.NewGuid().ToString(),
+            Token = refreshToken,
+            IsActive = true,
+            ValidTo = DateTime.UtcNow.AddMinutes(_apiConfig.RefreshTokenExpiryInMinutes)
+        };
+        await _userFieldService.SaveField(customer, SystemCustomerFieldNames.RefreshToken, token);
+        return token;
+    }
+
+    public async Task<RefreshToken> GetCustomerRefreshToken(Customer customer)
+    {
+        return await _userFieldService.GetFieldsForEntity<RefreshToken>(customer,
+            SystemCustomerFieldNames.RefreshToken);
+    }
+
+    public async Task<ClaimsPrincipal> GetPrincipalFromToken(string token)
+    {
+        // Get tenant ID from HTTP context
+        var tenantId = _httpContextAccessor.HttpContext?.GetTenantId();
+        
+        // Get tenant-specific secret
+        var secretKey = await _tenantSecretService.GetFrontendSecretAsync(tenantId);
+        
+        var tokenValidationParameters = new TokenValidationParameters {
+            ValidAudience = !string.IsNullOrEmpty(tenantId) ? tenantId : _apiConfig.ValidAudience,
+            ValidIssuer = !string.IsNullOrEmpty(tenantId) ? tenantId : _apiConfig.ValidIssuer,
+            ValidateAudience = _apiConfig.ValidateAudience,
+            ValidateIssuer = _apiConfig.ValidateIssuer,
+            ValidateIssuerSigningKey = _apiConfig.ValidateIssuerSigningKey,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(secretKey)),
+            ValidateLifetime = _apiConfig.ValidateLifetime
+        };
+
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out var securityToken);
+        if (securityToken is not JwtSecurityToken jwtSecurityToken ||
+            !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256,
+                StringComparison.InvariantCultureIgnoreCase))
+            throw new SecurityTokenException("Invalid token");
+
+        return principal;
+    }
+}

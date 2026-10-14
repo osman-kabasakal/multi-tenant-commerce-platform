@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\..\Build\Grand.Common.props" />
+  <ItemGroup>
+	<PackageReference Include="Azure.Identity" Version="1.13.1" />
+	<PackageReference Include="Azure.Security.KeyVault.Keys" Version="4.7.0" />
+	<PackageReference Include="ExcelMapper" Version="5.2.483" />
+	<PackageReference Include="Scryber.Core" Version="6.0.4-beta" />
+    <PackageReference Include="Scryber.Core.OpenType" Version="6.1.0-beta" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\Grand.Domain\Grand.Domain.csproj" />
+    <ProjectReference Include="..\..\Core\Grand.Infrastructure\Grand.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Core\Grand.SharedKernel\Grand.SharedKernel.csproj" />
+    <ProjectReference Include="..\Grand.Business.Core\Grand.Business.Core.csproj" />
+  </ItemGroup> 
+</Project>

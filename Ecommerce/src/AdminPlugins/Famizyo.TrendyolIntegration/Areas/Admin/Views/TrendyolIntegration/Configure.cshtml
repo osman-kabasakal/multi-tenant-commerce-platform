@@ -1,0 +1,25 @@
+@model ConfigureViewModel
+
+@{
+    Layout = "_ConfigurePlugin";
+    ViewBag.Title = "Trendyol Entegrasyon Yapılandırma";
+}
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="x_panel light form-fit">
+            <div class="x_title">
+                <div class="caption">
+                    <i class="fa fa-sitemap"></i>
+                    @Loc["Widgets.Slider.Manage"]
+                </div>
+            </div>
+            <div class="x_content">
+                <div id="slider-grid"></div>
+            </div>
+            <div class="x_content form">
+                <partial name="_Settings.cshtml" model="Model"/>
+            </div>
+        </div>
+    </div>
+</div>

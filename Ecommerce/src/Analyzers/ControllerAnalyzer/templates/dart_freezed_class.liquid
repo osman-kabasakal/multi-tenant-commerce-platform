@@ -1,0 +1,19 @@
+import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:store_user_app/core/models/store_json_serializable.dart';
+{% for import in Imports %}
+import '{{ import }}';
+{% endfor %}
+
+part '{{ FileName }}.freezed.dart';
+part '{{ FileName }}.g.dart';
+
+@freezed
+class {{ ClassName }} extends StoreJsonSerializable<{{ ClassName }}> with _${{ ClassName }} {
+  factory {{ ClassName }}({ {% for prop in Properties %}
+    @JsonKey(name: '{{ prop.OriginalName }}', includeIfNull: false)
+    {{ prop.DefaultValue }} {{ prop.DartType }}{% if prop.IsNullable %}?{% endif %} {{ prop.Name }}{% if forloop.last == false %},{% endif %}
+{% endfor %}}) = _{{ ClassName }};
+
+  factory {{ ClassName }}.fromJson(Map<String, dynamic> json) =>
+      _${{ ClassName }}FromJson(json);
+}

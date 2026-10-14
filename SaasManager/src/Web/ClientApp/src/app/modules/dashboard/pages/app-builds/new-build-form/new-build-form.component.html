@@ -1,0 +1,103 @@
+<div class="new-build-form">
+  <div *ngIf="isLoading" class="flex justify-center py-6">
+    <div class="loader">Yükleniyor...</div>
+  </div>
+
+  <div *ngIf="!isLoading && error" class="bg-red-100 text-red-700 p-4 rounded-md mb-4">
+    {{ error }}
+  </div>
+
+  <div *ngIf="!isLoading && newBuildVm?.hasActiveBuild" class="bg-yellow-100 text-yellow-700 p-4 rounded-md mb-4">
+    Zaten devam eden bir aktif derlemeniz var. Yeni bir derleme başlatmadan önce tamamlanmasını bekleyin.
+  </div>
+
+  <div *ngIf="!isLoading && !newBuildVm?.canBuild" class="bg-yellow-100 text-yellow-700 p-4 rounded-md mb-4">
+    İşletmenizin aktif olması gerekiyor. Yardım için destekle iletişime geçin.
+  </div>
+
+  <form [formGroup]="buildForm" (ngSubmit)="submitForm()" *ngIf="!isLoading && !newBuildVm?.hasActiveBuild && newBuildVm?.canBuild">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <div class="space-y-4">
+          <div class="form-group">
+            <label for="version" class="block text-sm font-medium text-gray-700">Versiyon</label>
+            <input
+              type="text"
+              id="version"
+              formControlName="version"
+              class="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              placeholder="1.0.0"
+              [readOnly]="true"
+            >
+            <div
+              *ngIf="buildForm.get('version')?.invalid && buildForm.get('version')?.touched"
+              class="text-red-500 text-xs mt-1"
+            >
+              <span *ngIf="hasError('version','required')">Versiyon gerekli.</span>
+              <span *ngIf="hasError('version','pattern')">Versiyon x.y.z formatında olmalı (ör. 1.0.0).</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="buildNumber" class="block text-sm font-medium text-gray-700">Yapım Numarası</label>
+            <input
+              type="number"
+              id="buildNumber"
+              formControlName="buildNumber"
+              class="mt-1 focus:ring-blue-500 focus:border-blue-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+              min="1"
+              [readOnly]="true"
+            >
+            <div
+              *ngIf="buildForm.get('buildNumber')?.invalid && buildForm.get('buildNumber')?.touched"
+              class="text-red-500 text-xs mt-1"
+            >
+              <span *ngIf="hasError('buildNumber','required')">Yapım numarası gerekli.</span>
+              <span *ngIf="hasError('buildNumber','min')">Yapım numarası en az 1 olmalı.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="space-y-4">
+          <div class="form-group">
+            <app-file-upload-component
+              label="Uygulama Logosu (PNG)"
+              accept="image/png"
+              fileHint="PNG dosyası, maksimum boyut: 1MB (1024x1024px önerilir)"
+              [maxSize]="1024 * 1024"
+              (fileSelected)="onLogoSelected($event)"
+            ></app-file-upload-component>
+          </div>
+
+          <div class="form-group">
+            <app-file-upload-component
+              label="Uygulama İkonu (PNG)"
+              accept="image/png"
+              fileHint="PNG dosyası, maksimum boyut: 1MB (iOS için 1024x1024px, Android için 512x512px)"
+              [maxSize]="1024 * 1024"
+              (fileSelected)="onIconSelected($event)"
+            ></app-file-upload-component>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 flex justify-end">
+      <button
+        type="button"
+        class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 mr-3"
+      >
+        İptal
+      </button>
+      <button
+        type="submit"
+        class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        [disabled]="buildForm.invalid || isSubmitting || !logoFile || !iconFile"
+      >
+        {{ isSubmitting ? 'Oluşturuluyor...' : 'Yapım Oluştur' }}
+      </button>
+    </div>
+  </form>
+</div>

@@ -1,0 +1,8 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
+#include "Generated.xcconfig"
+
+ASSET_PREFIX=demo
+BUNDLE_NAME=Commerce Demo
+BUNDLE_DISPLAY_NAME=Commerce Demo
+DEEP_LINK_HOST=demo-a.localhost
+NOTIFICATION_EXTENSION_BUNDLE_ID=dev.commerce.demo.NotificationServiceExtension

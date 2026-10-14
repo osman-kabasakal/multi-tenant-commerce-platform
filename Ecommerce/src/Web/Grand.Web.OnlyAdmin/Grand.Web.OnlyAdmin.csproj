@@ -1,0 +1,69 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+    <Import Project="..\..\Build\Grand.Common.props" />
+    <PropertyGroup>
+        <!--The common language runtime (CLR) supports two types of garbage collection:
+        workstation garbage collection, which is available on all systems, and server garbage collection,
+        which is available on multiprocessor systems.      
+        For single-processor computers, the default workstation garbage collection should be the fastest option.
+        Either workstation or server can be used for two-processor computers.
+        Server garbage collection should be the fastest option for more than two processors.      
+        More details about GC you can see here: https://docs.microsoft.com/en-us/dotnet/standard/garbage-collection/fundamentals-->
+        <ServerGarbageCollection>true</ServerGarbageCollection>
+        <GarbageCollectionAdaptationMode>1</GarbageCollectionAdaptationMode>
+        <PreserveCompilationReferences>true</PreserveCompilationReferences>
+        <DockerComposeProjectPath>..\..\..\docker-compose.dcproj</DockerComposeProjectPath>
+        
+        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\..\Business\Grand.Business.Core\Grand.Business.Core.csproj" />
+        <ProjectReference Include="..\..\Core\Grand.Domain\Grand.Domain.csproj" />
+        <ProjectReference Include="..\..\Core\Grand.Infrastructure\Grand.Infrastructure.csproj" />
+        <ProjectReference Include="..\..\Core\Grand.SharedKernel\Grand.SharedKernel.csproj" />
+        <ProjectReference Include="..\Grand.Web.Admin\Grand.Web.Admin.csproj" />
+        <ProjectReference Include="..\Grand.Web.Common\Grand.Web.Common.csproj" />
+        <ProjectReference Include="..\..\API\Grand.Api\Grand.Api.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="App_Data\**" CopyToPublishDirectory="PreserveNewest" Exclude="App_Data\appsettings.json;App_Data\DataProtectionKeys\*.xml;App_Data/appsettingstemplate.json;App_Data/Development/appsettings.json;App_Data\LandingPages\*.json;App_Data\MessageTemplates\*.json;" />
+        <Content Remove="wwwroot\assets\images\thumbs\*.jpeg;wwwroot\assets\images\thumbs\*.jpg;wwwroot\assets\images\thumbs\*.png" />
+    </ItemGroup>
+    <Target Name="PublishViews" BeforeTargets="PrepareForPublish">
+        <ItemGroup>
+            <PluginFiles Include="Plugins/**/*" />
+        </ItemGroup>
+        <Copy SourceFiles="@(PluginFiles)" DestinationFolder="$(PublishDir)/Plugins/%(RecursiveDir)" SkipUnchangedFiles="true" />
+    </Target>
+    <!--<PropertyGroup>
+    <EnableDefaultContentItems>false</EnableDefaultContentItems>
+      </PropertyGroup>-->
+    <ItemGroup>
+        <Content Update="Plugins\**">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+    <ItemGroup>
+      <Folder Include="App_Data\DataProtectionKeys\" />
+      <Folder Include="App_Data\Development\" />
+      <Folder Include="Plugins\" />
+      <Folder Include="wwwroot\assets\images\icons\" />
+    </ItemGroup>
+    <ItemGroup>
+      <_ContentIncludedByDefault Remove="Plugins\ExternalAuth.Keycloak\appsettings.keycloak.json" />
+      <_ContentIncludedByDefault Remove="Plugins\ExternalAuth.Keycloak\Authentication.Keycloak.deps.json" />
+      <_ContentIncludedByDefault Remove="Plugins\Authentication.Facebook\Authentication.Facebook.deps.json" />
+      <_ContentIncludedByDefault Remove="Plugins\DiscountRules.Standard\DiscountRules.Standard.deps.json" />
+      <_ContentIncludedByDefault Remove="Plugins\Payments.BrainTree\Payments.BrainTree.deps.json" />
+      <_ContentIncludedByDefault Remove="Plugins\Payments.StripeCheckout\Payments.StripeCheckout.deps.json" />
+      <_ContentIncludedByDefault Remove="Plugins\Shipping.FixedRateShipping\Shipping.FixedRateShipping.deps.json" />
+      <_ContentIncludedByDefault Remove="Plugins\Tax.CountryStateZip\Tax.CountryStateZip.deps.json" />
+      <_ContentIncludedByDefault Remove="Plugins\Theme.Modern\Theme.Modern.deps.json" />
+      <_ContentIncludedByDefault Remove="Plugins\Theme.Modern\Theme.Modern.staticwebassets.runtime.json" />
+      <_ContentIncludedByDefault Remove="Plugins\Widgets.GoogleAnalytics\Widgets.GoogleAnalytics.deps.json" />
+    </ItemGroup>
+    <ItemGroup>
+      <None Include="Views\PdfTemplates\OrderPdfTemplate.cshtml" />
+      <None Include="Views\PdfTemplates\ShipmentPdfTemplate.cshtml" />
+    </ItemGroup>
+</Project>

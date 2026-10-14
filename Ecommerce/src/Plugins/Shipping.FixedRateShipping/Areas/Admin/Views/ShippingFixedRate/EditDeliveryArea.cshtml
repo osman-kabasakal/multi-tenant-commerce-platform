@@ -1,0 +1,109 @@
+@model DeliveryAreaModel
+@{
+    Layout = "_ConfigurePlugin";
+}
+<input id="active-menu-item" type="hidden" value="/Admin/Shipping/Providers"/>
+
+<form asp-controller="ShippingFixedRate" asp-action="EditDeliveryArea" method="post">
+    <input asp-for="Id" type="hidden" />
+    <input asp-for="ShippingMethodId" type="hidden" />
+    
+    <div asp-validation-summary="All"></div>
+    
+    <div class="row">
+        <div class="col-md-12">
+            <div class="x_panel light form-fit">
+                <div class="x_title">
+                    <div class="caption">
+                        <i class="fa fa-map-marker"></i>
+                        @Loc["Plugins.Shipping.FixedRateShipping.DeliveryArea.Edit"] - @Model.Name
+                        <small><i class="fa fa-arrow-circle-left"></i>@Html.ActionLink(Loc["Admin.Common.Back"], "DeliveryAreas")</small>
+                    </div>
+                    <div class="actions">
+                        <div class="btn-group btn-group-devided">
+                            <button class="btn btn-success" type="submit" name="save"><i class="fa fa-check"></i> @Loc["Admin.Common.Save"] </button>
+                            <span id="deliveryarea-delete" class="btn btn-red"><i class="fa fa-trash-o"></i> @Loc["Admin.Common.Delete"]</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="x_content form">
+                    <div class="form-horizontal">
+                        <div class="form-body">
+                            <div class="form-group">
+                                <admin-label asp-for="Name" />
+                                <div class="col-md-9 col-sm-9">
+                                    <admin-input asp-for="Name" />
+                                    <span asp-validation-for="Name"></span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <admin-label asp-for="ShippingMethodName" />
+                                <div class="col-md-9 col-sm-9">
+                                    <admin-input asp-for="ShippingMethodName" readonly="true" />
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <admin-label asp-for="ShippingRate" />
+                                <div class="col-md-9 col-sm-9">
+                                    <admin-input asp-for="ShippingRate" />
+                                    <span asp-validation-for="ShippingRate"></span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <admin-label asp-for="MinimumOrderAmount" />
+                                <div class="col-md-9 col-sm-9">
+                                    <admin-input asp-for="MinimumOrderAmount" />
+                                    <span asp-validation-for="MinimumOrderAmount"></span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <admin-label asp-for="UseFreeShipping" />
+                                <div class="col-md-9 col-sm-9">
+                                    <admin-input asp-for="UseFreeShipping" />
+                                    <span asp-validation-for="UseFreeShipping"></span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <admin-label asp-for="FreeShippingOrderAmount" />
+                                <div class="col-md-9 col-sm-9">
+                                    <admin-input asp-for="FreeShippingOrderAmount" />
+                                    <span asp-validation-for="FreeShippingOrderAmount"></span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <admin-label asp-for="GeoJsonData" />
+                                <div class="col-md-9 col-sm-9">
+                                    <admin-textarea asp-for="GeoJsonData" style="height: 250px;"></admin-textarea>
+                                    <span asp-validation-for="GeoJsonData"></span>
+                                    <span class="help-block">@Loc["Plugins.Shipping.FixedRateShipping.DeliveryArea.Fields.GeoJsonData.Hint"]</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<admin-delete-confirmation button-id="deliveryarea-delete" action-name="DeleteDeliveryArea" id="@Model.Id" />
+@* <admin-action-confirmation button-id="btnReload"/> *@
+
+<script>
+    $(document).ready(function () {
+    })
+</script>
+
+@if (ViewBag.RefreshPage == true)
+{
+    <script>
+        $(document).ready(function () {
+            try {
+                window.opener.document.getElementById('delivery-areas-grid').kendoGrid('dataSource').read();
+            }
+            catch (e){
+                window.location.href = '@Url.Action("DeliveryAreas")';
+            }
+        });
+    </script>
+}

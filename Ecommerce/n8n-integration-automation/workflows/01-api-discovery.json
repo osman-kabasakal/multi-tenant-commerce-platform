@@ -1,0 +1,149 @@
+{
+  "name": "API Discovery Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.webhookUrl }}",
+        "authentication": "none",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "apiDocUrl",
+              "value": "={{ $json.apiDocUrl }}"
+            },
+            {
+              "name": "credentials",
+              "value": "={{ $json.credentials }}"
+            },
+            {
+              "name": "platformName",
+              "value": "={{ $json.platformName }}"
+            }
+          ]
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.apiDocUrl }}",
+        "options": {}
+      },
+      "id": "fetch-api-doc",
+      "name": "Fetch API Documentation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const responseData = items[0].json;\nlet docContent = '';\nlet endpoints = [];\nlet authentication = {};\nlet servers = [];\n\n// Response içeriğini al\nif (typeof responseData === 'string') {\n  docContent = responseData;\n} else if (responseData.body) {\n  docContent = responseData.body;\n} else {\n  docContent = JSON.stringify(responseData);\n}\n\n// OpenAPI/Swagger JSON formatı kontrolü\ntry {\n  const jsonData = typeof responseData === 'object' ? responseData : JSON.parse(docContent);\n  \n  if (jsonData.openapi || jsonData.swagger) {\n    const paths = jsonData.paths || {};\n    \n    for (const [path, methods] of Object.entries(paths)) {\n      for (const [method, details] of Object.entries(methods)) {\n        if (['get', 'post', 'put', 'patch', 'delete'].includes(method.toLowerCase())) {\n          endpoints.push({\n            path,\n            method: method.toUpperCase(),\n            summary: details.summary || '',\n            operationId: details.operationId || '',\n            parameters: details.parameters || [],\n            requestBody: details.requestBody || null,\n            responses: details.responses || {},\n            tags: details.tags || []\n          });\n        }\n      }\n    }\n    \n    return [{\n      json: {\n        format: 'openapi',\n        endpoints,\n        components: jsonData.components || {},\n        servers: jsonData.servers || [],\n        authentication: jsonData.components?.securitySchemes || {},\n        info: jsonData.info || {}\n      }\n    }];\n  }\n} catch (e) {\n  // JSON parse hatası, HTML/text olarak devam et\n}\n\n// HTML/Text dokümantasyon parsing - daha güvenli regex kullanımı\nconst endpointPatterns = [\n  /(GET|POST|PUT|PATCH|DELETE)\\s+(\\/[^\\s<>\\\"\\n\\r]+)/gi,\n  /(GET|POST|PUT|PATCH|DELETE):\\s*(\\/[^\\s<>\\\"\\n\\r]+)/gi,\n  /method[\\s]*[=:]?[\\s]*[\"']?(GET|POST|PUT|PATCH|DELETE)[\"']?[\\s]+.*?[\"'](\\/[^\"'\\s<>\\n\\r]+)[\"']/gi,\n  /endpoint[\\s]*[=:]?[\\s]*[\"'](\\/[^\"'\\s<>\\n\\r]+)[\"'][\\s]+.*?(GET|POST|PUT|PATCH|DELETE)/gi\n];\n\nfor (const pattern of endpointPatterns) {\n  let match;\n  // Regex exec kullanarak güvenli iteration\n  while ((match = pattern.exec(docContent)) !== null) {\n    if (match[1] && match[2]) {\n      endpoints.push({\n        method: match[1].toUpperCase(),\n        path: match[2],\n        source: 'regex'\n      });\n    } else if (match[2] && match[1]) {\n      endpoints.push({\n        method: match[2].toUpperCase(),\n        path: match[1],\n        source: 'regex'\n      });\n    }\n  }\n}\n\n// Auth patterns arama\nconst authPatterns = [\n  /api[_\\s]*key/gi,\n  /bearer[_\\s]*token/gi,\n  /basic[_\\s]*auth/gi,\n  /oauth/gi,\n  /jwt/gi\n];\n\nfor (const pattern of authPatterns) {\n  if (pattern.test(docContent)) {\n    authentication[pattern.source.replace(/[^a-zA-Z]/g, '')] = true;\n  }\n}\n\n// Duplicate endpoint'leri temizle\nconst uniqueEndpoints = [];\nconst seen = new Set();\n\nfor (const endpoint of endpoints) {\n  const key = `${endpoint.method}:${endpoint.path}`;\n  if (!seen.has(key)) {\n    seen.add(key);\n    uniqueEndpoints.push(endpoint);\n  }\n}\n\nreturn [{\n  json: {\n    format: 'parsed',\n    endpoints: uniqueEndpoints,\n    authentication,\n    rawContent: docContent.substring(0, 1000), // İlk 1000 karakter\n    endpointCount: uniqueEndpoints.length\n  }\n}];"
+      },
+      "id": "parse-endpoints",
+      "name": "Parse API Endpoints",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const apiData = items[0].json;\nconst platformName = $node[\"Webhook Trigger\"].json.body.platformName;\n\n// Kategori endpoint'lerini tespit et\nconst categoryEndpoints = apiData.endpoints.filter(e => {\n  const path = e.path.toLowerCase();\n  return path.includes('category') || \n         path.includes('categories') ||\n         path.includes('menu') ||\n         path.includes('section') ||\n         path.includes('catalog');\n});\n\n// Ürün endpoint'lerini tespit et\nconst productEndpoints = apiData.endpoints.filter(e => {\n  const path = e.path.toLowerCase();\n  return path.includes('product') || \n         path.includes('item') ||\n         path.includes('menu-item') ||\n         path.includes('dish') ||\n         path.includes('article');\n});\n\n// Sipariş endpoint'lerini tespit et\nconst orderEndpoints = apiData.endpoints.filter(e => {\n  const path = e.path.toLowerCase();\n  return path.includes('order') || \n         path.includes('check') ||\n         path.includes('purchase') ||\n         path.includes('transaction') ||\n         path.includes('sale');\n});\n\nreturn [{\n  json: {\n    platformName,\n    categoryEndpoints,\n    productEndpoints,\n    orderEndpoints,\n    authentication: apiData.authentication,\n    servers: apiData.servers || []\n  }\n}];"
+      },
+      "id": "categorize-endpoints",
+      "name": "Categorize Endpoints",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "collection": "integration_mappings",
+        "options": {
+          "upsert": true
+        },
+        "updateKey": "platformName",
+        "fields": {
+          "values": [
+            {
+              "name": "platformName",
+              "value": "={{ $json.platformName }}"
+            },
+            {
+              "name": "categoryEndpoints",
+              "value": "={{ JSON.stringify($json.categoryEndpoints) }}"
+            },
+            {
+              "name": "productEndpoints", 
+              "value": "={{ JSON.stringify($json.productEndpoints) }}"
+            },
+            {
+              "name": "orderEndpoints",
+              "value": "={{ JSON.stringify($json.orderEndpoints) }}"
+            },
+            {
+              "name": "authentication",
+              "value": "={{ JSON.stringify($json.authentication) }}"
+            },
+            {
+              "name": "servers",
+              "value": "={{ JSON.stringify($json.servers) }}"
+            },
+            {
+              "name": "createdAt",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "id": "save-to-mongodb",
+      "name": "Save API Mapping",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "success"
+            },
+            {
+              "name": "message",
+              "value": "API endpoints discovered and saved"
+            }
+          ]
+        }
+      },
+      "id": "response",
+      "name": "Return Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [[{"node": "Fetch API Documentation", "type": "main", "index": 0}]]
+    },
+    "Fetch API Documentation": {
+      "main": [[{"node": "Parse API Endpoints", "type": "main", "index": 0}]]
+    },
+    "Parse API Endpoints": {
+      "main": [[{"node": "Categorize Endpoints", "type": "main", "index": 0}]]
+    },
+    "Categorize Endpoints": {
+      "main": [[{"node": "Save API Mapping", "type": "main", "index": 0}]]
+    },
+    "Save API Mapping": {
+      "main": [[{"node": "Return Success", "type": "main", "index": 0}]]
+    }
+  }
+}
