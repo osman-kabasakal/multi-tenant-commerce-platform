@@ -69,6 +69,20 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Reserve disk space on the disposable Android runner
+        shell: bash
+        run: |
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          # This job uses Java/Android only. Remove unrelated hosted-image
+          # toolchains and old NDKs; Gradle installs our pinned NDK below.
+          sudo rm -rf /usr/share/dotnet /usr/local/.ghcup /usr/local/lib/android/sdk/ndk /opt/hostedtoolcache/CodeQL
+          python3 - <<'PYTHON'
+          import shutil
+          free = shutil.disk_usage('.').free / 1024**3
+          print(f'Android runner free disk: {free:.1f} GiB')
+          assert free >= 20, 'Android CI requires at least 20 GiB free before SDK installation'
+          PYTHON
       - name: Install the verified Flutter 3.44.6 revision
         shell: bash
         run: |
