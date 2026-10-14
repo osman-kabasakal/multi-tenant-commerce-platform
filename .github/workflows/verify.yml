@@ -83,6 +83,17 @@ jobs:
           print(f'Android runner free disk: {free:.1f} GiB')
           assert free >= 20, 'Android CI requires at least 20 GiB free before SDK installation'
           PYTHON
+      - name: Bound Gradle memory for the private hosted runner
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/commerce-gradle"
+          cat > "$RUNNER_TEMP/commerce-gradle/gradle.properties" <<'PROPERTIES'
+          org.gradle.jvmargs=-Xmx4G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=256m -XX:+HeapDumpOnOutOfMemoryError
+          org.gradle.workers.max=2
+          org.gradle.parallel=false
+          kotlin.compiler.execution.strategy=in-process
+          PROPERTIES
+          echo "GRADLE_USER_HOME=$RUNNER_TEMP/commerce-gradle" >> "$GITHUB_ENV"
       - name: Install the verified Flutter 3.44.6 revision
         shell: bash
         run: |
@@ -97,7 +108,15 @@ jobs:
         run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
       - name: Build local Android demo
         working-directory: Platforms/store_user_app
-        run: >-
-          flutter build apk --debug --flavor demo --split-per-abi --target-platform android-arm64
-          --dart-define=LOCAL_DEMO=true --dart-define=STORE_URL=http://127.0.0.1:18090
-          --dart-define=APP_TITLE=CommerceDemo --dart-define=PACKAGE_NAME_ANDROID=dev.commerce.demo
+        shell: bash
+        run: |
+          flutter build apk --debug --flavor demo --split-per-abi --target-platform android-arm64 \
+            --dart-define=LOCAL_DEMO=true --dart-define=STORE_URL=http://127.0.0.1:18090 \
+            --dart-define=APP_TITLE=CommerceDemo --dart-define=PACKAGE_NAME_ANDROID=dev.commerce.demo &
+          build_pid=$!
+          while kill -0 "$build_pid" 2>/dev/null; do
+            free -m
+            df -h .
+            sleep 30
+          done
+          wait "$build_pid"
