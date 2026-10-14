@@ -1,6 +1,6 @@
 # Doğrulama kaydı — 2026-10-14
 
-Kontroller macOS üzerinde gerçek servislerle yapıldı. CI tanımı hazırdır; henüz GitHub üzerinde çalıştırılmadı.
+macOS kontrolleri aşağıda kayıtlıdır. [Private GitHub CI](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/workflows/verify.yml) temiz Ubuntu 24.04 üzerinde kaynak koruması, web kurulumu/smoke ve Android debug derlemesi çalıştırır. İlk koşuda Linux dosya sahipliği nedeniyle Keycloak realm içe aktarması başarısız oldu; hosttaki 0600 dosya artık doğrudan bağlanmak yerine yalnızca bu demoya ait Docker veri birimine, Keycloak kullanıcısına ait 0600 dosya olarak aktarılıyor. Düzeltmenin sonucu CI kaydından takip edilir.
 
 | Kontrol | Sonuç |
 | --- | --- |

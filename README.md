@@ -1,5 +1,7 @@
 # Multi-tenant Commerce Platform
 
+[![Verify source and local demo](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/workflows/verify.yml)
+
 Keycloak, .NET, Angular ve Flutter ile çok kiracılı bir e-ticaret platformu. Bu monorepo; mağaza motoru, mağaza yönetimi, SaaS yönetim katmanı ve bulut kurulum araçlarının ilişkisini görünür kılan bir **yerel demo sürümüdür**.
 
 İki örnek mağaza, ayrı MongoDB veritabanları ve ayrı Keycloak istemcileri kullanır. Gizli bilgiler kurulum sırasında üretilir. Azure, Google Cloud, Firebase veya ödeme hesabı olmadan web demosu çalıştırılabilir.
@@ -17,9 +19,11 @@ Gerekenler:
 - İlk kurulum için internet, en az 10 GB boş disk alanı; Android araçları/derlemesi için ayrıca en az 15 GB önerilir.
 - Boş portlar: `18080`, `18081`, `18082`, `18083`, `18090`, `27028`, `15439`, `16389`.
 
-Depoyu edindikten sonra kök klasörde:
+Repo şu anda **private**; klonlamak için GitHub erişimi gerekir. Erişimi olan bir hesapla:
 
 ```sh
+git clone https://github.com/osman-kabasakal/multi-tenant-commerce-platform.git
+cd multi-tenant-commerce-platform
 python3 scripts/demo.py check
 python3 scripts/demo.py up
 python3 scripts/demo.py smoke
@@ -102,4 +106,4 @@ CodeGraph isteğe bağlıdır; demo için gerekmez. Bu çalışma kopyasında in
 
 ## Lisans ve yayın durumu
 
-GrandNode çekirdeğinin GPLv3 lisansı `Ecommerce/LICENSE` altında korunur. Üçüncü taraf dosyaların lisansları kendi konumlarında geçerlidir. Henüz lisansı kesinleştirilmemiş modül ve varlıklar [lisans envanterinde](THIRD_PARTY_NOTICES.md) işaretlidir; tamamı için farklı bir lisans varsayılmamalıdır. Bu sürüm private GitHub incelemesi için hazırlanmıştır; herkese açık yayın izni henüz tamamlanmamıştır. [Ayrıntılı lisans ve varlık incelemesi](docs/LICENSE_REVIEW.md) kalan kararları listeler.
+GrandNode çekirdeğinin GPLv3 lisansı `Ecommerce/LICENSE` altında korunur. Üçüncü taraf dosyaların lisansları kendi konumlarında geçerlidir. Henüz lisansı kesinleştirilmemiş modül ve varlıklar [lisans envanterinde](THIRD_PARTY_NOTICES.md) işaretlidir; tamamı için farklı bir lisans varsayılmamalıdır. [Private GitHub reposu](https://github.com/osman-kabasakal/multi-tenant-commerce-platform) yayımlandı; herkese açık yayın izni henüz tamamlanmamıştır. [Ayrıntılı lisans ve varlık incelemesi](docs/LICENSE_REVIEW.md) kalan kararları listeler.

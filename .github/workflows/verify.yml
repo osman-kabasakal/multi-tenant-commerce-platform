@@ -54,6 +54,7 @@ jobs:
         with:
           name: build-diagnostics
           path: .local/logs/build-*.log
+          include-hidden-files: true
           retention-days: 3
       - name: Stop only this demo
         if: always()

@@ -40,7 +40,7 @@ services:
       KC_HOSTNAME: http://localhost:18080
       KC_HEALTH_ENABLED: 'true'
     ports: ["127.0.0.1:18080:18080"]
-    volumes: ["keycloak-data:/opt/keycloak/data", "./.local/realm:/opt/keycloak/data/import:ro"]
+    volumes: ["keycloak-data:/opt/keycloak/data"]
 volumes:
   mongo-data:
   postgres-data:

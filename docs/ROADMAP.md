@@ -10,6 +10,14 @@
 - Flutter debug profili; ARM64 Android APK derlemesi ve emülatörde katalog/ürün/sepet akışı doğrulandı.
 - CodeGraph ile ilişkiler keşfedilebilir; indeks Git'e girmez.
 
+## Private yayın
+
+- `osman-kabasakal/multi-tenant-commerce-platform` private olarak oluşturuldu; temiz ilk commit gönderildi.
+- İki sipariş PDF’si gönderilen Git geçmişinden çıkarıldı; kaynak koruması eklendi.
+- Urbanist/Poppins lisans dosyaları tamamlandı. 3.660 varlık ve 134 lisans/bağımlılık girdisi envantere alındı.
+- Ayrıntılı açık hak kararları: [LICENSE_REVIEW.md](LICENSE_REVIEW.md).
+- Temiz Ubuntu kaynak/web/Android CI sonuçları: [VALIDATION.md](VALIDATION.md).
+
 ## Herkese açık GitHub sürümünden önce
 
 1. `THIRD_PARTY_NOTICES.md` içindeki lisans/varlık haklarını netleştir; eksik lisanslı modülü lisansla veya değiştir.
@@ -17,7 +25,7 @@
 3. Eski kaynaklarda bulunmuş gerçek anahtarları ilgili sağlayıcılarda yenile. Temiz kopya, eski anahtarları iptal etmez.
 4. .NET 8/9 ve eski istemci bağımlılıkları için yükseltme planını uygula; ayrıntılı dependency/security taramasını tamamla.
 5. Demo ekran görüntüleri, kısa tanıtım videosu, mimari anlatımı ve katkı rehberi ekle.
-6. Son kaynak taramasını ve lisans kontrolünü tamamladıktan sonra yeni uzak depo oluştur, ilk sürümü etiketle ve paylaş.
+6. Son kaynak taraması ve hak kararları tamamlandıktan sonra public görünürlüğe geçişi ayrıca değerlendir; ilk herkese açık sürümü etiketle ve paylaş.
 
 ## Sonraki teknik aşamalar
 

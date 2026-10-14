@@ -8,7 +8,7 @@ Status: **private review version; public release is not cleared**. Repository vi
 | --- | --- | --- |
 | GrandNode-derived commerce | `Ecommerce/LICENSE`; [upstream license](https://github.com/grandnode/grandnode2/blob/main/LICENSE) | GPLv3 retained. The modifications are described in `NOTICE.md`. Do not relabel this component MIT. |
 | Fine Uploader and Roxy Fileman | Their `LICENSE` / `LICENSE.txt` under `Grand.SharedUIResources/wwwroot/administration` | The bundled copies carry GPLv3; retained regardless of newer upstream licensing. |
-| Kendo Core | `kendo.ui.core.min.js` copyright/license header | Apache-2.0 header retained, version 2021.3.914. |
+| Kendo Core | `kendo.ui.core.min.js` copyright/license header | Apache-2.0 header retained, version 2021.3.914; full license supplied in `docs/licenses/Apache-2.0.txt`. |
 | Kendo Grid | `kendo.grid.js` lines 1–10 | The file identifies itself as **2014.1.318**, with GPLv3 or commercial terms. The enclosing 2021.3.914 folder is not the grid version. No commercial entitlement is assumed. |
 | Administration theme | `administration/License.txt` | MIT attribution to Aigars Silkalns, Colorlib and Morteza Karimi retained. This does not establish rights to every separately bundled asset. |
 | Local nb_utils fork | `Platforms/modules/nb_utils/LICENSE` | MIT attribution to Bhoomin Naik retained; embedded assets need their own provenance. |

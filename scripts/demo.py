@@ -76,9 +76,18 @@ def prepare():
             'credentials':[{'type':'password','value':c['saas_user'],'temporary':False}]}]}
     write_json(LOCAL/'realm'/'commerce-demo-realm.json',realm)
     print('Local configuration prepared. Credentials: .local/credentials.json (never commit).')
-def compose(*args):
-    subprocess.run(['docker','compose','--env-file',str(LOCAL/'compose.env'),'-f',str(ROOT/'compose.yaml'),*args],cwd=ROOT,check=True,timeout=300)
+def compose(*args, **kwargs):
+    subprocess.run(['docker','compose','--env-file',str(LOCAL/'compose.env'),'-f',str(ROOT/'compose.yaml'),*args],cwd=ROOT,check=True,timeout=300,**kwargs)
 def infra():
+    # A Linux bind mount preserves host UID/mode: Keycloak UID 1000 cannot
+    # read a runner-owned 0600 file. Copy over stdin into our named volume;
+    # both the host copy and the container copy remain owner-readable only.
+    compose('run','--rm','--no-deps','-T','--user','0','--entrypoint','/bin/bash','keycloak','-ec',
+        'mkdir -p /opt/keycloak/data/import && '
+        'cat > /opt/keycloak/data/import/commerce-demo-realm.json && '
+        'chown 1000:0 /opt/keycloak/data/import /opt/keycloak/data/import/commerce-demo-realm.json && '
+        'chmod 700 /opt/keycloak/data/import && chmod 600 /opt/keycloak/data/import/commerce-demo-realm.json',
+        input=(LOCAL/'realm/commerce-demo-realm.json').read_bytes())
     compose('up','-d','--wait','mongo','redis','postgres','keycloak')
     wait_url(IDENTITY+'/realms/commerce-demo/.well-known/openid-configuration',180)
 def wait_url(url, seconds=60):
