@@ -1,3 +1,4 @@
+using Platform.Security;
 using Azure.Security.KeyVault.Secrets;
 using Grand.Business.Core.Commands.System.Security;
 using Grand.Business.Core.Interfaces.Common.Security;
@@ -43,7 +44,7 @@ public class InstallStartup: IStartupApplication
             AdminEmail = "admin@store.com",
             AdminPassword = "CHANGE_ME",
             ConfirmPassword = "CHANGE_ME",
-            DatabaseConnectionString = ServiceProvider.GetRequiredService<SecretClient>().GetSecret("applicationdb").Value.Value,
+            DatabaseConnectionString = ServiceProvider.GetRequiredService<ISecretStore>().GetAsync("system", "applicationdb").GetAwaiter().GetResult(),
             DataProvider = DbProvider.MongoDB,
             ConnectionInfo = true,
             MongoDBServerName = null,

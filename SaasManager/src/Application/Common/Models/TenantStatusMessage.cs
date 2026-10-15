@@ -4,16 +4,19 @@ namespace SaasManager.Application.Common.Models;
 
 public class TenantStatusMessage
 {
+    public string? TenantId { get; set; }
     public TenantStatusEvent? StatusEventType { get; set; }
     public string? StoreName { get; set; }
     public string? StoreSubDomain { get; set; }
     public string? LogoUrl { get; set; }
     public string? LogoId { get; set; }
     public string? OwnerEmail { get; set; }
+    [JsonIgnore]
     public string? Password { get; set; }
     public string? FirstName { get; set; }
     public string? Lastname { get; set; }
     public string? Role { get; set; }
+    [JsonIgnore]
     public string? MongoConnectionString { get; set; }
     public string CompanyName { get; set; }= string.Empty;
     public string CompanyAddress { get; set; }= string.Empty;

@@ -1,3 +1,4 @@
+using Platform.Security;
 using System.ComponentModel.DataAnnotations;
 using Core.Utilities;
 using Microsoft.Extensions.Logging;
@@ -19,7 +20,8 @@ public class BusinessRegistrationStep(
     IApplicationDbContext context,
     IWorkContext workContext,
     ILogger<BusinessRegistrationStep> logger,
-    IMediator mediator)
+    IMediator mediator,
+    ITenantSecrets tenantSecrets)
     : BaseRegistrationStep<BusinessRegistrationState>(context, workContext, logger)
 {
     public override string StepKey => nameof(BusinessRegistrationState);
@@ -71,8 +73,11 @@ public class BusinessRegistrationStep(
             return CreateValidationError("");
         }
 
-        if (state.IsCompleted)
+        // Resume the same business after a secret-store outage instead of creating a new identity.
+        if (state.BusinessId.HasValue)
         {
+            var registered = await _context.Businesses.FirstAsync(b => b.Id == state.BusinessId.Value, cancellationToken);
+            await FinishRegistration(registered, state, cancellationToken);
             return GuestValidationResult.Success();
         }
 
@@ -125,13 +130,20 @@ public class BusinessRegistrationStep(
         // State'i güncelle ve tamamlandı olarak işaretle
         state.LinkBusiness(business);
         state.SetTaxValidation(business.TaxNumber,true);
-        state.Complete();
-
+        // Persist the identity first. A retry can resume provisioning if the shared store is unavailable.
         await _context.SaveChangesAsync(cancellationToken);
-
-        await mediator.Publish(new BusinessRegistrationCompletedEvent(business.Id), cancellationToken);
+        await FinishRegistration(business, state, cancellationToken);
 
         return GuestValidationResult.Success();
+    }
+
+    private async Task FinishRegistration(Business business, BusinessRegistrationState state, CancellationToken ct)
+    {
+        await tenantSecrets.ProvisionAsync(business.Id.ToString("N"), business.ToSubdomain(), ct);
+        if (state.IsCompleted) return;
+        state.Complete();
+        await _context.SaveChangesAsync(ct);
+        await mediator.Publish(new BusinessRegistrationCompletedEvent(business.Id), ct);
     }
 }
 

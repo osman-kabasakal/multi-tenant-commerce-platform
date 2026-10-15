@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 namespace SaasManager.Domain.Entities.RegisteredApps;
 
 public class AppBuildsConfig
@@ -9,6 +10,7 @@ public class AppBuildsConfig
     public string AuthUrl { get;set; }= null!;
     public string AuthRealm { get;set; }= null!;
     public string AuthClientId { get;set; }= null!;
+    [JsonIgnore]
     public string KeycloakClientSecret { get;set; }= null!;
     public string StoreLogo { get;set; }= null!;
     public string StoreLogoId { get;set; }= null!;

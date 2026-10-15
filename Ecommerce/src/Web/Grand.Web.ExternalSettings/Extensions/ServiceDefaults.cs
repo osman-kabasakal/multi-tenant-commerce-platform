@@ -1,3 +1,4 @@
+using Platform.Security;
 using Azure.Extensions.AspNetCore.Configuration.Secrets;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
@@ -85,7 +86,12 @@ public static class ServiceDefaults
             Directory.CreateDirectory(Path.Combine(CommonPath.BaseDirectory, CommonPath.AppData));
             // The legacy loader expects this file; demo configuration remains in the ignored .local directory.
             File.WriteAllText(Path.Combine(CommonPath.BaseDirectory, CommonPath.AppData, "appsettings.json"), "{}");
-            builder.Services.AddSingleton<SecretClient>(new Grand.Infrastructure.LocalDemo.LocalSecretClient(builder.Configuration));
+            builder.Services.AddPlatformSecurity(builder.Configuration, builder.Environment.EnvironmentName);
+            using var bootstrap = builder.Services.BuildServiceProvider();
+            var store = bootstrap.GetRequiredService<ISecretStore>();
+            if (!builder.Configuration.GetValue<bool>("PlatformSecurity:ReadOnly"))
+                foreach (var item in builder.Configuration.GetSection("PlatformSecurity:BootstrapSecrets").GetChildren())
+                    store.GetOrCreateAsync("system", item.Key, () => item.Value!).GetAwaiter().GetResult();
             return builder;
         }
         var client = new SecretClient(new Uri(builder.Configuration.GetConnectionString("kvUri")), new DefaultAzureCredential(new DefaultAzureCredentialOptions() {
@@ -144,6 +150,7 @@ public static class ServiceDefaults
             builder.Configuration["appsettings"]=builder.Environment.EnvironmentName;
         }
 
+        builder.Services.AddPlatformSecurity(builder.Configuration, builder.Environment.EnvironmentName);
         return builder;
     }
 

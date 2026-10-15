@@ -1,3 +1,4 @@
+using Platform.Security;
 using Grand.Business.Core.Interfaces.Common.Security;
 using Grand.Business.Core.Interfaces.Tenants.KeycloakUsers;
 using Grand.Domain.Tenants;
@@ -14,18 +15,21 @@ public class KeycloakUserService: IKeycloakUserService
 {
     private readonly KeycloakClient _keycloakClient;
     private readonly KeycloakSettings _keycloakSettings;
-    private readonly IAzureEncryptionService _azureEncryptionService;
+    private readonly ITenantEncryptionService _encryptionService;
+    private readonly ITenantSecrets _tenantSecrets;
     private readonly ILogger<KeycloakUserService> _logger;
 
     public KeycloakUserService(
         IKeycloakClientService keycloakService,
         KeycloakSettings keycloakSettings,
-        IAzureEncryptionService azureEncryptionService,
+        ITenantEncryptionService encryptionService,
+        ITenantSecrets tenantSecrets,
         ILogger<KeycloakUserService> logger)
     {
         _keycloakClient = keycloakService.GetKeycloakClientAsync();
         _keycloakSettings = keycloakSettings;
-        _azureEncryptionService = azureEncryptionService;
+        _encryptionService = encryptionService;
+        _tenantSecrets = tenantSecrets;
         _logger = logger;
     }
 
@@ -280,7 +284,7 @@ public class KeycloakUserService: IKeycloakUserService
                     if (protocol.Value.Config["claim.name"] != "sub_domainname")
                     {
                         var chipperText = protocol.Value.Config["claim.value"];
-                        var decryptedValue = await _azureEncryptionService.DecryptAsync(chipperText, clientName);
+                        var decryptedValue = await _encryptionService.DecryptAsync(chipperText, clientName);
                     }
                 }
                 existingClient.ProtocolMappers = existingProtocols;
@@ -355,6 +359,7 @@ public class KeycloakUserService: IKeycloakUserService
             }
 
             var clientsecret = await _keycloakClient.GetClientSecretAsync(_keycloakSettings.Realm, clientUuid!);
+            await _tenantSecrets.SetAsync(clientName, TenantSecretNames.KeycloakClient, clientsecret.Value);
 
             return (clientName, clientsecret.Value);
         }
@@ -381,6 +386,6 @@ public class KeycloakUserService: IKeycloakUserService
     
     private Task<string> EncryptData(string data, string key)
     {
-        return _azureEncryptionService.EncryptAsync(data, key);
+        return _encryptionService.EncryptAsync(data, key);
     }
 }

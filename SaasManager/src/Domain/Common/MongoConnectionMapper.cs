@@ -6,7 +6,7 @@ namespace SaasManager.Domain.Common;
 
 public static class MongoConnectionMapper
 {
-    public static DatabaseConfig MapFromConnectionString(string connectionString)
+    public static DatabaseConfig MapMetadataFromConnectionString(string connectionString, string secretReference)
     {
         try
         {
@@ -44,10 +44,10 @@ public static class MongoConnectionMapper
                 port: port,
                 databaseName: url.DatabaseName,
                 username: url.Username,
-                encryptedPassword: url.Password); // Password encryption yapılmalı
+                encryptedPassword: secretReference);
 
             // Connection string'i de sakla
-            config.SetConnectionString(connectionString);
+            config.SetConnectionString(secretReference);
             
             return config;
         }
@@ -76,7 +76,9 @@ public static class MongoConnectionMapper
 
     public static string MapToConnectionString(DatabaseConfig config)
     {
-        // Eğer mevcut connection string varsa, sadece credentials'ları güncelle
+        if (config.ConnectionString?.StartsWith("tenant-secret:", StringComparison.Ordinal) == true)
+            throw new InvalidOperationException("Resolve the database-connection secret through ITenantSecrets before connecting.");
+        // Legacy metadata only. New registrations use a shared secret reference.
         if (!string.IsNullOrEmpty(config.ConnectionString))
         {
             return UpdateConnectionCredentials(

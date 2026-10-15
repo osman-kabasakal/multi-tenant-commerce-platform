@@ -1,0 +1,10 @@
+{
+  "PlatformSecurity": {
+    "Provider": "Azure",
+    "ConnectionString": "Host=postgres.example.invalid;Database=commerce_secrets;Username=platform_writer;Password=CHANGE_ME;SSL Mode=VerifyFull",
+    "Azure": { "VaultUrl": "https://vault.example.invalid", "KeyName": "tenant-data" },
+    "InitializeSchema": false,
+    "ReadOnly": false,
+    "BootstrapSecrets": {}
+  }
+}

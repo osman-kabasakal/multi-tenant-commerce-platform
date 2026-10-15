@@ -2,26 +2,24 @@ FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 USER root
 WORKDIR /app
 
-FROM mcr.microsoft.com/dotnet/sdk:9.0.101 AS build
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
-WORKDIR /app
-COPY ["src/", "./"]
-COPY ["Directory.Build.props", "./"]
-COPY ["Directory.Packages.props", "./"]
-RUN dotnet restore "Web/Web.csproj" --use-current-runtime
+WORKDIR /src/SaasManager
+COPY SaasManager/ /src/SaasManager/
+COPY Shared/ /src/Shared/
+RUN dotnet restore src/Web/Web.csproj
+RUN dotnet build src/Web/Web.csproj -c Release --no-restore
 
-RUN dotnet build "Web/Web.csproj" -c Release -o /app/build --use-current-runtime
-
-FROM node:20-alpine AS angular-build
+FROM node:22-alpine AS angular-build
 WORKDIR /app
-COPY ["src/Web/ClientApp/","."]
-RUN npm install
+COPY ["SaasManager/src/Web/ClientApp/","."]
+RUN npm ci
 RUN npm run build -- --configuration production
 
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "Web/Web.csproj" -c Release -o /app/publish /p:UseAppHost=false --use-current-runtime
+RUN dotnet publish "src/Web/Web.csproj" -c Release -o /app/publish /p:UseAppHost=false --use-current-runtime
 FROM base AS final
 #ENV ASPNETCORE_HOSTINGSTARTUPASSEMBLIES="Microsoft.AspNetCore.SpaProxy"
 ENV ASPNETCORE_ENVIRONMENT=Production   

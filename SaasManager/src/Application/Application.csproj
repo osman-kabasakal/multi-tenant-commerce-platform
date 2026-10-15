@@ -27,4 +27,5 @@
     <ProjectReference Include="..\Domain\Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup><ProjectReference Include="../../../Shared/Platform.Security/Platform.Security.csproj" /></ItemGroup>
 </Project>

@@ -1,3 +1,4 @@
+using Platform.Security;
 using FluentValidation;
 using Grand.Business.Core.Extensions;
 using Grand.Business.Core.Interfaces.Checkout.Orders;
@@ -39,7 +40,7 @@ public class IyzicoPayService : IIyzicoPayService
     private readonly ICountryService _countryService;
     private readonly IWorkContext _workContext;
     private readonly ICurrencyService _currencyService;
-    private readonly IAzureEncryptionService _encryptionService;
+    private readonly ITenantEncryptionService _encryptionService;
     private readonly IShoppingCartService _shoppingCartService;
     private readonly IMediator _mediator;
     private readonly LinkGenerator _linkGenerator;
@@ -58,7 +59,7 @@ public class IyzicoPayService : IIyzicoPayService
         ICountryService countryService,
         IWorkContext workContext,
         ICurrencyService currencyService,
-        IAzureEncryptionService encryptionService,
+        ITenantEncryptionService encryptionService,
         IShoppingCartService shoppingCartService,
         IMediator mediator,
         LinkGenerator linkGenerator,

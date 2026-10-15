@@ -23,7 +23,7 @@ flowchart LR
 
 ## Trust boundaries
 
-The loopback gateway maps only known hosts to the two demo tenants. Keycloak service credentials stay on the host; browser and mobile bundles contain no confidential client secret. The commerce middleware still verifies issuer, audience, signature, expiration and tenant claims. Tenant store/database claims are encrypted using distinct, locally generated AES-GCM keys.
+The loopback gateway maps only known hosts to the two demo tenants. Keycloak service credentials stay on the host; browser and mobile bundles contain no confidential client secret. The commerce middleware still verifies issuer, audience, signature, expiration and tenant claims. Tenant store/database claims use the shared encryption contract. Local AES-GCM keys are derived from one explicitly provisioned deployment master key, allowing independent instances to decrypt the same tenant data.
 
 The admin profile maps the same fixed hosts to local tenant databases, then relies on GrandNode's ordinary authenticated admin flow. The local adapters refuse to start outside `Development`. All exposed ports bind to `127.0.0.1`. HTTP and Keycloak `start-dev` are deliberate local-only choices.
 
@@ -33,7 +33,7 @@ Do not expose this profile to the internet. MongoDB and Redis are loopback servi
 
 The original SaaS registration pipeline persists registration/subscription state and publishes Redis events. `TenantManager` consumes tenant/build events, orchestrates the installer, Azure deployment and Google/Firebase project/mobile build helpers. The installer creates the store database and identity metadata. Credential/build-completion events feed back into SaaS. The mobile builder supplies tenant-specific public configuration and signing/service configuration.
 
-The local profile replaces Azure Key Vault/encryption with explicit file-backed adapters and uses two fixed tenants. It does not invoke Azure deployment, Google/Firebase provisioning, DNS changes, payment providers, mobile signing or app-store publishing. The corresponding code is retained for a separate cloud profile, not presented as validated deployment instructions.
+The local profile uses the shared PostgreSQL secret store and a Local encryption provider, and uses two fixed tenants. See [tenant security](TENANT_SECURITY.md) for DI selection, registration, distributed access, Azure setup and migration boundaries. It does not invoke Azure deployment, Google/Firebase provisioning, DNS changes, payment providers, mobile signing or app-store publishing. The corresponding code is retained for a separate cloud profile, not presented as validated deployment instructions.
 
 ## Engineering changes in this extraction
 

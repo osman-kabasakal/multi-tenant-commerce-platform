@@ -1,10 +1,11 @@
 # Build stage
-FROM mcr.microsoft.com/dotnet/sdk:8.0.204 AS build-env
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build-env
 LABEL stage=build-env
-WORKDIR /app
+WORKDIR /src/Ecommerce
 
 # Copy 
-COPY ./src/ /app/
+COPY Ecommerce/ /src/Ecommerce/
+COPY Shared/ /src/Shared/
 
 ARG GIT_COMMIT
 ARG GIT_BRANCH
@@ -35,28 +36,28 @@ RUN case "$BUILD_TYPE" in \
             ;; \
     esac && \
     . /etc/environment && \
-    mkdir -p /app/$PROJECT_FOLDER/$PROJECT_NAME/Plugins/ || true && \
-    ls -la /app/$PROJECT_FOLDER/$PROJECT_NAME/Plugins/ || true
+    mkdir -p /src/Ecommerce/src/$PROJECT_FOLDER/$PROJECT_NAME/Plugins/ || true && \
+    ls -la /src/Ecommerce/src/$PROJECT_FOLDER/$PROJECT_NAME/Plugins/ || true
 
 # Use the environment variables in subsequent commands
-RUN . /etc/environment && mkdir -p /app/$PROJECT_FOLDER/$PROJECT_NAME/Plugins/ && rm -rf /app/$PROJECT_FOLDER/$PROJECT_NAME/Plugins/**
+RUN . /etc/environment && mkdir -p /src/Ecommerce/src/$PROJECT_FOLDER/$PROJECT_NAME/Plugins/ && rm -rf /src/Ecommerce/src/$PROJECT_FOLDER/$PROJECT_NAME/Plugins/**
 # Build plugins
-RUN . /etc/environment && for plugin in /app/Plugins/*; \
+RUN . /etc/environment && for plugin in /src/Ecommerce/src/Plugins/*; \
     do \
       dotnet build "$plugin" -c Release -p:SourceRevisionId=$GIT_COMMIT -p:GitBranch=$GIT_BRANCH -p:BuildType=$BUILD_TYPE; \
     done 
 
 # Build AdminPlugins only if BUILD_TYPE is Backend
 RUN . /etc/environment && if [ "$BUILD_TYPE" != "Frontend" ]; then \
-      for plugin in /app/AdminPlugins/*; \
+      for plugin in /src/Ecommerce/src/AdminPlugins/*; \
       do \
         dotnet build "$plugin" -c Release -p:SourceRevisionId=$GIT_COMMIT -p:GitBranch=$GIT_BRANCH -p:BuildType=$BUILD_TYPE; \
       done; \
     fi
 
-RUN . /etc/environment && ls -la /app/$PROJECT_FOLDER/$PROJECT_NAME/Plugins/ || true
+RUN . /etc/environment && ls -la /src/Ecommerce/src/$PROJECT_FOLDER/$PROJECT_NAME/Plugins/ || true
 # Publish Web project
-RUN . /etc/environment && dotnet publish /app/$PROJECT_FOLDER/$PROJECT_NAME/$PROJECT_NAME.csproj -c Release -o ./build/release -p:SourceRevisionId=$GIT_COMMIT -p:GitBranch=$GIT_BRANCH
+RUN . /etc/environment && dotnet publish /src/Ecommerce/src/$PROJECT_FOLDER/$PROJECT_NAME/$PROJECT_NAME.csproj -c Release -o /app/build/release -p:SourceRevisionId=$GIT_COMMIT -p:GitBranch=$GIT_BRANCH
 
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime

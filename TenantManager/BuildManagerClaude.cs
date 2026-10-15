@@ -1,3 +1,4 @@
+using Platform.Security;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -22,7 +23,6 @@ namespace TenantManagerClaude
         private readonly AppBuildsConfig _appBuildsConfig;
         private readonly string _blobStorageUrl;
         private readonly Uri _blobStorageConnectionString;
-        private readonly string _keyVaultUrl;
         private readonly string _redisConnectionString;
         private readonly string _gitRepositoryUrl;
         private readonly JobOutputStore _outputStore;
@@ -30,7 +30,7 @@ namespace TenantManagerClaude
         private readonly HttpClient _httpClient;
         private readonly IConnectionMultiplexer _redis;
         private readonly BlobServiceClient _blobServiceClient;
-        private readonly SecretClient _secretClient;
+        private readonly ITenantSecrets _tenantSecrets;
 
         private readonly string flavorizrYamlTemplate = @"
 flavors:
@@ -270,7 +270,7 @@ flutter_native_splash:
             AppBuildsConfig appBuildsConfig,
             string blobStorageUrl,
             Uri blobStorageConnectionString,
-            string keyVaultUrl,
+            ITenantSecrets tenantSecrets,
             string redisConnectionString,
             string gitRepositoryUrl,
             JobOutputStore outputStore,
@@ -280,7 +280,7 @@ flutter_native_splash:
             _appBuildsConfig = appBuildsConfig;
             _blobStorageUrl = blobStorageUrl;
             _blobStorageConnectionString = blobStorageConnectionString;
-            _keyVaultUrl = keyVaultUrl;
+            _tenantSecrets = tenantSecrets;
             _redisConnectionString = redisConnectionString;
             _gitRepositoryUrl = gitRepositoryUrl;
             _outputStore = outputStore;
@@ -289,7 +289,6 @@ flutter_native_splash:
             _httpClient = new HttpClient();
             _redis = ConnectionMultiplexer.Connect(_redisConnectionString);
             _blobServiceClient = new BlobServiceClient(_blobStorageConnectionString, new DefaultAzureCredential());
-            _secretClient = new SecretClient(new Uri(_keyVaultUrl), new DefaultAzureCredential());
         }
 
         public async Task HandleBuild()
@@ -1199,8 +1198,8 @@ flutter_native_splash:
                 // {
                 //     throw new Exception("Jks not found");
                 // }
-                var secretValue = await _secretClient.GetSecretAsync(secretName);
-                var keyVaultSecret = JsonSerializer.Deserialize<KeyVaultSecretModel>(secretValue.Value.Value);
+                var secretValue = await _tenantSecrets.GetAsync(_appBuildsConfig.AuthClientId, TenantSecretNames.AndroidSigningKey);
+                var keyVaultSecret = JsonSerializer.Deserialize<KeyVaultSecretModel>(secretValue);
                 if (keyVaultSecret == null)
                 {
                     throw new Exception("Secret not converted");
@@ -1212,7 +1211,7 @@ flutter_native_splash:
 
                 return (jksPath, keyVaultSecret.KeyPassword, keyVaultSecret.KeyAlias, keyVaultSecret.KeyAliasPassword);
             }
-            catch (Exception e)
+            catch (KeyNotFoundException)
             {
                 var keyPassword = GeneratePassword();
                 var keyAlias = $"{_appBuildsConfig.Flavor.ToLowerInvariant()}keyalias";
@@ -1246,7 +1245,13 @@ flutter_native_splash:
                 }
 
                 _outputStore.AppendOutput(_jobId, "Android signing key created");
-                return (jksPath, keyPassword, keyAlias, keyAliasPassword);
+                var candidate = JsonSerializer.Serialize(KeyVaultSecretModel.FromParameters(
+                    Convert.ToBase64String(await File.ReadAllBytesAsync(jksPath)), keyPassword, keyAlias, keyAliasPassword));
+                var winner = await _tenantSecrets.GetOrCreateAsync(_appBuildsConfig.AuthClientId,
+                    TenantSecretNames.AndroidSigningKey, () => candidate);
+                var persisted = JsonSerializer.Deserialize<KeyVaultSecretModel>(winner)!;
+                await File.WriteAllBytesAsync(jksPath, Convert.FromBase64String(persisted.KeyBase64));
+                return (jksPath, persisted.KeyPassword, persisted.KeyAlias, persisted.KeyAliasPassword);
             }
         }
 
@@ -1393,17 +1398,8 @@ storeFile={jksPath}
                 JsonSerializer.Serialize(
                     KeyVaultSecretModel.FromParameters(keyBase64, keyPassword, keyAlias, keyAliasPassword));
 
-            // Check if secret already exists
-            try
-            {
-                var existingSecret = await _secretClient.GetSecretAsync(secretName);
-                // If we get here, the secret exists, so we don't need to upload it again
-            }
-            catch
-            {
-                // Secret doesn't exist, so create it
-                await _secretClient.SetSecretAsync(secretName, secretValue);
-            }
+            await _tenantSecrets.GetOrCreateAsync(_appBuildsConfig.AuthClientId,
+                TenantSecretNames.AndroidSigningKey, () => secretValue);
         }
 
         private BuildEnvironmentConfig CreateBuildEnvironmentConfig(string keySha256)
@@ -1756,6 +1752,7 @@ storeFile={jksPath}
         public string AuthUrl { get; set; } = null!;
         public string AuthRealm { get; set; } = null!;
         public string AuthClientId { get; set; } = null!;
+        [JsonIgnore]
         public string KeycloakClientSecret { get; set; } = null!;
         public string StoreLogo { get; set; } = null!;
         public string StoreLogoId { get; set; } = null!;

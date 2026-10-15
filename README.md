@@ -92,13 +92,14 @@ Aktif uygulama `Platforms/store_user_app`, Flutter **3.44.6** ile ARM64 Android 
 | --- | --- |
 | `Ecommerce/` | GrandNode tabanlı ticaret motoru, çok kiracılı storefront/API, yönetim paneli ve kurucu |
 | `SaasManager/` | .NET 9 SaaS API, PostgreSQL modeli, Angular arayüz |
+| `Shared/Platform.Security/` | Azure/yerel şifreleme sağlayıcıları ve ortak PostgreSQL tenant secret deposu |
 | `TenantManager/` | Bulut tenant hazırlama, dağıtım ve mobil derleme işçileri; demoda başlatılmaz |
 | `Platforms/` | Flutter uygulaması ve yerel modüller |
 | `cloudflare_image_resizing_worker/` | İsteğe bağlı görsel işleme işçisi |
 | `scripts/` | Yerel kurulum, sunucu taraflı token ağ geçidi ve smoke kontrolü |
 | `docs/` | Mimari, güvenlik temizliği, doğrulama ve yayın aşamaları |
 
-[Architecture / English overview](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+[Tenant şifreleme ve dağıtık secret kurulumu](docs/TENANT_SECURITY.md) · [Architecture / English overview](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## CodeGraph
 

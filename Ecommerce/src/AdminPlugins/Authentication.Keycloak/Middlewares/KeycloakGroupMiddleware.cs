@@ -1,3 +1,4 @@
+using Platform.Security;
 using Authentication.Keycloak.Services.JwtValidationServices;
 using Authentication.Keycloak.Services.RemoteUserManagement;
 using Grand.Business.Core.Events.Customers;
@@ -41,7 +42,7 @@ public class KeycloakGroupMiddleware
         IKeycloakUserService keycloakUserService,
         LinkGenerator linkGenerator,
         KeycloakSettings keycloakSettings,
-        IAzureEncryptionService encryptionService)
+        ITenantEncryptionService encryptionService)
     {
         var context = contextAccessor.HttpContext;
         if (context == null)
@@ -264,7 +265,7 @@ public class KeycloakGroupMiddleware
         HttpContext context, 
         string storeToken,
         KeyCloakJwtValidationService keyCloakJwtValidationService,
-        IAzureEncryptionService encryptionService)
+        ITenantEncryptionService encryptionService)
     {
         var clientPrinciple = await keyCloakJwtValidationService.ValidateJwt(storeToken, true);
         if (clientPrinciple == null) return false;

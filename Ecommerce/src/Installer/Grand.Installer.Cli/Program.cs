@@ -1,3 +1,4 @@
+using Platform.Security;
 using Azure;
 using Azure.Identity;
 using Azure.ResourceManager;
@@ -142,8 +143,8 @@ if (!builder.Configuration.GetValue<bool>("LocalDemo:Enabled"))
 
 var conf = new KeycloakSettings();
 builder.Configuration.GetSection("KeyCloakServiceClient").Bind(conf);
-conf.ClientSecret = builder.Services.BuildServiceProvider().GetRequiredService<SecretClient>()
-    .GetSecret($"ClientSecret-{conf.ClientId}").Value.Value;
+conf.ClientSecret = builder.Services.BuildServiceProvider().GetRequiredService<ISecretStore>()
+    .GetAsync("system", $"ClientSecret-{conf.ClientId}").GetAwaiter().GetResult();
 builder.Services.AddSingleton(conf);
 builder.Services.Configure<KeycloakSettings>(builder.Configuration.GetSection("KeyCloakServiceClient"));
 
@@ -229,6 +230,12 @@ using (var scope = serviceProvider.CreateScope())
     logger.LogInformation($"Migration İşlem süresi: {stopwatch.Elapsed.TotalMinutes} milisaniye");
     var storeService = scope.ServiceProvider.GetService<IStoreService>();
     var store = (await storeService.GetAllStores()).FirstOrDefault();
+    var tenantSecrets = scope.ServiceProvider.GetRequiredService<ITenantSecrets>();
+    await tenantSecrets.ProvisionAsync(tenantStatusMessage.TenantId ?? tenantStatusMessage.StoreSubDomain!, tenantStatusMessage.StoreSubDomain!);
+    tenantStatusMessage.TenantId = await tenantSecrets.ResolveAsync(tenantStatusMessage.StoreSubDomain!);
+    await tenantSecrets.BindAliasAsync(tenantStatusMessage.StoreSubDomain!, store.Id);
+    await tenantSecrets.SetAsync(tenantStatusMessage.StoreSubDomain!, TenantSecretNames.DatabaseConnection, tenantStatusMessage.MongoConnectionString!);
+
     store.Name = tenantStatusMessage.StoreName;
     store.UserFields.Add(new UserField {
         Key = "EncryptionKey",
@@ -270,7 +277,7 @@ using (var scope = serviceProvider.CreateScope())
                 LanguageId = "", Controller = "Product", Action = "ProductDetails"
             });
         }
-        var encryption = scope.ServiceProvider.GetRequiredService<IAzureEncryptionService>();
+        var encryption = scope.ServiceProvider.GetRequiredService<ITenantEncryptionService>();
         var demo = new {
             slug = tenantStatusMessage.StoreSubDomain, storeId = store.Id,
             connectionString = tenantStatusMessage.MongoConnectionString,
@@ -1050,28 +1057,10 @@ using (var scope = serviceProvider.CreateScope())
 
     
 
-    // API Secretleri için güçlü benzersiz anahtarlar oluştur
-    var frontendApiSecret = PasswordGenerator.GenerateRandomPassword(length: 64, includeSpecial: true);
-    var backendApiSecret = PasswordGenerator.GenerateRandomPassword(length: 64, includeSpecial: true);
-    
-    try {
-        // SecretClient servisi alınıyor
-        var secretClient = scope.ServiceProvider.GetRequiredService<SecretClient>();
-        
-        // FrontendAPI-Secret-{tenantId} için secret oluştur ve kaydet
-        await secretClient.SetSecretAsync($"FrontendAPI-Secret-{store.Id}", frontendApiSecret);
-        logger.LogInformation($"FrontendAPI secret başarıyla Key Vault'a kaydedildi: FrontendAPI-Secret-{store.Id}");
-        
-        // BackendAPI-Secret-{tenantId} için secret oluştur ve kaydet
-        await secretClient.SetSecretAsync($"BackendAPI-Secret-{store.Id}", backendApiSecret);
-        logger.LogInformation($"BackendAPI secret başarıyla Key Vault'a kaydedildi: BackendAPI-Secret-{store.Id}");
-    }
-    catch (Exception ex) {
-        logger.LogError($"API secretleri Key Vault'a kaydedilirken hata oluştu: {ex.Message}");
-        // Hata detayını görmek için
-        logger.LogError(ex.ToString());
-    }
 
+    await tenantSecrets.SetAsync(tenantStatusMessage.TenantId!, TenantSecretNames.BackendUserPassword, backendApiPassword);
+    if (!string.IsNullOrEmpty(clientCredentials?.Value))
+        await tenantSecrets.SetAsync(tenantStatusMessage.TenantId!, TenantSecretNames.KeycloakClient, clientCredentials.Value);
     await subscriber.PublishAsync(RedisChannel.Literal("COMPLETED_MIGRATION"), JsonSerializer.Serialize(
         new ResponseWithCredentialsModel() {
             IsSuccess = true,
@@ -1107,14 +1096,14 @@ public class FrontEndCredentialInfo
 {
     [JsonPropertyName("clientId")] public string ClientId { get; set; }
 
-    [JsonPropertyName("clientSecret")] public string? ClientSecret { get; set; }
+    [JsonIgnore] public string? ClientSecret { get; set; }
 }
 
 public class BackendCredential
 {
     [JsonPropertyName("apiUserName")] public string ApiUserName { get; set; }
 
-    [JsonPropertyName("apiPassword")] public string? ApiPassword { get; set; }
+    [JsonIgnore] public string? ApiPassword { get; set; }
 }
 
 public class BasicResponseModel

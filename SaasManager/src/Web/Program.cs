@@ -1,3 +1,4 @@
+using Platform.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using Azure.Identity;
@@ -31,6 +32,7 @@ if (isAzureWebApp)
 
 // Add services to the container.
 builder.AddKeyVaultIfConfigured();
+builder.Services.AddPlatformSecurity(builder.Configuration, builder.Environment.EnvironmentName);
 builder.ConfigureSettings();
 builder.RegisterAuthentication();
 builder.ConfigureServices();

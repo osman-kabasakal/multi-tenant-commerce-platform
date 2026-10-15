@@ -1,3 +1,4 @@
+using Platform.Security;
 using Azure.Security.KeyVault.Secrets;
 using Grand.Business.Core.Interfaces.Tenants.KeycloakJwtToken;
 using Grand.Business.Core.Interfaces.Tenants.KeycloakUsers;
@@ -29,17 +30,17 @@ public class TenantStartup : IStartupApplication
 
     public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        var azureKeyVaultClient = services.BuildServiceProvider().GetRequiredService<SecretClient>();
+        var azureKeyVaultClient = services.BuildServiceProvider().GetRequiredService<ISecretStore>();
         var conf = new KeycloakSettings();
         configuration.GetSection("KeyCloakServiceClient").Bind(conf);
-        conf.ClientSecret = azureKeyVaultClient.GetSecret($"ClientSecret-{conf.ClientId}").Value.Value;
+        conf.ClientSecret = azureKeyVaultClient.GetAsync("system", $"ClientSecret-{conf.ClientId}").GetAwaiter().GetResult();
         services.AddSingleton(conf);
         services.Configure<KeycloakSettings>(configuration.GetSection("KeyCloakServiceClient"));
 
         services.Configure<AuthConfiguration>(instance =>
         {
             configuration.GetSection("AuthConfiguration").Bind(instance);
-            instance.ClientSecret = azureKeyVaultClient.GetSecret($"ClientSecret-{instance.ClientId}").Value.Value;
+            instance.ClientSecret = azureKeyVaultClient.GetAsync("system", $"ClientSecret-{instance.ClientId}").GetAwaiter().GetResult();
         });
 
         services.AddTransient<IKeycloakJwtTokenValidationService, KeycloakJwtTokenValidationService>();

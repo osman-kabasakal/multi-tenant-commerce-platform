@@ -1,3 +1,4 @@
+using Platform.Security;
 using Authentication.Keycloak.MultitenantTasks;
 using Authentication.Keycloak.Services.AuthenticationServices;
 using Authentication.Keycloak.Services.JwtValidationServices;
@@ -39,13 +40,13 @@ public class StartupApplication : IStartupApplication
     {
         ((ConfigurationManager)configuration).AddJsonFile(Path.Combine(CommonPath.PluginsPath,
             KeycloakAuthenticationDefaults.ProviderSystemName, "appsettings.keycloak.json"));
-        var azureKeyVaultClient = services.BuildServiceProvider().GetRequiredService<SecretClient>();
+        var azureKeyVaultClient = services.BuildServiceProvider().GetRequiredService<ISecretStore>();
 
         services.AddScoped<IWidgetProvider, SigninButtonWidgetProvider>();
         services.Configure<AuthConfiguration>(instance =>
         {
             configuration.GetSection("AuthConfiguration").Bind(instance);
-            instance.ClientSecret = azureKeyVaultClient.GetSecret($"ClientSecret-{instance.ClientId}").Value.Value;
+            instance.ClientSecret = azureKeyVaultClient.GetAsync("system", $"ClientSecret-{instance.ClientId}").GetAwaiter().GetResult();
         });
         services.AddSingleton<LogoutSessionManager>();
         services.AddHttpClient();
@@ -63,7 +64,7 @@ public class StartupApplication : IStartupApplication
 
         var conf = new KeycloakSettings();
         configuration.GetSection("KeyCloakServiceClient").Bind(conf);
-        conf.ClientSecret = azureKeyVaultClient.GetSecret($"ClientSecret-{conf.ClientId}").Value.Value;
+        conf.ClientSecret = azureKeyVaultClient.GetAsync("system", $"ClientSecret-{conf.ClientId}").GetAwaiter().GetResult();
         services.AddSingleton(conf);
         services.Configure<KeycloakSettings>(configuration.GetSection("KeyCloakServiceClient"));
 

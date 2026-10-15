@@ -1,3 +1,4 @@
+using Platform.Security;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -18,7 +19,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using TenantManager;
-using TenantManager.AzureEncryption;
 using TenantManager.Email;
 using TenantManager.Keycloak;
 using TenantManagerClaude;
@@ -46,15 +46,18 @@ public class ProcessTenantMessageParams
 
 public class TenantStatusMessage
 {
+    public string? TenantId { get; set; }
     public TenantStatusEvent? StatusEventType { get; set; }
     public string? StoreName { get; set; }
     public string? StoreSubDomain { get; set; }
     public string? LogoUrl { get; set; }
     public string? OwnerEmail { get; set; }
+    [JsonIgnore]
     public string? Password { get; set; }
     public string? FirstName { get; set; }
     public string? Lastname { get; set; }
     public string? Role { get; set; }
+    [JsonIgnore]
     public string? MongoConnectionString { get; set; }
     public string CompanyName { get; set; } = string.Empty;
     public string CompanyAddress { get; set; } = string.Empty;
@@ -118,7 +121,7 @@ public class FrontEndCredentialInfo
 {
     [JsonPropertyName("clientId")] public string ClientId { get; set; }
 
-    [JsonPropertyName("clientSecret")] public string ClientSecret { get; set; }
+    [JsonIgnore] public string ClientSecret { get; set; }
 }
 
 public class BasicResponseModel
@@ -270,7 +273,14 @@ public class SubscriberHandlers
     [DisableConcurrentExecution(timeoutInSeconds: 1800)]
     public async Task ProcessTenantMessage(ProcessTenantMessageParams param)
     {
-        TenantStatusMessage message = param.TenantStatusMessage;
+        // Work on a private copy; the queued message remains a reference without secrets.
+        TenantStatusMessage message = JsonSerializer.Deserialize<TenantStatusMessage>(JsonSerializer.Serialize(param.TenantStatusMessage))!;
+        if (!string.IsNullOrWhiteSpace(message.TenantId))
+        {
+            var secrets = Program.ServiceProvider.GetRequiredService<ITenantSecrets>();
+            message.MongoConnectionString = await secrets.GetAsync(message.TenantId, TenantSecretNames.DatabaseConnection);
+            message.Password = await secrets.GetAsync(message.TenantId, TenantSecretNames.InitialPassword);
+        }
         var context = param.Context;
         var jobId = context?.Items["JobId"]?.ToString();
         var outputStore = context?.Items["JobOutputStore"] as JobOutputStore;
@@ -422,23 +432,16 @@ public class SubscriberHandlers
             };
 
 
-            var processEnvExport = new Dictionary<string, string>();
             foreach (var envVar in envVars)
-            {
                 processStartInfo.EnvironmentVariables[$"TenantMessage__{envVar.Key}"] = envVar.Value;
-                processEnvExport.Add($"TenantMessage__{envVar.Key}", envVar.Value);
-            }
-
-            processStartInfo.EnvironmentVariables["ConnectionStrings__kvUri"] = "https://vault.example.invalid/";
-            processEnvExport.Add("ConnectionStrings__kvUri", "https://vault.example.invalid/");
-
-            processStartInfo.EnvironmentVariables["CloudFlareApiKey"] = "CHANGE_ME";
-            processEnvExport.Add("CloudFlareApiKey", processStartInfo.EnvironmentVariables["CloudFlareApiKey"]!);
-
-            processStartInfo.EnvironmentVariables["ASPNETCORE_ENVIRONMENT"] = "Production";
-
-            var exports = string.Join(",\n", processEnvExport.Select(kv => $"\"{kv.Key}\":\"{kv.Value}\""));
-            outputStore?.AppendOutput(jobId!, exports);
+            var workerConfig = Program.ServiceProvider.GetRequiredService<IConfiguration>();
+            foreach (var entry in workerConfig.AsEnumerable().Where(x =>
+                x.Key.StartsWith("PlatformSecurity:") || x.Key.StartsWith("LocalDemo:") || x.Key == "ConnectionStrings:kvUri"))
+                if (entry.Value != null) processStartInfo.EnvironmentVariables[entry.Key.Replace(":", "__")] = entry.Value;
+            processStartInfo.EnvironmentVariables["ASPNETCORE_ENVIRONMENT"] =
+                Program.ServiceProvider.GetRequiredService<IHostEnvironment>().EnvironmentName;
+            // Child credentials are passed in memory, never rendered into the job output.
+            outputStore?.AppendOutput(jobId!, "Starting tenant installer with shared security configuration.");
             using var process = new Process { StartInfo = processStartInfo };
 
             process.OutputDataReceived += (sender, args) =>
@@ -497,7 +500,7 @@ public class SubscriberHandlers
         {
             Console.WriteLine("Error: " + e);
             outputStore?.AppendOutput(jobId!, e.ToString());
-            await File.WriteAllTextAsync(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"ErrorMessages","TenantMessages",$"{message.StoreSubDomain}.json"),JsonSerializer.Serialize(message));
+            await File.WriteAllTextAsync(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"ErrorMessages","TenantMessages",$"{message.StoreSubDomain}.json"),JsonSerializer.Serialize(param.TenantStatusMessage));
         }
     }
 
@@ -536,18 +539,15 @@ public class SubscriberHandlers
             return;
         }
         
-        var storeFrontendClient = await keycloakClient.GetClientCredentials(buildConf.AuthClientId);
-        if (string.IsNullOrEmpty(storeFrontendClient?.Value))
-        {
-            outputStore?.AppendOutput(jobId!,$"ClientSecret alınamadı: {buildConf.AuthClientId}");
-        }
-        
-        buildConf.KeycloakClientSecret = storeFrontendClient?.Value;
+        // Resolve only when executing; job arguments and persisted build configuration contain no client secret.
+        buildConf = JsonSerializer.Deserialize<AppBuildsConfig>(JsonSerializer.Serialize(buildConf))!;
+        buildConf.KeycloakClientSecret = await Program.ServiceProvider.GetRequiredService<ITenantSecrets>()
+            .GetAsync(buildConf.AuthClientId, TenantSecretNames.KeycloakClient);
         var buildManager = new TenantManagerClaude.BuildManager(
             buildConf,
             "https://storage.example.invalid",
             new Uri("https://storage.example.invalid"),
-            "https://vault.example.invalid",
+            Program.ServiceProvider.GetRequiredService<ITenantSecrets>(),
             redisConnectionString,
             $"https://osman-kabasakal:{gitPass}@github.com/osman-kabasakal/LocalBusinessEcommerce_BusinessEcommerce.git",
             outputStore!,
@@ -1083,14 +1083,17 @@ public class Program
     public static IHostBuilder CreateHostBuilder(string[] args) =>
         Host.CreateDefaultBuilder(args)
             .ConfigureLogging((hostContext, logging) => { })
-            .ConfigureHostConfiguration((confBuilder) =>
+            .ConfigureAppConfiguration((context, confBuilder) =>
             {
+                confBuilder.AddJsonFile("appsettings.json", optional: true).AddEnvironmentVariables();
+                var config = confBuilder.Build();
+                var localPath = config["LocalDemo:ConfigPath"];
+                if (!string.IsNullOrWhiteSpace(localPath)) confBuilder.AddJsonFile(localPath, optional: false);
                 confBuilder.AddEnvironmentVariables();
-                confBuilder.AddAzureKeyVault(new Uri("https://vault.example.invalid"),
-                    new DefaultAzureCredential());
-
-                confBuilder.AddJsonFile("appsettings.json");
-                
+                config = confBuilder.Build();
+                var vault = config["AZURE_KEY_VAULT_ENDPOINT"];
+                if (!config.GetValue<bool>("LocalDemo:Enabled") && !string.IsNullOrWhiteSpace(vault))
+                    confBuilder.AddAzureKeyVault(new Uri(vault), new DefaultAzureCredential());
             })
             .ConfigureServices((hostContext, services) =>
             {
@@ -1161,7 +1164,7 @@ public class Program
                 
                 services.Configure<KeycloakSettings>(hostContext.Configuration.GetSection("KeyCloakServiceClient"));
 
-                services.AddSingleton<IAzureEncryptionService, AzureEncryptionService>();
+                services.AddPlatformSecurity(hostContext.Configuration, hostContext.HostingEnvironment.EnvironmentName);
                 services.AddSingleton<IKeycloakService, KeycloakService>();
                 services.AddSingleton<IKeycloakUserService, KeycloakUserService>();
                 services.AddHttpClient();

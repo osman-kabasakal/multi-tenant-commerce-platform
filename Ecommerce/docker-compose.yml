@@ -4,8 +4,8 @@ services:
   webapp:
     image: ${IMAGE_NAME:-backendrider}
     build:
-      context: .
-      dockerfile: dev.Dockerfile
+      context: ..
+      dockerfile: Ecommerce/dev.Dockerfile
       args:
         - GIT_COMMIT=${GIT_COMMIT:-latest}
         - GIT_BRANCH=${GIT_BRANCH:-main}

@@ -1,9 +1,11 @@
+using System.Text.Json.Serialization;
 using System;
 
 namespace Grand.Domain.Tenants;
 
 public class TenantStatusMessage
 {
+    public string? TenantId { get; set; }
     public TenantStatusEvent? StatusEventType { get; set; }
     public string StoreName { get; set; }
     public string StoreSubDomain { get; set; }

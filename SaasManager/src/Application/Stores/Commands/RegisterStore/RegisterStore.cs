@@ -1,3 +1,6 @@
+using SaasManager.Application.Common.Utilities;
+using SaasManager.Application.Common.Interfaces.Identity;
+using Platform.Security;
 using System.Text.Json;
 using Core.Models.Responses;
 using FluentValidation.Validators;
@@ -51,6 +54,8 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
     private readonly IMongoAtlasManager _mongoAtlasManager;
     private readonly ISubscriber _subscriber;
     private readonly IConfiguration _configuration;
+    private readonly ITenantSecrets _tenantSecrets;
+    private readonly IWorkContext _workContext;
 
     private const string CHANNEL_NAME = "tenant-status-events";
 
@@ -58,18 +63,35 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
         IApplicationDbContext context,
         IMongoAtlasManager mongoAtlasManager,
         ISubscriber subscriber,
-        IConfiguration configuration
+        IConfiguration configuration,
+        ITenantSecrets tenantSecrets,
+        IWorkContext workContext
         )
     {
         _context = context;
         _mongoAtlasManager = mongoAtlasManager;
         _subscriber = subscriber;
         _configuration = configuration;
+        _tenantSecrets = tenantSecrets;
+        _workContext = workContext;
     }
     
     public async Task<ServiceResponse<TenantStatusMessage>> Handle(RegisterStoreCommand request, CancellationToken cancellationToken)
     {
+        if (request.BusinessId == Guid.Empty) throw new ArgumentException("BusinessId is required.");
+        var business = await _context.Businesses.FirstOrDefaultAsync(b => b.Id == request.BusinessId && !b.IsDeleted, cancellationToken)
+            ?? throw new InvalidOperationException("Business was not found.");
+        var owner = _workContext.GuestRegistration?.Id ?? _workContext.GuestId;
+        if (owner == null || business.CreatedByGuestId != owner.Value)
+            throw new UnauthorizedAccessException("Business ownership is required to provision tenant secrets.");
+        if (!string.Equals(request.StoreSubDomain, business.ToSubdomain(), StringComparison.Ordinal))
+            throw new ArgumentException("Store subdomain must match the registered business.");
+        var tenantId = request.BusinessId.ToString("N");
+        await _tenantSecrets.ProvisionAsync(tenantId, request.StoreSubDomain, cancellationToken);
         var statusMessage = await _mongoAtlasManager.CreateDatabaseUserByStoreAsync(request, cancellationToken);
+        await _tenantSecrets.SetAsync(tenantId, TenantSecretNames.DatabaseConnection, statusMessage.MongoConnectionString!, cancellationToken);
+        await _tenantSecrets.SetAsync(tenantId, TenantSecretNames.InitialPassword, statusMessage.Password!, cancellationToken);
+        statusMessage.TenantId = tenantId;
         
         statusMessage.Firebase = new FirebaseSettings()
         {
@@ -85,8 +107,12 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
             statusMessage.Firebase.IosBundleId = businessApp.PackageName;
         }
         
-        await _subscriber.PublishAsync(RedisChannel.Literal(CHANNEL_NAME),JsonSerializer.Serialize(statusMessage));
-        return ServiceResponse<TenantStatusMessage>.Success(statusMessage);
+        // Keep credentials off Redis and the persisted background-job arguments.
+        var transport = JsonSerializer.Deserialize<TenantStatusMessage>(JsonSerializer.Serialize(statusMessage))!;
+        transport.MongoConnectionString = null;
+        transport.Password = null;
+        await _subscriber.PublishAsync(RedisChannel.Literal(CHANNEL_NAME),JsonSerializer.Serialize(transport));
+        return ServiceResponse<TenantStatusMessage>.Success(transport);
     }
     
     private string GetProjectId(string subDomain, Guid businessId)

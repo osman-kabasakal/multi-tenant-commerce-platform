@@ -1,3 +1,4 @@
+using Platform.Security;
 using Grand.Business.Core.Interfaces.Common.Security;
 using Grand.Web.ExternalSettings.TenantToken;
 using Grand.Web.MultiTenant.Services;
@@ -21,7 +22,7 @@ public class RequestValidationMiddleware
 
     public async Task InvokeAsync(HttpContext context,
         IKeycloakClientTokenValidation clientTokenValidation,
-        IAzureEncryptionService encryptionService,
+        ITenantEncryptionService encryptionService,
         PublicRouteService publicRouteService
         )
     {

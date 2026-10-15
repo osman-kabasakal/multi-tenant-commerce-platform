@@ -4,8 +4,8 @@ services:
   saasmanager:
     image: saasmanager-saasmanager:18
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: SaasManager/Dockerfile
     container_name: saasmanager-web
     environment:
       - ConnectionStrings__SaasManagerDb=Host=192.168.50.118;Database=saas_manager_db;Username=osman;Password=CHANGE_ME

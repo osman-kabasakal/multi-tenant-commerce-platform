@@ -1,3 +1,4 @@
+using Platform.Security;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using Core.Utilities;
@@ -28,7 +29,8 @@ public class PaymentVerificationStep(
     ICardDataProtector cardDataProtector,
     IPaymentProviderFactory paymentProviderFactory,
     ISender sender,
-    IMediator mediator)
+    IMediator mediator,
+    ITenantSecrets tenantSecrets)
     : BaseRegistrationStep<PaymentSetupState>(context, workContext, logger)
 {
     public override string StepKey => nameof(PaymentSetupState);
@@ -218,7 +220,9 @@ public class PaymentVerificationStep(
             }
 
             var databaseConfig =
-                MongoConnectionMapper.MapFromConnectionString(tenantMessage.Data!.MongoConnectionString!);
+                MongoConnectionMapper.MapMetadataFromConnectionString(
+                    await tenantSecrets.GetAsync(business.Id.ToString("N"), TenantSecretNames.DatabaseConnection, cancellationToken),
+                    "tenant-secret:" + business.Id.ToString("N") + "/" + TenantSecretNames.DatabaseConnection);
             databaseConfig.SetBusiness(business);
             databaseConfig.UpdateStatus(DatabaseStatus.Migrating);
             

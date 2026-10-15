@@ -1,3 +1,4 @@
+using Platform.Security;
 using Grand.Business.Core.Interfaces.Common.Security;
 using Grand.Installer.Cli.Models;
 using Keycloak.Net;
@@ -17,19 +18,22 @@ public class KeycloakUserService : IKeycloakUserService
     private readonly KeycloakClient _keycloakClient;
     private readonly KeycloakSettings _keycloakSettings;
     private readonly ILogger<KeycloakUserService> _logger;
-    private readonly IAzureEncryptionService _azureEncryptionService;
+    private readonly ITenantEncryptionService _encryptionService;
+    private readonly ITenantSecrets _tenantSecrets;
 
     public KeycloakUserService(
         IKeycloakService keycloakService,
         KeycloakSettings keycloakSettings,
         ILogger<KeycloakUserService> logger,
-        IAzureEncryptionService azureEncryptionService
+        ITenantEncryptionService encryptionService,
+        ITenantSecrets tenantSecrets
     )
     {
         _keycloakClient = keycloakService.GetKeycloakClientAsync();
         _keycloakSettings = keycloakSettings;
         _logger = logger;
-        _azureEncryptionService = azureEncryptionService;
+        _encryptionService = encryptionService;
+        _tenantSecrets = tenantSecrets;
     }
 
     // Kullanıcı Oluşturma
@@ -340,6 +344,7 @@ public class KeycloakUserService : IKeycloakUserService
             }
 
             var clientsecret = await _keycloakClient.GetClientSecretAsync(_keycloakSettings.Realm, clientUuid!);
+            await _tenantSecrets.SetAsync(clientName, TenantSecretNames.KeycloakClient, clientsecret.Value);
 
             return (clientName, clientsecret.Value);
         }
@@ -365,6 +370,6 @@ public class KeycloakUserService : IKeycloakUserService
 
     private Task<string> EncryptData(string data, string key)
     {
-        return _azureEncryptionService.EncryptAsync(data, key);
+        return _encryptionService.EncryptAsync(data, key);
     }
 }

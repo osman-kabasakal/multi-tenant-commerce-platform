@@ -1,3 +1,4 @@
+using Platform.Security;
 using Azure.Identity;
 using Azure.Security.KeyVault.Keys;
 using Grand.Infrastructure;
@@ -110,8 +111,8 @@ builder.Host.UseDefaultServiceProvider((_, options) =>
 
 var conf = new KeycloakSettings();
 builder.Configuration.GetSection("KeyCloakServiceClient").Bind(conf);
-conf.ClientSecret = builder.Services.BuildServiceProvider().GetRequiredService<SecretClient>()
-    .GetSecret($"ClientSecret-{conf.ClientId}").Value.Value;
+conf.ClientSecret = builder.Services.BuildServiceProvider().GetRequiredService<ISecretStore>()
+    .GetAsync("system", $"ClientSecret-{conf.ClientId}").GetAwaiter().GetResult();
 
 //add services
 StartupBase.ConfigureServices(builder.Services, builder.Configuration);
@@ -334,7 +335,7 @@ using (var scope = taskContext.ScopedServiceProvider!.CreateScopeWithReplacement
     //                 var frontendApiSecret = PasswordGenerator.GenerateRandomPassword(length: 128, includeSpecial: true);
     //                 var backendApiSecret = PasswordGenerator.GenerateRandomPassword(length: 128, includeSpecial: true);
     //                 // SecretClient servisi alınıyor
-    //                 var secretClient = scope.ServiceProvider.GetRequiredService<SecretClient>(); 
+    //                 var secretClient = scope.ServiceProvider.GetRequiredService<ISecretStore>();
     //     
     //                 // FrontendAPI-Secret-{tenantId} için secret oluştur ve kaydet
     //                 await secretClient.SetSecretAsync($"FrontendAPI-Secret-{storeId}", frontendApiSecret);

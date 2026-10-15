@@ -1,3 +1,4 @@
+using Platform.Security;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Core.Utilities;
@@ -327,7 +328,7 @@ public class RedisBackgroundListenerHostedService : BackgroundService
     {
         try
         {
-            _logger.LogInformation($"Connection status: {message}");
+            _logger.LogInformation("Tenant migration completion received.");
 
             if (message == RedisValue.Null)
             {
@@ -343,9 +344,14 @@ public class RedisBackgroundListenerHostedService : BackgroundService
             if (model == null || !model.IsSuccess)
                 return;
 
+            if (!Guid.TryParseExact(model.Message.TenantId, "N", out var businessId))
+                throw new InvalidOperationException("Migration completion requires the stable business tenant ID.");
+            var tenantSecrets = scope.ServiceProvider.GetRequiredService<ITenantSecrets>();
+            if (tenantSecrets.ResolveAsync(model.Message.StoreSubDomain!).GetAwaiter().GetResult() != businessId.ToString("N"))
+                throw new InvalidOperationException("Migration tenant alias does not match its business.");
             var bussinessByEmail = from guestRegistration in context.GuestRegistrations
                 join business in context.Businesses on guestRegistration.ConvertedBusinessId equals business.Id
-                where guestRegistration.Email == model.Message!.OwnerEmail && guestRegistration.KeycloakUserId != null
+                where business.Id == businessId && guestRegistration.KeycloakUserId != null
                 select new { guestRegistration, business };
 
             var businessWithGuest = bussinessByEmail.FirstOrDefault();
@@ -401,7 +407,7 @@ public class RedisBackgroundListenerHostedService : BackgroundService
                         AuthUrl = "https://identity.commerce.test",
                         AuthRealm = "localhost",
                         AuthClientId = model.FrontEndCredentialInfo.ClientId,
-                        KeycloakClientSecret = model.FrontEndCredentialInfo.ClientSecret ?? "",
+                        KeycloakClientSecret = "", // Worker resolves it from ITenantSecrets at execution time.
                         StoreLogo = model.Message.LogoUrl ?? "",
                         StoreLogoId = model.Message.LogoId ?? "",
                         PackageNameAndroid = businessApp.PackageName,
@@ -427,7 +433,7 @@ public class RedisBackgroundListenerHostedService : BackgroundService
             context.BusinessSettings.Add(new BusinessSettings(
                 businessApp.BusinessId,
                 "ApiPassword",
-                model.BackendCredential.ApiPassword ?? "",
+                "tenant-secret:" + businessId.ToString("N") + "/" + TenantSecretNames.BackendUserPassword,
                 "",
                 "E-ticaret api iletişim bilgileri",
                 SettingType.Integration,
@@ -488,14 +494,14 @@ public class FrontEndCredentialInfo
 {
     [JsonPropertyName("clientId")] public string ClientId { get; set; }
 
-    [JsonPropertyName("clientSecret")] public string? ClientSecret { get; set; }
+    [JsonIgnore] public string? ClientSecret { get; set; }
 }
 
 public class BackendCredential
 {
     [JsonPropertyName("apiUserName")] public string ApiUserName { get; set; }
 
-    [JsonPropertyName("apiPassword")] public string? ApiPassword { get; set; }
+    [JsonIgnore] public string? ApiPassword { get; set; }
 }
 
 public class NewBuildRedisMessage

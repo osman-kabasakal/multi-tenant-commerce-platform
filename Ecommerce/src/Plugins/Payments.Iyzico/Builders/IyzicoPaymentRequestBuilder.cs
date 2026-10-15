@@ -1,3 +1,4 @@
+using Platform.Security;
 using Grand.Business.Core.Extensions;
 using Grand.Business.Core.Interfaces.Catalog.Categories;
 using Grand.Business.Core.Interfaces.Catalog.Prices;
@@ -29,7 +30,7 @@ public class IyzicoPaymentRequestBuilder
     private readonly IWorkContext _workContext;
     private readonly IUserFieldService _userFieldService;
     private readonly ICountryService _countryService;
-    private readonly IAzureEncryptionService _encryptionService;
+    private readonly ITenantEncryptionService _encryptionService;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly LinkGenerator _linkGenerator;
     private readonly ITenantTokenHandler _tenantTokenHandler;
@@ -46,7 +47,7 @@ public class IyzicoPaymentRequestBuilder
     public IyzicoPaymentRequestBuilder(IWorkContext workContext,
     IUserFieldService userFieldService,
         ICountryService countryService,
-         IAzureEncryptionService encryptionService,
+         ITenantEncryptionService encryptionService,
          IHttpContextAccessor httpContextAccessor,
          LinkGenerator linkGenerator,
          ITenantTokenHandler tenantTokenHandler,

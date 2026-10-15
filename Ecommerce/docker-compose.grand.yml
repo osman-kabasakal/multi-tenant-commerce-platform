@@ -14,8 +14,8 @@ services:
     volumes:
       - ~/.aspnet/https:/https:ro
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: Ecommerce/Dockerfile
     depends_on:
       - "db"
   db:
@@ -24,23 +24,23 @@ services:
   grand.web.multitenant:
     image: grand.web.multitenant
     build:
-      context: .
-      dockerfile: Grand.Web.MultiTenant/Dockerfile
+      context: ..
+      dockerfile: Ecommerce/src/Web/Grand.Web.MultiTenant/Dockerfile
 
   grand.web.multitenant-1:
     image: grand.web.multitenant-1
     build:
-      context: .
-      dockerfile: src/Web/Grand.Web.MultiTenant/Dockerfile
+      context: ..
+      dockerfile: Ecommerce/src/Web/Grand.Web.MultiTenant/Dockerfile
 
   grand.web.multitenant-2:
     image: grand.web.multitenant-2
     build:
-      context: .
-      dockerfile: src/Web/Grand.Web.MultiTenant/Dockerfile
+      context: ..
+      dockerfile: Ecommerce/src/Web/Grand.Web.MultiTenant/Dockerfile
 
   garnd.web.saasmanager:
     image: garnd.web.saasmanager
     build:
-      context: .
-      dockerfile: src/Web/Garnd.Web.SaasManager/Dockerfile
+      context: ..
+      dockerfile: SaasManager/Dockerfile

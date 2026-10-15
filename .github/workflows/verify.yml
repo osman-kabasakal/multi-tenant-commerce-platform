@@ -44,8 +44,16 @@ jobs:
       - name: Check local encryption boundaries
         working-directory: Ecommerce
         run: dotnet test ../tests/LocalDemo.Tests/LocalDemo.Tests.csproj --nologo
+      - name: Check business registration security
+        working-directory: SaasManager
+        run: dotnet test ../tests/Registration.Security.Tests/Registration.Security.Tests.csproj -c Release --nologo
       - name: Bootstrap fixed local tenants
         run: python3 scripts/demo.py up
+      - name: Verify distributed secret storage
+        run: python3 scripts/test_distributed_security.py
+      - name: Build tenant worker with shared security
+        working-directory: TenantManager
+        run: dotnet build TenantManager.csproj -c Release --nologo
       - name: Check tenant and authentication boundaries
         run: python3 scripts/demo.py smoke
       - name: Preserve build diagnostics on failure

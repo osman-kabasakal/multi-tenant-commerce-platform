@@ -50,3 +50,12 @@ Bu doğrulama sırasında düzeltilen başlıca sorunlar: HTTP demo oturum çere
 Mevcut tüm test projeleri yeşil değildir: eski test altyapısında MongoDB `MessageEncoderSettings` erişimi ve `MemoryCacheBase` yapıcı imzası uyumsuzlukları var. Yeni yerel profil testleri ayrı projede gerçek uygulama koduna karşı çalışır. Android araç zinciri gelecekteki Flutter sürümleri için Gradle/AGP/Kotlin yükseltme uyarıları verir; bu kayıt yukarıdaki sabit sürümle yapılan derlemeyi kapsar.
 
 İlk Android derlemesinde disk doldu. Kullanıcının onayıyla Docker yeniden başlatıldı; veri birimleri korundu ve web testleri tekrar geçti. Devam eden derlemelerde boş alan izlendi, yalnızca bu çalışma sırasında oluşturulan geçici dosyalar temizlendi. Yeni kurulumda README'deki disk alanı gereksinimlerini karşılayın.
+
+## 2026-10-15 — ortak tenant güvenliği
+
+- Yeni ortak kütüphane, SaaS Web, TenantManager, kurucu, commerce API ve yönetim uygulaması derlendi.
+- Yerel/Azure sağlayıcı sözleşmeleri için 4 test; SaaS kayıt/işletme sahipliği/mesaj güvenliği için 3 test geçti. Azure testi SDK taklitleri ve gerçek yerel RSA/AES kullanır; canlı Key Vault bağlantısı kurulmadı.
+- Bağımsız .NET süreçleri ve gerçek PostgreSQL üzerinde dağıtık secret kontrolleri geçti; 24 eşzamanlı sağlayıcı aynı tenant anahtarını korudu.
+- `demo.py up` ve 25/25 smoke kontrolü yeni ortak depo ile geçti.
+- Bu değişikliğin GitHub CI koşusu, Docker image derlemeleri, canlı Azure/Google işlemleri ve mobil yayınlama çalıştırılmadı.
+- [Kurulum, yapılandırma ve geçiş sınırları](TENANT_SECURITY.md).

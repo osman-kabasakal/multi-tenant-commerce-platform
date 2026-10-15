@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Reproducible local demo. All generated state stays in .local; no cloud account is used."""
-import argparse, json, os, secrets, shutil, signal, socket, subprocess, sys, time, urllib.request, urllib.parse
+import argparse, base64, json, os, secrets, shutil, signal, socket, subprocess, sys, time, urllib.request, urllib.parse
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 LOCAL = ROOT / '.local'
@@ -28,7 +28,17 @@ def prepare():
             'store_admin':secrets.token_urlsafe(24), 'saas_user':secrets.token_urlsafe(24)})
     c=json.loads(credentials.read_text())
     p=LOCAL/'compose.env';p.write_text(f'DEMO_POSTGRES_PASSWORD={c["postgres"]}\nDEMO_KEYCLOAK_PASSWORD={c["keycloak_admin"]}\n');p.chmod(0o600)
+    master=LOCAL/'secrets/platform-master-key'
+    if not master.exists():
+        master.write_text(base64.b64encode(secrets.token_bytes(32)).decode()); master.chmod(0o600)
+    security={
+        'Provider':'Local','ConnectionString':f'Host=127.0.0.1;Port=15439;Database=commerce_secrets;Username=commerce_demo;Password={c["postgres"]}',
+        'InitializeSchema':True,'Local':{'MasterKeyFile':str(master)},
+        'BootstrapSecrets':{name:secret(name) for name in ('ClientSecret-demo-service','ClientSecret-centraladminapp')}
+    }
+    security['BootstrapSecrets'].update({'applicationdb':'mongodb://127.0.0.1:27028/commerce_demo_a','redispublisher':'127.0.0.1:16389'})
     conf={
+        'PlatformSecurity':security,
         'LocalDemo':{'Enabled':True,'SecretsPath':str(LOCAL/'secrets'),'TenantDirectory':str(LOCAL/'tenants')},
         'Database':{'ConnectionString':'mongodb://127.0.0.1:27028/commerce_demo_a','DbProvider':0},
         'Application':{'DisableHostedService':True,'SkipMigrationProcess':True},
@@ -49,6 +59,7 @@ def prepare():
     }
     write_json(LOCAL/'commerce.json',conf)
     saas={
+        'PlatformSecurity':security,
         'LocalDemo':{'Enabled':True,'MailDirectory':str(LOCAL/'mail')},
         'AZURE_KEY_VAULT_ENDPOINT':'',
         'ConnectionStrings':{'SaasManagerDb':f'Host=127.0.0.1;Port=15439;Database=commerce_saas;Username=commerce_demo;Password={c["postgres"]}'},
@@ -61,6 +72,7 @@ def prepare():
         'AllowedHosts':'localhost;127.0.0.1'
     }
     write_json(LOCAL/'saas.json',saas)
+    write_json(LOCAL/'tenantmanager.json',dict(conf,redispublisher='127.0.0.1:16389',**{'ClientSecret-demo-service':secret('ClientSecret-demo-service')}))
 
     realm={'realm':'commerce-demo','enabled':True,'sslRequired':'none','registrationAllowed':False,
         'roles':{'realm':[{'name':'admin'},{'name':'business_owner'}]},
@@ -89,6 +101,11 @@ def infra():
         'chmod 700 /opt/keycloak/data/import && chmod 600 /opt/keycloak/data/import/commerce-demo-realm.json',
         input=(LOCAL/'realm/commerce-demo-realm.json').read_bytes())
     compose('up','-d','--wait','mongo','redis','postgres','keycloak')
+    # Separate database: security tables must not interfere with SaaS EF's initial schema creation.
+    exists=subprocess.check_output(['docker','compose','--env-file',str(LOCAL/'compose.env'),'-f',str(ROOT/'compose.yaml'),
+        'exec','-T','postgres','psql','-U','commerce_demo','-d','commerce_saas','-tAc',
+        "SELECT 1 FROM pg_database WHERE datname='commerce_secrets'"],text=True).strip()
+    if exists != '1': compose('exec','-T','postgres','createdb','-U','commerce_demo','commerce_secrets')
     wait_url(IDENTITY+'/realms/commerce-demo/.well-known/openid-configuration',180)
 def wait_url(url, seconds=60):
     until=time.monotonic()+seconds

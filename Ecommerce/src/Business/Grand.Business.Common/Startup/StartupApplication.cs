@@ -1,3 +1,4 @@
+using Platform.Security;
 using Grand.Business.Common.Services.Addresses;
 using Grand.Business.Common.Services.Configuration;
 using Grand.Business.Common.Services.Directory;
@@ -81,7 +82,7 @@ public class StartupApplication : IStartupApplication
         serviceCollection.AddScoped<IPermissionService, PermissionService>();
         serviceCollection.AddScoped<IAclService, AclService>();
         serviceCollection.AddScoped<IEncryptionService, EncryptionService>();
-        serviceCollection.AddTransient<IAzureEncryptionService, AzureEncryptionService>();
+        // Platform security is registered by the host before GrandNode startup.
         serviceCollection.AddScoped<IPermissionProvider, PermissionProvider>();
     }
 

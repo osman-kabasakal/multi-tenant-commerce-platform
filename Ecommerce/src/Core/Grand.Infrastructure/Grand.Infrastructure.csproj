@@ -28,4 +28,5 @@
     <ProjectReference Include="..\Grand.Data\Grand.Data.csproj" />
     <ProjectReference Include="..\Grand.Domain\Grand.Domain.csproj" />
   </ItemGroup>
+  <ItemGroup><ProjectReference Include="../../../../Shared/Platform.Security/Platform.Security.csproj" /></ItemGroup>
 </Project>
