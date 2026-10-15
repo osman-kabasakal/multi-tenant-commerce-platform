@@ -279,12 +279,19 @@ using (var scope = serviceProvider.CreateScope())
         }
         var encryption = scope.ServiceProvider.GetRequiredService<ITenantEncryptionService>();
         var demo = new {
+            tenantId = tenantStatusMessage.TenantId,
             slug = tenantStatusMessage.StoreSubDomain, storeId = store.Id,
             connectionString = tenantStatusMessage.MongoConnectionString,
             encryptedStoreId = await encryption.EncryptAsync(store.Id, tenantStatusMessage.StoreSubDomain),
             encryptedConnection = await encryption.EncryptAsync(tenantStatusMessage.MongoConnectionString, tenantStatusMessage.StoreSubDomain)
         };
-        await File.WriteAllTextAsync(builder.Configuration["LocalDemo:TenantOutput"]!, JsonSerializer.Serialize(demo));
+        var outputPath = builder.Configuration["LocalDemo:TenantOutput"]!;
+        var temporaryPath = outputPath + ".tmp";
+        var fileOptions = new FileStreamOptions {Mode=FileMode.Create,Access=FileAccess.Write,Share=FileShare.None};
+        if (!System.OperatingSystem.IsWindows()) fileOptions.UnixCreateMode=UnixFileMode.UserRead|UnixFileMode.UserWrite;
+        await using (var stream=new FileStream(temporaryPath,fileOptions))
+            await JsonSerializer.SerializeAsync(stream,demo);
+        File.Move(temporaryPath,outputPath,true);
         logger.LogInformation("Local tenant {Slug} seeded successfully.", tenantStatusMessage.StoreSubDomain);
         return;
     }

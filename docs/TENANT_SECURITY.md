@@ -80,7 +80,7 @@ Database passwords/master keys belong in environment/deployment secrets, not che
 - Old Azure RSA and hybrid JSON payloads retain read support using their original tenant keys. Those legacy payloads have no recorded key version; they require the originally used key to remain resolvable. No automatic production-data migration or key rotation is performed.
 - Old local demo payloads had per-file keys and no format marker. `demo.py up` re-seeds synthetic claims with the new provider; it preserves databases. Keep old files until any non-demo data has been migrated deliberately.
 - Existing cloud tenants need their canonical identity/aliases and API/client/signing secrets imported before switching readers. This is a coordinated migration: do not let old and new writers use different stores. Provider/master-key changes require explicit re-encryption, not merely changing a setting.
-- The local demo still disables cloud/billing registration endpoints. Application-level registration tests exercise the actual handlers; no paid Mongo Atlas, Azure/Firebase provisioning, real card processing or app-store publication was invoked.
+- The local demo enables explicit zero-amount local trial enrollment; paid/cloud registration endpoints remain disabled. Application-level registration tests exercise the actual handlers; no paid Mongo Atlas, Azure/Firebase provisioning, real card processing or app-store publication was invoked.
 - Android signing-secret creation now fails on access/decryption errors and uses the committed winner of concurrent writes. The legacy mobile build pipeline itself has not been executed as part of this change.
 
 ## Verification
@@ -96,3 +96,12 @@ python3 scripts/demo.py smoke
 The distributed test creates and drops only its own randomly named test database. Separate .NET processes simulate registration, worker and commerce roles; tests cover cross-process reads/decryption, concurrent provisioning, alias ownership, missing-secret failures, read-only access, encrypted database rows and mismatched deployment keys. Azure provider tests use mocked SDK clients plus real local RSA/AES operations; live Azure credentials/RBAC/network access are not validated by them.
 
 API references: [Npgsql data sources and transactions](https://www.npgsql.org/doc/basic-usage.html), [Azure CryptographyClient](https://learn.microsoft.com/dotnet/api/azure.security.keyvault.keys.cryptography.cryptographyclient).
+
+
+## Portable deployment and onboarding work
+
+`PlatformSecurity:Provider=AesGcm` now selects an explicit production-capable portable adapter using `PlatformSecurity:AesGcm:MasterKeyBase64` or `MasterKeyFile`. It preserves the existing Local AES-GCM protocol and ciphertext when given the same master key. The Local DI provider retains its Development/demo restriction. No key rotation, ciphertext rewrite or Azure-data migration occurs. Real PostgreSQL compatibility tests confirm existing records remain unchanged.
+
+Commerce can select `PlatformConfiguration:Provider=Environment` to load supplied Mongo/Redis configuration without constructing a Key Vault client. See [the onboarding implementation status](PROVISIONING.md) for configuration and the remaining full-deployment work.
+
+`Shared/Platform.Provisioning` persists onboarding jobs and step checkpoints in PostgreSQL. The local profile now uses it for actual new trial businesses, with limited Mongo users and dynamic Keycloak/host setup. Legacy cloud/build Redis flows remain separate until the cloud provider pipeline is completed. See [PROVISIONING.md](PROVISIONING.md).

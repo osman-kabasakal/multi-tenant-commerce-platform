@@ -21,7 +21,7 @@ public class UnhandledExceptionBehaviour<TRequest, TResponse> : IPipelineBehavio
         {
             var requestName = typeof(TRequest).Name;
 
-            _logger.LogError(ex, "SaasManager Request: Unhandled Exception for Request {Name} {@Request}", requestName, request);
+            _logger.LogError("SaasManager Request failed: {Name} ({ErrorType})",requestName,ex.GetType().Name);
 
             throw;
         }

@@ -1,6 +1,7 @@
 using SaasManager.Application.Common.Utilities;
 using SaasManager.Application.Common.Interfaces.Identity;
 using Platform.Security;
+using Platform.Provisioning;
 using System.Text.Json;
 using Core.Models.Responses;
 using FluentValidation.Validators;
@@ -39,9 +40,9 @@ public class RegisterStoreCommandValidator : AbstractValidator<RegisterStoreComm
         RuleFor(x => x.StoreSubDomain).NotEmpty();
         RuleFor(x => x.LogoUrl).NotEmpty();
         RuleFor(x => x.OwnerEmail).NotEmpty().EmailAddress(mode: EmailValidationMode.AspNetCoreCompatible);
-        RuleFor(x => x.Password).NotEmpty().MinimumLength(8).MaximumLength(16);
-        RuleFor(x => x.FirstName).NotEmpty().MinimumLength(4).MaximumLength(16);
-        RuleFor(x => x.Lastname).NotEmpty().MinimumLength(3).MaximumLength(16);
+        RuleFor(x => x.Password).NotEmpty().MinimumLength(8).MaximumLength(128);
+        RuleFor(x => x.FirstName).NotEmpty().MinimumLength(1).MaximumLength(100);
+        RuleFor(x => x.Lastname).NotEmpty().MinimumLength(1).MaximumLength(100);
         RuleFor(x => x.Role).NotEmpty();
         
     }
@@ -56,6 +57,7 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
     private readonly IConfiguration _configuration;
     private readonly ITenantSecrets _tenantSecrets;
     private readonly IWorkContext _workContext;
+    private readonly IProvisioningQueue? _provisioning;
 
     private const string CHANNEL_NAME = "tenant-status-events";
 
@@ -65,7 +67,8 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
         ISubscriber subscriber,
         IConfiguration configuration,
         ITenantSecrets tenantSecrets,
-        IWorkContext workContext
+        IWorkContext workContext,
+        IProvisioningQueue? provisioning = null
         )
     {
         _context = context;
@@ -74,6 +77,7 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
         _configuration = configuration;
         _tenantSecrets = tenantSecrets;
         _workContext = workContext;
+        _provisioning = provisioning;
     }
     
     public async Task<ServiceResponse<TenantStatusMessage>> Handle(RegisterStoreCommand request, CancellationToken cancellationToken)
@@ -88,6 +92,26 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
             throw new ArgumentException("Store subdomain must match the registered business.");
         var tenantId = request.BusinessId.ToString("N");
         await _tenantSecrets.ProvisionAsync(tenantId, request.StoreSubDomain, cancellationToken);
+        if (_configuration.GetValue<bool>("Provisioning:Enabled"))
+        {
+            if (_provisioning == null) throw new InvalidOperationException("Register the durable provisioning queue.");
+            if (!string.Equals(request.OwnerEmail, _workContext.GuestRegistration?.Email, StringComparison.OrdinalIgnoreCase))
+                throw new UnauthorizedAccessException("The store owner email must match the registered business owner.");
+            var businessAppForProvisioning = await _context.BusinessApps.FirstOrDefaultAsync(x => x.BusinessId == request.BusinessId, cancellationToken);
+            // Save once before enqueueing; a replay must not rotate credentials used by an in-flight installer.
+            await _tenantSecrets.GetOrCreateAsync(tenantId, TenantSecretNames.InitialPassword,
+                () => string.IsNullOrWhiteSpace(request.Password) ? throw new ArgumentException("Initial password is required.") : request.Password,
+                cancellationToken);
+            await _provisioning.EnqueueAsync(new TenantProvisioningRequest(tenantId, request.StoreSubDomain,
+                request.StoreName, request.OwnerEmail, request.FirstName, request.Lastname,
+                request.CompanyAddress, request.CompanyPhoneNumber, request.CompanyEmail,
+                businessAppForProvisioning?.PackageName, businessAppForProvisioning?.PackageName), cancellationToken);
+            return ServiceResponse<TenantStatusMessage>.Success(new TenantStatusMessage {
+                TenantId = tenantId, StatusEventType = TenantStatusEvent.Registered,
+                StoreName = request.StoreName, StoreSubDomain = request.StoreSubDomain,
+                OwnerEmail = request.OwnerEmail
+            });
+        }
         var statusMessage = await _mongoAtlasManager.CreateDatabaseUserByStoreAsync(request, cancellationToken);
         await _tenantSecrets.SetAsync(tenantId, TenantSecretNames.DatabaseConnection, statusMessage.MongoConnectionString!, cancellationToken);
         await _tenantSecrets.SetAsync(tenantId, TenantSecretNames.InitialPassword, statusMessage.Password!, cancellationToken);

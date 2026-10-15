@@ -2,6 +2,10 @@ name: commerce-local-demo
 services:
   mongo:
     image: mongo:8.0
+    command: ["mongod", "--auth", "--bind_ip_all"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: commerce_demo_root
+      MONGO_INITDB_ROOT_PASSWORD: ${DEMO_MONGO_ROOT_PASSWORD:?Run scripts/demo.py prepare first}
     ports: ["127.0.0.1:27028:27017"]
     volumes: ["mongo-data:/data/db"]
     healthcheck:

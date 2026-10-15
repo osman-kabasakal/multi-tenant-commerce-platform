@@ -804,6 +804,11 @@ public class Program
 
     public static async Task Main(string[] args)
     {
+        if (args.Contains("--provisioning-worker"))
+        {
+            await TenantManager.Provisioning.WorkerHost.RunAsync(args.Where(x=>x!="--provisioning-worker").ToArray());
+            return;
+        }
         _host = CreateHostBuilder(args).Build();
 
         ServiceProvider = _host.Services;

@@ -3,6 +3,7 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import http.client
 import json
+import re
 import threading
 import time
 import urllib.parse
@@ -30,6 +31,11 @@ class Handler(BaseHTTPRequestHandler):
     def proxy(self):
         host=self.headers.get('Host','').split(':')[0].lower()
         slug=TENANTS.get(host)
+        if slug is None and host.endswith('.localhost'):
+            candidate=host.removesuffix('.localhost')
+            if re.fullmatch(r'[a-z][a-z0-9-]{1,38}[a-z0-9]',candidate) and (LOCAL/'routes'/(candidate+'.json')).is_file():
+                route=json.loads((LOCAL/'routes'/(candidate+'.json')).read_text())
+                if route.get('slug')==candidate:slug=candidate
         if slug is None or not self.path.startswith('/') or self.path.startswith('//'):
             self.send_error(400,'Unknown demo host');return
         if self.headers.get('Transfer-Encoding'):

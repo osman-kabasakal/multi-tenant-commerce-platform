@@ -12,7 +12,7 @@ public static class DependencyInjection
     public static IServiceCollection AddPlatformSecurity(this IServiceCollection services, IConfiguration configuration, string environment)
     {
         var provider = configuration["PlatformSecurity:Provider"]
-            ?? throw new InvalidOperationException("Set PlatformSecurity:Provider to Local or Azure explicitly.");
+            ?? throw new InvalidOperationException("Set PlatformSecurity:Provider to Local, AesGcm or Azure explicitly.");
         if(provider == "Local")
         {
             if(environment != Environments.Development || !configuration.GetValue<bool>("LocalDemo:Enabled"))
@@ -21,6 +21,15 @@ public static class DependencyInjection
                 configuration["PlatformSecurity:Local:MasterKeyBase64"]
                 ?? File.ReadAllText(configuration["PlatformSecurity:Local:MasterKeyFile"]
                     ?? throw new InvalidOperationException("A shared local master key is required." )).Trim()));
+        }
+        else if(provider == "AesGcm")
+        {
+            // Explicit production-capable selection; use one externally supplied key on every replica.
+            // This preserves the existing AES-GCM ciphertext format and never replaces persisted keys.
+            services.TryAddSingleton<ITenantEncryptionService>(_ => new PortableEncryptionService(
+                configuration["PlatformSecurity:AesGcm:MasterKeyBase64"]
+                ?? File.ReadAllText(configuration["PlatformSecurity:AesGcm:MasterKeyFile"]
+                    ?? throw new InvalidOperationException("A shared deployment master key is required.")).Trim()));
         }
         else if(provider == "Azure")
         {

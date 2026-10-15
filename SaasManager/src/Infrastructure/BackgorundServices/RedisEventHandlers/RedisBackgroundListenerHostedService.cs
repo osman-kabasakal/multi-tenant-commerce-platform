@@ -65,7 +65,10 @@ public class RedisBackgroundListenerHostedService : BackgroundService
             
             await SubscribeToChannelAsync(UPGRADE_ALL_APPS_CHANNEL_NAME, UpgradeAllAppsHandler);
 
-            await Task.Delay(Timeout.Infinite, _redisfailConnectionToken.Token);
+            using var wait = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken,_redisfailConnectionToken.Token);
+            try { await Task.Delay(Timeout.Infinite,wait.Token); }
+            catch (OperationCanceledException) when(stoppingToken.IsCancellationRequested) { break; }
+            catch (OperationCanceledException) { /* Redis reconnect: subscribe again. */ }
         }
     }
 

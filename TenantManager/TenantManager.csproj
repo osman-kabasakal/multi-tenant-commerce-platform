@@ -61,4 +61,5 @@
   </ItemGroup>
 
   <ItemGroup><ProjectReference Include="../Shared/Platform.Security/Platform.Security.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../Shared/Platform.Provisioning.Adapters/Platform.Provisioning.Adapters.csproj" /></ItemGroup>
 </Project>

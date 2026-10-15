@@ -1,3 +1,4 @@
+import 'package:store_user_app/core/config/local_demo.dart';
 import 'dart:io';
 
 import 'package:cookie_jar/cookie_jar.dart';
@@ -144,7 +145,12 @@ abstract class DioModule {
         receiveTimeout: const Duration(minutes: 30),
         sendTimeout: const Duration(minutes: 30),
         contentType: ContentType.json.toString(),
-        headers: {'X-Response-View': 'Json', 'Accept': 'application/json'},
+        headers: {
+          'X-Response-View': 'Json',
+          'Accept': 'application/json',
+          if (LocalDemo.enabled && LocalDemo.tenantHost.isNotEmpty)
+            'Host': LocalDemo.tenantHost,
+        },
         responseType: ResponseType.json,
         validateStatus: (status) {
           return status == 200 || // OK

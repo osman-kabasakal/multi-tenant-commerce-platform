@@ -6,7 +6,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Platform.Security;
+using Platform.Provisioning;
+using SaasManager.Application.Stores.Provisioning;
 using SaasManager.Application.Common.Interfaces.Identity;
+using SaasManager.Application.Common.Interfaces.Security;
+using SaasManager.Application.Common.Interfaces.PaymentProviders;
+using Core.Models.Responses;
 using SaasManager.Application.Common.Interfaces.Mongo;
 using SaasManager.Application.Common.Models;
 using SaasManager.Application.IdentityManagement.Commands.Registration;
@@ -68,6 +73,68 @@ public class RegistrationSecurityTests
         Assert.AreEqual(1,await db.Businesses.CountAsync());
         secrets.Verify(x=>x.ProvisionAsync(business.Id.ToString("N"),"test-shop",It.IsAny<CancellationToken>()),Times.Exactly(2));
     }
+    [TestMethod]
+    public async Task CompletedPaymentReconcilesQueueFailureWithoutChargingAgain()
+    {
+        await using var db=Context();
+        var guest=new GuestRegistration("owner@example.test","synthetic-token") {Id=Guid.NewGuid(),Firstname="Demo",Lastname="Owner"};
+        var business=new Business("Test Shop","Owner",guest.Email!,"000","123","Test","Street","City","District","00000","Test Ltd",guest.Id);
+        guest.ConvertToBusiness(business);
+        var paymentState=new PaymentSetupState(guest);paymentState.Complete();
+        db.GuestRegistrations.Add(guest);db.Businesses.Add(business);db.PaymentSetupStates.Add(paymentState);await db.SaveChangesAsync();
+        var sender=new Mock<ISender>();
+        sender.SetupSequence(x=>x.Send(It.IsAny<RegisterStoreCommand>(),It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new IOException("Simulated queue outage"))
+            .ReturnsAsync(ServiceResponse<TenantStatusMessage>.Success(new() {TenantId=business.Id.ToString("N")}));
+        var payment=new Mock<IPaymentProviderFactory>(MockBehavior.Strict);
+        var protector=new Mock<ICardDataProtector>(MockBehavior.Strict);
+        var config=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?> { ["Provisioning:Enabled"]="true" }).Build();
+        var step=new PaymentVerificationStep(db,Work(guest).Object,new Mock<IDateTime>().Object,
+            NullLogger<PaymentVerificationStep>.Instance,protector.Object,payment.Object,
+            sender.Object,new Mock<IMediator>().Object,new Mock<ITenantSecrets>().Object,config);
+        await Assert.ThrowsExceptionAsync<IOException>(()=>step.ValidateAsync(new RegistrationCommand(),default));
+        await step.ValidateAsync(new RegistrationCommand(),default);
+        Assert.IsTrue(paymentState.IsCompleted);
+        sender.Verify(x=>x.Send(It.Is<RegisterStoreCommand>(c=>c.BusinessId==business.Id),It.IsAny<CancellationToken>()),Times.Exactly(2));
+        payment.VerifyNoOtherCalls();protector.VerifyNoOtherCalls();
+    }
+
+    [TestMethod]
+    public async Task DurableProvisioningDoesNotRequireAtlasOrRedisAndChecksJobOwnership()
+    {
+        await using var db=Context();
+        var guest=new GuestRegistration("owner@example.test","synthetic-token") {Id=Guid.NewGuid()};
+        var business=new Business("Test Shop","Owner",guest.Email!,"000","123","Test","Street","City","District","00000","Test Ltd",guest.Id);
+        db.GuestRegistrations.Add(guest);db.Businesses.Add(business);await db.SaveChangesAsync();
+        var work=Work(guest);
+        var secrets=new Mock<ITenantSecrets>();
+        var mongo=new Mock<IMongoAtlasManager>(MockBehavior.Strict);
+        var redis=new Mock<ISubscriber>(MockBehavior.Strict);
+        var queue=new Mock<IProvisioningQueue>();
+        TenantProvisioningRequest? queued=null;
+        queue.Setup(x=>x.EnqueueAsync(It.IsAny<TenantProvisioningRequest>(),It.IsAny<CancellationToken>()))
+            .Callback<TenantProvisioningRequest,CancellationToken>((request,_)=>queued=request)
+            .ReturnsAsync((TenantProvisioningRequest request,CancellationToken _) => new ProvisioningJob(request,"Pending",0,new Dictionary<string,ProvisioningStepResult>(),null,DateTimeOffset.UtcNow,DateTimeOffset.UtcNow));
+        queue.Setup(x=>x.RetryAsync(business.Id.ToString("N"),It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var config=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?> { ["Provisioning:Enabled"]="true" }).Build();
+        var handler=new RegisterStoreCommandHandler(db,mongo.Object,redis.Object,config,secrets.Object,work.Object,queue.Object);
+        var request=new RegisterStoreCommand { BusinessId=business.Id,StoreSubDomain="test-shop",StoreName="Test Shop",OwnerEmail=guest.Email!,Password="synthetic-private-password" };
+        var response=await handler.Handle(request,default);
+        Assert.IsNotNull(queued);queued.Validate();
+        Assert.IsFalse(JsonSerializer.Serialize(queued).Contains("synthetic-private-password"));
+        Assert.IsNull(response.Data!.MongoConnectionString);Assert.IsNull(response.Data.Password);
+        secrets.Verify(x=>x.GetOrCreateAsync(business.Id.ToString("N"),TenantSecretNames.InitialPassword,It.IsAny<Func<string>>(),It.IsAny<CancellationToken>()),Times.Once);
+        mongo.VerifyNoOtherCalls();redis.VerifyNoOtherCalls();
+        var status=new ProvisioningStatusHandler(db,work.Object,queue.Object);
+        Assert.IsTrue(await status.Handle(new RetryProvisioning(business.Id),default));
+        request.OwnerEmail="different@example.test";
+        await Assert.ThrowsExceptionAsync<UnauthorizedAccessException>(()=>handler.Handle(request,default));
+        work.SetupProperty(x=>x.GuestRegistration,new GuestRegistration("other@example.test","other") {Id=Guid.NewGuid()});
+        await Assert.ThrowsExceptionAsync<UnauthorizedAccessException>(()=>status.Handle(new GetProvisioningStatus(business.Id),default));
+        await Assert.ThrowsExceptionAsync<UnauthorizedAccessException>(()=>status.Handle(new RetryProvisioning(business.Id),default));
+        queue.Verify(x=>x.RetryAsync(It.IsAny<string>(),It.IsAny<CancellationToken>()),Times.Once);
+    }
+
     [TestMethod]
     public async Task ProvisioningChecksOwnershipAndPublishesOnlySecretReferences()
     {

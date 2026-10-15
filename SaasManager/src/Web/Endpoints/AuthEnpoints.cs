@@ -1,3 +1,4 @@
+using SaasManager.Application.Common.Models.IdentityManagement;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Core.Models.Configs;
@@ -85,7 +86,15 @@ public class AuthEnpoints : EndpointGroupBase
         }
 
         var user = contextAccessor.HttpContext!.User;
-        var registrationStep = await sender.Send(new RegistrationCommand());
+        var config=contextAccessor.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var localTrial=config.GetValue<bool>("LocalDemo:Enabled") && config.GetValue<bool>("LocalDemo:SelfService");
+        // Local trials use the explicit enrollment flow, without invoking the paid registration pipeline.
+        var registrationStep = localTrial
+            ? ServiceResponse<RegistrationStepResponse>.Success(new RegistrationStepResponse {
+                IsCompleted=workContext.GuestRegistration?.ConvertedBusinessId.HasValue==true,
+                ValidationUrl="/local-onboarding.html"
+            })
+            : await sender.Send(new RegistrationCommand());
         var business =
             await dbContext.Businesses.FirstOrDefaultAsync(x =>
                 x.Id == workContext.GuestRegistration!.ConvertedBusinessId);
@@ -99,7 +108,7 @@ public class AuthEnpoints : EndpointGroupBase
                     Name = workContext.GuestRegistration!.Fullname,
                     BusinessId = workContext.GuestRegistration.ConvertedBusinessId?.ToString(),
                     Type = UserType.BusinessOwner.ToDisplayString(),
-                    IsSetupCompleted = business != null && business!.Status== BusinessStatus.Active
+                    IsSetupCompleted = business != null && (business.Status==BusinessStatus.Active || business.Status==BusinessStatus.Trial)
                 },
                 Roles = user.Claims
                     .Where(c => c.Type == "roles")

@@ -59,3 +59,23 @@ Mevcut tüm test projeleri yeşil değildir: eski test altyapısında MongoDB `M
 - `demo.py up` ve 25/25 smoke kontrolü yeni ortak depo ile geçti.
 - Bu değişikliğin GitHub CI koşusu, Docker image derlemeleri, canlı Azure/Google işlemleri ve mobil yayınlama çalıştırılmadı.
 - [Kurulum, yapılandırma ve geçiş sınırları](TENANT_SECURITY.md).
+
+## Durable onboarding foundation (2026-10-16)
+
+- `Shared/Platform.Provisioning` and SaaS Web Release builds passed. Existing inherited SaaS compiler warnings remain.
+- Five registration/security tests passed, including the durable queue branch without Atlas/Redis calls and owner-only job status/retry access.
+- Twenty-one real-PostgreSQL provisioning checks passed against an isolated disposable database, including independent-process reads, concurrent claims, lease recovery, stale-worker fencing and checkpoint-preserving retries.
+- Full new-tenant enrollment, infrastructure adapters, cloud/mobile deployment and remote CI are still pending; this evidence does not establish end-to-end provisioning readiness.
+
+- Five encryption/provider tests passed, including independent legacy ciphertext compatibility and explicit portable production selection. Real PostgreSQL checks confirm an existing encrypted store can be read without changing ciphertext. Commerce MultiTenant Release builds with the new environment bootstrap. Complete portable host startup remains pending.
+
+- Publishable changed-source Gitleaks scan found no leaks; source filename guard and license/asset inventory checks passed (140 licensing inputs). No full demo bootstrap, new-tenant end-to-end run or live cloud deployment was performed in this foundation phase.
+
+
+## Actual local trial onboarding (2026-10-16)
+
+- Standard `demo.py up` built all five .NET components plus the Angular demo and started the headless TenantManager. Existing sample tenants remained functional after enabling Mongo authentication.
+- A fresh HTTP/OIDC run created two new verified accounts and trial businesses: **50 onboarding checks passed**. This includes live storefronts, actual admin login, mobile customer tokens/catalogs, durable SaaS completion, cross-owner access denial, cross-tenant token/admin-cookie denial and Mongo read/write isolation. No cloud/payment provider was invoked.
+- The original **25 demo smoke checks passed**. Six registration/security tests passed, including queue-outage replay without duplicate subscriptions or payments and denial outside Development.
+- New-tenant Flutter debug bundle generation passed using generated public-only Dart defines. Dart analysis of `lib/core` reported 61 inherited warnings/info and no errors. No new emulator or signed release run was performed. Angular demo compilation passed.
+- CI now includes the live two-business onboarding test, but the updated remote workflow has not yet been run. Portable production startup and all real cloud/mobile-distribution gates remain in [PROVISIONING.md](PROVISIONING.md).

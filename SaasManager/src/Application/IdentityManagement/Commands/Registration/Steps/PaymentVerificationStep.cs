@@ -1,4 +1,5 @@
 using Platform.Security;
+using Microsoft.Extensions.Configuration;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
 using Core.Utilities;
@@ -30,7 +31,8 @@ public class PaymentVerificationStep(
     IPaymentProviderFactory paymentProviderFactory,
     ISender sender,
     IMediator mediator,
-    ITenantSecrets tenantSecrets)
+    ITenantSecrets tenantSecrets,
+    IConfiguration configuration)
     : BaseRegistrationStep<PaymentSetupState>(context, workContext, logger)
 {
     public override string StepKey => nameof(PaymentSetupState);
@@ -84,6 +86,10 @@ public class PaymentVerificationStep(
 
         if (savedState.IsCompleted)
         {
+            // Payment may have committed just before the queue became unavailable.
+            // Reconcile onboarding on replay without charging the subscription a second time.
+            if (configuration.GetValue<bool>("Provisioning:Enabled"))
+                await EnsureDurableProvisioningAsync(cancellationToken);
             return GuestValidationResult.Success();
         }
 
@@ -219,6 +225,9 @@ public class PaymentVerificationStep(
                 return CreateValidationError(tenantMessage.ErrorMessage!);
             }
 
+            if (configuration.GetValue<bool>("Provisioning:Enabled"))
+                return ValidationSuccess();
+
             var databaseConfig =
                 MongoConnectionMapper.MapMetadataFromConnectionString(
                     await tenantSecrets.GetAsync(business.Id.ToString("N"), TenantSecretNames.DatabaseConnection, cancellationToken),
@@ -238,6 +247,22 @@ public class PaymentVerificationStep(
         }
     }
 
+
+    private async Task EnsureDurableProvisioningAsync(CancellationToken ct)
+    {
+        var guest = _workContext.GuestRegistration ?? throw new InvalidOperationException("Registration owner is required.");
+        var businessId = guest.ConvertedBusinessId ?? throw new InvalidOperationException("Registration business is required.");
+        var business = await _context.Businesses.FirstAsync(x => x.Id == businessId && !x.IsDeleted, ct);
+        var result = await sender.Send(new RegisterStoreCommand {
+            BusinessId = business.Id, StoreName = business.Name, StoreSubDomain = business.ToSubdomain(),
+            LogoUrl = "no-logo.png", OwnerEmail = guest.Email!, Password = PasswordGenerator.GenerateRandomPassword(),
+            FirstName = guest.Firstname!, Lastname = guest.Lastname!, Role = "business_owner",
+            CompanyName = business.Name,
+            CompanyAddress = $"{business.Address!} {business.District}/{business.City} {business.PostalCode}",
+            CompanyEmail = business.Email, CompanyPhoneNumber = business.Phone
+        }, ct);
+        if (!result.IsSuccess) throw new InvalidOperationException("Tenant provisioning could not be queued.");
+    }
 
     class CreditCardFormModel
     {

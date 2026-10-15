@@ -6,7 +6,7 @@
 - Gizli yapılandırmalar, müşteri verisi ve mobil imzalama dosyaları dışarıda.
 - Yerel Keycloak, MongoDB, PostgreSQL, Redis; gerçek .NET mağaza motoru.
 - İki örnek tenant, gerçek katalog ve mağaza yönetimi.
-- SaaS önizleme; bulut kurulum/ödeme işlemleri kapalı.
+- SaaS yerel deneme aboneliği; ayrı tenant veritabanı/kullanıcısı, Keycloak istemcisi ve dinamik mağaza adresi. Gerçek bulut/ödeme işlemleri kapalı.
 - Flutter debug profili; ARM64 Android APK derlemesi ve emülatörde katalog/ürün/sepet akışı doğrulandı.
 - CodeGraph ile ilişkiler keşfedilebilir; indeks Git'e girmez.
 
@@ -29,7 +29,7 @@
 
 ## Sonraki teknik aşamalar
 
-- SaaS panelinden yeni yerel tenant yaratma: sabit iki tenant yerine ayrı ve test edilebilir local provisioning akışı.
+- Tamamlandı: SaaS üzerinden yeni yerel deneme işletmesi; kalıcı kuyruk, kurulum, sınırlı Mongo kullanıcısı, dinamik host, yönetim girişi, mobil ayarlar ve yerel bildirim. İki yeni işletmeyle 50 uçtan uca kontrol geçti.
 - Keycloak grup/rol tabanlı mağaza yönetimi; çapraz tenant yetki testleri.
 - Simüle ödeme, sipariş, e-posta ve bildirim senaryoları.
 - Elle doğrulanan Android akışlarını otomatik emülatör testlerine taşı; iOS simülatör akışını doğrula.
@@ -39,3 +39,7 @@
 ## İş başvurularında anlatılabilecek kapsam
 
 GrandNode tabanlı ticaret motorunu; tenant bazında veri ayrımı, Keycloak token doğrulaması, SaaS kayıt/orchestration modeli ve Flutter istemciyle birleştiren bir platform çalışması. Hazır bileşenler ile projeye özgü entegrasyonlar ayrı ayrı belirtilmeli. Yerel demoda doğrulanmayan bulut dağıtımı veya mobil yayın akışları için “tamamlandı” ifadesi kullanılmamalı.
+
+## Azure opsiyonel otomatik işletme kurulumu
+
+Tam hedef ve güncel uygulama durumu [PROVISIONING.md](PROVISIONING.md) içinde izlenir. Kalıcı kurulum kuyruğu, adım kontrol noktaları, çalışan kesintisinden kurtarma ve SaaS durum/yeniden deneme arayüzleri eklendi. Yerel akış doğrulandı; Google/Firebase, genel DNS/ingress, gerçek bildirim ve imzalı mobil dağıtım sağlayıcıları üzerindeki çalışma sürüyor.

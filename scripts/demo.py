@@ -11,6 +11,7 @@ PROJECTS = {
     'saas': ('SaasManager', 'src/Web/Web.csproj', 'SaasManager.Web.dll'),
     'installer': ('Ecommerce', 'src/Installer/Grand.Installer.Cli/Grand.Installer.Cli.csproj', 'Grand.Installer.Cli.dll'),
     'commerce': ('Ecommerce', 'src/Web/Grand.Web.MultiTenant/Grand.Web.MultiTenant.csproj', 'Grand.Web.MultiTenant.dll'),
+    'worker': ('TenantManager', 'TenantManager.csproj', 'TenantManager.dll'),
 }
 def write_json(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -19,15 +20,20 @@ def secret(name):
     p=LOCAL/'secrets'/name
     if not p.exists(): p.write_text(secrets.token_hex(32)); p.chmod(0o600)
     return p.read_text()
+def database_connection(slug):
+    database='commerce_'+slug.replace('-','_')
+    return 'mongodb://'+database+':'+urllib.parse.quote(secret('MongoPassword-'+slug),safe='')+'@127.0.0.1:27028/'+database+'?authSource='+database
 def prepare():
     os.umask(0o077)
-    for d in ('secrets','realm','logs','tenants','runtime'): (LOCAL/d).mkdir(parents=True,exist_ok=True)
+    for d in ('secrets','realm','logs','tenants','routes','runtime','onboarding','notifications','mobile'): (LOCAL/d).mkdir(parents=True,exist_ok=True)
     credentials=LOCAL/'credentials.json'
     if not credentials.exists():
         write_json(credentials, {'keycloak_admin':secrets.token_urlsafe(24), 'postgres':secrets.token_hex(24),
             'store_admin':secrets.token_urlsafe(24), 'saas_user':secrets.token_urlsafe(24)})
     c=json.loads(credentials.read_text())
-    p=LOCAL/'compose.env';p.write_text(f'DEMO_POSTGRES_PASSWORD={c["postgres"]}\nDEMO_KEYCLOAK_PASSWORD={c["keycloak_admin"]}\n');p.chmod(0o600)
+    if 'mongo_root' not in c:
+        c['mongo_root']=secrets.token_urlsafe(32);write_json(credentials,c)
+    p=LOCAL/'compose.env';p.write_text(f'DEMO_POSTGRES_PASSWORD={c["postgres"]}\nDEMO_KEYCLOAK_PASSWORD={c["keycloak_admin"]}\nDEMO_MONGO_ROOT_PASSWORD={c["mongo_root"]}\n');p.chmod(0o600)
     master=LOCAL/'secrets/platform-master-key'
     if not master.exists():
         master.write_text(base64.b64encode(secrets.token_bytes(32)).decode()); master.chmod(0o600)
@@ -36,11 +42,11 @@ def prepare():
         'InitializeSchema':True,'Local':{'MasterKeyFile':str(master)},
         'BootstrapSecrets':{name:secret(name) for name in ('ClientSecret-demo-service','ClientSecret-centraladminapp')}
     }
-    security['BootstrapSecrets'].update({'applicationdb':'mongodb://127.0.0.1:27028/commerce_demo_a','redispublisher':'127.0.0.1:16389'})
+    security['BootstrapSecrets'].update({'applicationdb':database_connection('demo-a'),'redispublisher':'127.0.0.1:16389'})
     conf={
         'PlatformSecurity':security,
         'LocalDemo':{'Enabled':True,'SecretsPath':str(LOCAL/'secrets'),'TenantDirectory':str(LOCAL/'tenants')},
-        'Database':{'ConnectionString':'mongodb://127.0.0.1:27028/commerce_demo_a','DbProvider':0},
+        'Database':{'ConnectionString':database_connection('demo-a'),'DbProvider':0},
         'Application':{'DisableHostedService':True,'SkipMigrationProcess':True},
         'Security':{'UseHsts':False,'UseDefaultSecurityHeaders':False,'UseHttpsRedirection':False,
             'CookieSecurePolicyAlways':False,'CookieSameSite':'Lax','CookieSameSiteExternalAuth':'Lax','EnableRuntimeCompilation':False,'UseForwardedHeaders':False},
@@ -55,12 +61,13 @@ def prepare():
         'BackendAPI':{'Enabled':True,'SecretKey':secret('BackendAPI-Secret-default')},
         'Extensions':{'InstalledPlugins':'','PluginSkipLoadingPattern':'.*'},
         'Logging':{'LogLevel':{'Default':'Warning','Microsoft':'Warning'}},
-        'AllowedHosts':'localhost;127.0.0.1;demo-a.localhost;demo-b.localhost'
+        'AllowedHosts':'localhost;127.0.0.1;*.localhost'
     }
     write_json(LOCAL/'commerce.json',conf)
     saas={
         'PlatformSecurity':security,
-        'LocalDemo':{'Enabled':True,'MailDirectory':str(LOCAL/'mail')},
+        'LocalDemo':{'Enabled':True,'SelfService':True,'MailDirectory':str(LOCAL/'mail')},
+        'Provisioning':{'Enabled':True,'InitializeSchema':True},
         'AZURE_KEY_VAULT_ENDPOINT':'',
         'ConnectionStrings':{'SaasManagerDb':f'Host=127.0.0.1;Port=15439;Database=commerce_saas;Username=commerce_demo;Password={c["postgres"]}'},
         'AuthConfiguration':conf['AuthConfiguration'],
@@ -72,7 +79,15 @@ def prepare():
         'AllowedHosts':'localhost;127.0.0.1'
     }
     write_json(LOCAL/'saas.json',saas)
-    write_json(LOCAL/'tenantmanager.json',dict(conf,redispublisher='127.0.0.1:16389',**{'ClientSecret-demo-service':secret('ClientSecret-demo-service')}))
+    worker=dict(conf,redispublisher='127.0.0.1:16389',**{'ClientSecret-demo-service':secret('ClientSecret-demo-service')})
+    worker['Provisioning']={'Enabled':True,'InitializeSchema':True,'Profile':'Local','Google':{'Provider':'Disabled'},'Local':{
+        'MongoAdminConnection':'mongodb://commerce_demo_root:'+urllib.parse.quote(c['mongo_root'],safe='')+'@127.0.0.1:27028/admin?authSource=admin',
+        'InstallerPath':str(LOCAL/'runtime/installer/Grand.Installer.Cli.dll'),'CommerceConfigPath':str(LOCAL/'commerce.json'),
+        'WorkingDirectory':str(LOCAL/'onboarding'),'TenantDirectory':str(LOCAL/'tenants'),'RouteDirectory':str(LOCAL/'routes'),
+        'SecretDirectory':str(LOCAL/'secrets'),'NotificationDirectory':str(LOCAL/'notifications'),'MobileDirectory':str(LOCAL/'mobile'),
+        'StoreBaseUrl':'http://localhost:18090','AdminBaseUrl':'http://localhost:18083','KeycloakAuthority':IDENTITY,'KeycloakRealm':'commerce-demo',
+        'KeycloakAdminUsername':'demo-admin','KeycloakAdminPassword':c['keycloak_admin']}}
+    write_json(LOCAL/'tenantmanager.json',worker)
 
     realm={'realm':'commerce-demo','enabled':True,'sslRequired':'none','registrationAllowed':False,
         'roles':{'realm':[{'name':'admin'},{'name':'business_owner'}]},
@@ -101,6 +116,24 @@ def infra():
         'chmod 700 /opt/keycloak/data/import && chmod 600 /opt/keycloak/data/import/commerce-demo-realm.json',
         input=(LOCAL/'realm/commerce-demo-realm.json').read_bytes())
     compose('up','-d','--wait','mongo','redis','postgres','keycloak')
+    # Initialize authentication on an older demo volume using Mongo's localhost exception.
+    # No database is dropped and an existing administrator password is never reset.
+    credentials=json.loads((LOCAL/'credentials.json').read_text())
+    database_users=[{'database':'commerce_'+slug.replace('-','_'),'password':secret('MongoPassword-'+slug)} for slug in SLUGS]
+    bootstrap='const settings='+json.dumps({'rootPassword':credentials['mongo_root'],'users':database_users})+";\n"+r"""
+const admin=db.getSiblingDB('admin');
+try { if (!admin.auth('commerce_demo_root',settings.rootPassword)) throw Error('auth'); }
+catch (_) { admin.createUser({user:'commerce_demo_root',pwd:settings.rootPassword,roles:[{role:'root',db:'admin'}]});admin.auth('commerce_demo_root',settings.rootPassword); }
+for (const user of settings.users) {
+  const tenant=db.getSiblingDB(user.database),existing=tenant.getUser(user.database);
+  if (!existing) tenant.createUser({user:user.database,pwd:user.password,roles:[{role:'readWrite',db:user.database}]});
+  else if (existing.roles.length!==1||existing.roles[0].role!=='readWrite'||existing.roles[0].db!==user.database) throw Error('Unexpected demo user roles');
+}
+"""
+    result=subprocess.run(['docker','compose','--env-file',str(LOCAL/'compose.env'),'-f',str(ROOT/'compose.yaml'),
+        'exec','-T','mongo','mongosh','--quiet','--file','/dev/stdin'],input=bootstrap,text=True,capture_output=True)
+    if result.returncode:raise RuntimeError('Mongo demo authentication bootstrap failed. Existing credentials were preserved; check your local root password.')
+    print('Mongo authentication enabled; each demo tenant has a separate database user.')
     # Separate database: security tables must not interfere with SaaS EF's initial schema creation.
     exists=subprocess.check_output(['docker','compose','--env-file',str(LOCAL/'compose.env'),'-f',str(ROOT/'compose.yaml'),
         'exec','-T','postgres','psql','-U','commerce_demo','-d','commerce_saas','-tAc',
@@ -146,7 +179,7 @@ def seed():
             'TenantMessage__Password':c['store_admin'],'TenantMessage__CompanyName':slug,
             'TenantMessage__CompanyAddress':'Demo Street 1','TenantMessage__CompanyPhoneNumber':'0000000000',
             'TenantMessage__CompanyEmail':slug+'@example.test',
-            'TenantMessage__MongoConnectionString':'mongodb://127.0.0.1:27028/commerce_'+slug.replace('-','_'),
+            'TenantMessage__MongoConnectionString':database_connection(slug),
             'LocalDemo__TenantOutput':str(LOCAL/'tenants'/f'{slug}.json')})
         run=LOCAL/'runtime'/'installer';log=LOCAL/'logs'/f'seed-{slug}.log'
         with log.open('w') as out:
@@ -213,6 +246,13 @@ def start():
     pids['admin']={'pid':admin.pid,'marker':str(adminrun/PROJECTS['admin'][2])};write_json(pfile,pids)
     wait_url('http://127.0.0.1:18083/health',120)
     print('Store admin: http://demo-a.localhost:18083/Admin and http://demo-b.localhost:18083/Admin')
+    workerrun=LOCAL/'runtime/worker';workerenv=app_env();workerenv['LocalDemo__ConfigPath']=str(LOCAL/'tenantmanager.json')
+    with (LOCAL/'logs/worker.log').open('w') as out:
+        worker=subprocess.Popen(['dotnet',str(workerrun/PROJECTS['worker'][2]),'--provisioning-worker'],cwd=workerrun,env=workerenv,stdout=out,stderr=subprocess.STDOUT,start_new_session=True)
+    pids['worker']={'pid':worker.pid,'marker':str(workerrun/PROJECTS['worker'][2])};write_json(pfile,pids)
+    time.sleep(2)
+    if worker.poll() is not None:raise RuntimeError('Provisioning worker startup failed; see .local/logs/worker.log')
+    print('New local trial business: http://localhost:18081/local-onboarding.html')
 
 
 
@@ -250,10 +290,11 @@ def main():
     args=parser.parse_args();command=args.command
     if command=='up':
         check()
+        prepare()
         # Restart only processes recorded by this checkout. Data and generated credentials are retained.
         pfile=LOCAL/'processes.json'
         if pfile.exists() and json.loads(pfile.read_text()): stop()
-        for step in (prepare,infra,build,seed,identity,start):step()
+        for step in (infra,build,seed,identity,start):step()
     elif command=='build': prepare();build(args.component)
     elif command=='smoke': subprocess.run([sys.executable,str(ROOT/'scripts/smoke.py')],check=True)
     else:globals()[command]()

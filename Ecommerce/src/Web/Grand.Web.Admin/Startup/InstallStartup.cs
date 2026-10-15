@@ -38,6 +38,14 @@ public class InstallStartup: IStartupApplication
     {
         using var serviceScope= application.ApplicationServices.CreateScope();
         ServiceProvider = serviceScope.ServiceProvider;
+        var configuration=ServiceProvider.GetRequiredService<IConfiguration>();
+        if (configuration.GetValue<bool>("LocalDemo:Enabled"))
+        {
+            // Demo tenants are created by the installer, never by startup with a fixed default account.
+            var connection=configuration["Database:ConnectionString"] ?? throw new InvalidOperationException("Configure the local database.");
+            if (!DatabaseExist(connection).GetAwaiter().GetResult()) throw new InvalidOperationException("Seed the local tenant before starting its admin host.");
+            return;
+        }
         Install(new InstallModel {
             UserFields = null,
             SelectedLanguage = "tr-TR",

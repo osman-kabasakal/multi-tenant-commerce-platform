@@ -36,8 +36,8 @@ public class PerformanceBehaviour<TRequest, TResponse> : IPipelineBehavior<TRequ
             var userId = _user.UserId ?? string.Empty;
             var userName = string.Empty;
 
-            _logger.LogWarning("SaasManager Long Running Request: {Name} ({ElapsedMilliseconds} milliseconds) {@UserId} {@UserName} {@Request}",
-                requestName, elapsedMilliseconds, userId, userName, request);
+            _logger.LogWarning("SaasManager Long Running Request: {Name} ({ElapsedMilliseconds} milliseconds) {UserId}",
+                requestName, elapsedMilliseconds, userId);
         }
 
         return response;

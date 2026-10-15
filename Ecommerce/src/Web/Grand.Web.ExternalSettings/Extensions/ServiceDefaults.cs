@@ -94,6 +94,32 @@ public static class ServiceDefaults
                     store.GetOrCreateAsync("system", item.Key, () => item.Value!).GetAwaiter().GetResult();
             return builder;
         }
+        var configurationProvider = builder.Configuration["PlatformConfiguration:Provider"]
+            ?? (string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("kvUri")) ? "Environment" : "AzureKeyVault");
+        if (configurationProvider == "Environment")
+        {
+            var supplied = builder.Configuration.AsEnumerable().Where(x => x.Value != null).ToArray();
+            builder.Configuration.AddJsonFile(Path.Combine(AppContext.BaseDirectory, CommonPath.AppData, "appsettingstemplate.json"), optional: false);
+            builder.Configuration.AddInMemoryCollection(supplied);
+            var configPath = builder.Configuration["PlatformConfiguration:ConfigPath"];
+            if (!string.IsNullOrWhiteSpace(configPath)) builder.Configuration.AddJsonFile(configPath, optional: false);
+            builder.Configuration.AddEnvironmentVariables();
+            if (dbConnectionConnectionString != null) builder.Configuration["Database:ConnectionString"] = dbConnectionConnectionString;
+            foreach (var required in new[] { "Database:ConnectionString", "Redis:RedisPubSubConnectionString", "Redis:PersistKeysToRedisUrl" })
+                if (string.IsNullOrWhiteSpace(builder.Configuration[required]) || builder.Configuration[required]!.Contains('~'))
+                    throw new InvalidOperationException($"Configure {required} for the portable deployment.");
+            Directory.CreateDirectory(Path.Combine(CommonPath.BaseDirectory, CommonPath.AppData));
+            // Required by the legacy loader; no credentials are written into this compatibility file.
+            File.WriteAllText(Path.Combine(CommonPath.BaseDirectory, CommonPath.AppData, "appsettings.json"), "{}");
+            builder.Services.AddPlatformSecurity(builder.Configuration, builder.Environment.EnvironmentName);
+            using var bootstrap = builder.Services.BuildServiceProvider();
+            var store = bootstrap.GetRequiredService<ISecretStore>();
+            if (!builder.Configuration.GetValue<bool>("PlatformSecurity:ReadOnly"))
+                foreach (var item in builder.Configuration.GetSection("PlatformSecurity:BootstrapSecrets").GetChildren())
+                    store.GetOrCreateAsync("system", item.Key, () => item.Value!).GetAwaiter().GetResult();
+            return builder;
+        }
+        if (configurationProvider != "AzureKeyVault") throw new InvalidOperationException("Unknown PlatformConfiguration provider.");
         var client = new SecretClient(new Uri(builder.Configuration.GetConnectionString("kvUri")), new DefaultAzureCredential(new DefaultAzureCredentialOptions() {
             AdditionallyAllowedTenants = {
                 "*"

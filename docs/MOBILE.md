@@ -49,3 +49,20 @@ Validation on 2026-10-14: debug bundle and ARM64 APK compilation passed. On an A
 The demo uses `/TenantTokenWeb` for customer tokens, matching the server's tenant-specific signing keys. Notification polling and the optional slider plugin are skipped in the local profile. Product images use neutral placeholders. Full checkout, account registration, long-running token refresh, iOS, physical devices and release distribution remain unverified; see [VALIDATION.md](VALIDATION.md).
 
 Compatibility references used for the dependency repair: [Skeletonizer changelog](https://pub.dev/packages/skeletonizer/changelog), [Google Fonts changelog](https://pub.dev/packages/google_fonts/changelog), [Android Gradle Plugin 8.9 compatibility](https://developer.android.com/build/releases/agp-8-9-0-release-notes). Dependencies are resolved in `pubspec.lock`.
+
+
+## Select a newly provisioned local business
+
+After creating the business through the SaaS local onboarding page, run:
+
+```sh
+python3 scripts/mobile_tenant.py <tenant-slug>
+cd Platforms/store_user_app
+flutter build bundle --debug --dart-define-from-file=../../.local/mobile/<tenant-slug>.defines.json
+# After selecting an emulator with flutter devices and configuring adb reverse:
+flutter run -d <emulator-id> --debug --flavor demo --dart-define-from-file=../../.local/mobile/<tenant-slug>.defines.json
+```
+
+The generated file contains public configuration only. `STORE_URL` defaults to the loopback gateway, while the debug-only `LOCAL_TENANT_HOST` selects the published tenant host. For Android without `adb reverse`, use `python3 scripts/mobile_tenant.py <tenant-slug> --base-url http://10.0.2.2:18090`. Invalid/nonlocal tenant-host overrides and release use of LocalDemo are rejected.
+
+This uses the existing `demo` flavor. Switching demo tenants can replace the same installed demo application; clear its data to avoid stale local customer sessions. A new-tenant debug bundle and server mobile token/catalog flow were verified; a new device/emulator run was not performed in this phase. Tenant-specific signed APK/IPA builds, Crashlytics and App Distribution remain cloud-profile work.

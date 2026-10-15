@@ -1,36 +1,31 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Platform.Security;
 
 namespace Grand.Web.ExternalSettings.Extensions;
 
-/// <summary>Fixed hostname-to-database routing for the local admin demo; normal admin authentication remains active.</summary>
+/// <summary>Routes published local tenants; ordinary authenticated admin access remains required.</summary>
 public static class LocalDemoTenantRouting
 {
     public static void UseLocalDemoTenantRouting(this WebApplication app)
     {
         if (!app.Configuration.GetValue<bool>("LocalDemo:Enabled")) return;
-        var directory = app.Configuration["LocalDemo:TenantDirectory"]
-            ?? throw new InvalidOperationException("Demo tenant directory is required.");
-        var tenants = new Dictionary<string, (string StoreId, string Connection)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var slug in new[] { "demo-a", "demo-b" })
-        {
-            using var data = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, slug + ".json")));
-            var root = data.RootElement;
-            tenants[slug + ".localhost"] = (root.GetProperty("storeId").GetString()!, root.GetProperty("connectionString").GetString()!);
-        }
-        tenants["localhost"] = tenants["demo-a.localhost"];
-        tenants["127.0.0.1"] = tenants["demo-a.localhost"];
-        app.Use(async (context, next) =>
-        {
-            if (!tenants.TryGetValue(context.Request.Host.Host, out var tenant))
-            {
-                context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                return;
-            }
-            context.Items["StoreId"] = tenant.StoreId;
-            context.Items["StoreMongoConnectionString"] = tenant.Connection;
+        var directory=app.Configuration["LocalDemo:TenantDirectory"] ?? throw new InvalidOperationException("Demo tenant directory is required.");
+        var routes=Path.Combine(Path.GetDirectoryName(directory)!,"routes");
+        app.Use(async (context,next)=> {
+            var host=context.Request.Host.Host;
+            var slug=host is "localhost" or "127.0.0.1"?"demo-a":host.EndsWith(".localhost",StringComparison.OrdinalIgnoreCase)?host[..^10].ToLowerInvariant():"";
+            if (!Regex.IsMatch(slug,"^[a-z][a-z0-9-]{1,38}[a-z0-9]$")) {context.Response.StatusCode=400;return;}
+            var path=Path.Combine(routes,slug+".json");
+            if (slug is "demo-a" or "demo-b") path=Path.Combine(directory,slug+".json");
+            if (!File.Exists(path)) {context.Response.StatusCode=400;return;}
+            using var route=JsonDocument.Parse(await File.ReadAllTextAsync(path,context.RequestAborted));
+            context.Items["StoreId"]=route.RootElement.GetProperty("storeId").GetString()!;
+            context.Items["StoreMongoConnectionString"]=await context.RequestServices.GetRequiredService<ITenantSecrets>().GetAsync(slug,TenantSecretNames.DatabaseConnection,context.RequestAborted);
             await next();
         });
     }

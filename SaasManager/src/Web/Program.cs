@@ -1,4 +1,5 @@
 using Platform.Security;
+using Platform.Provisioning;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using Azure.Identity;
@@ -33,6 +34,7 @@ if (isAzureWebApp)
 // Add services to the container.
 builder.AddKeyVaultIfConfigured();
 builder.Services.AddPlatformSecurity(builder.Configuration, builder.Environment.EnvironmentName);
+builder.Services.AddPlatformProvisioning(builder.Configuration);
 builder.ConfigureSettings();
 builder.RegisterAuthentication();
 builder.ConfigureServices();
@@ -107,7 +109,9 @@ if (isLocalDemo)
             path.StartsWithSegments("/api/SubscriptionPlans") ||
             path.Equals("/api") || path.Equals("/api/specification.json") ||
             path.Value?.StartsWith("/api/swagger-ui", StringComparison.OrdinalIgnoreCase) == true;
-        if (path.StartsWithSegments("/api") && (!readOnlyMethod || !allowedDemoEndpoint))
+        var localOnboarding = app.Configuration.GetValue<bool>("LocalDemo:SelfService") &&
+            (path.StartsWithSegments("/api/LocalBusinesses") || path.StartsWithSegments("/api/Provisioning"));
+        if (path.StartsWithSegments("/api") && !localOnboarding && (!readOnlyMethod || !allowedDemoEndpoint))
         {
             context.Response.StatusCode = StatusCodes.Status409Conflict;
             await context.Response.WriteAsJsonAsync(new { message = "Local demo uses pre-seeded tenants. Cloud provisioning and billing are disabled." });
