@@ -113,25 +113,18 @@ public static class DependencyInjection
 
     public static void AddKeyVaultIfConfigured(this IHostApplicationBuilder builder)
     {
-        if (builder.Configuration.GetValue<bool>("LocalDemo:Enabled"))
-        {
-            builder.Services.AddScoped<ICardDataProtector, DisabledDemoCardProtector>();
-            return;
-        }
+        var provider = builder.Configuration["PlatformConfiguration:Provider"];
+        var local = builder.Configuration.GetValue<bool>("LocalDemo:Enabled");
         var keyVaultUri = builder.Configuration["AZURE_KEY_VAULT_ENDPOINT"];
-        if (!string.IsNullOrWhiteSpace(keyVaultUri))
+        if (provider is not (null or "Environment" or "AzureKeyVault"))
+            throw new InvalidOperationException("Choose an Environment or AzureKeyVault configuration provider.");
+        if (!local && (provider == "AzureKeyVault" || provider == null && !string.IsNullOrWhiteSpace(keyVaultUri)))
         {
+            if (string.IsNullOrWhiteSpace(keyVaultUri)) throw new InvalidOperationException("Configure the Azure Key Vault endpoint explicitly.");
             var credential = new DefaultAzureCredential();
-            var secretCLient = new SecretClient(new Uri(keyVaultUri), credential);
-            builder.Services.AddSingleton(secretCLient);
-            builder.Configuration.AddAzureKeyVault(
-                secretCLient,
-                new KeyVaultSecretManager()
-            );
-            
-            builder.Services.AddSingleton(new KeyClient(new Uri(keyVaultUri), credential));
-            builder.Services.AddSingleton<IKeyVaultService, KeyVaultService>();
-            builder.Services.AddScoped<ICardDataProtector, AzureKeyVaultCardProtector>();
+            var client = new SecretClient(new Uri(keyVaultUri),credential);
+            builder.Configuration.AddAzureKeyVault(client,new KeyVaultSecretManager());
         }
+        builder.Services.AddCardProtection(builder.Configuration);
     }
 }

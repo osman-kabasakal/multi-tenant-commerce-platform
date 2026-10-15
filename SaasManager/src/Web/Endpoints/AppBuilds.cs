@@ -39,12 +39,11 @@ public class AppBuilds: EndpointGroupBase
         return TypedResults.Ok(await sender.Send(command));
     }
     
-    public async Task<Ok<FileStreamResult>> DownloadBuild(ISender sender, [AsParameters]DownloadBuildQuery command)
+    public async Task<IResult> DownloadBuild(ISender sender, [AsParameters]DownloadBuildQuery command,HttpContext http,CancellationToken ct)
     {
-        var fileResponse = await sender.Send(command);
-        return TypedResults.Ok(new FileStreamResult(fileResponse.FileStream, fileResponse.MimeType)
-        {
-            FileDownloadName = fileResponse.FileName
-        });
+        var fileResponse = await sender.Send(command,ct);
+        http.Response.Headers.CacheControl="private, no-store";
+        http.Response.Headers.XContentTypeOptions="nosniff";
+        return Results.File(fileResponse.FileStream,fileResponse.MimeType,fileResponse.FileName,enableRangeProcessing:true);
     }
 }

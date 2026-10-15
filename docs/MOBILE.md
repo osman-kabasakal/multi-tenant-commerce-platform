@@ -66,3 +66,7 @@ flutter run -d <emulator-id> --debug --flavor demo --dart-define-from-file=../..
 The generated file contains public configuration only. `STORE_URL` defaults to the loopback gateway, while the debug-only `LOCAL_TENANT_HOST` selects the published tenant host. For Android without `adb reverse`, use `python3 scripts/mobile_tenant.py <tenant-slug> --base-url http://10.0.2.2:18090`. Invalid/nonlocal tenant-host overrides and release use of LocalDemo are rejected.
 
 This uses the existing `demo` flavor. Switching demo tenants can replace the same installed demo application; clear its data to avoid stale local customer sessions. A new-tenant debug bundle and server mobile token/catalog flow were verified; a new device/emulator run was not performed in this phase. Tenant-specific signed APK/IPA builds, Crashlytics and App Distribution remain cloud-profile work.
+
+## Tenant notification registration
+
+Firebase-enabled builds send notification registration through the authenticated storefront client, with form-body values instead of device tokens in URLs. Denied/not-determined permission sends the explicit revocation value expected by the backend. The default LocalDemo mobile profile still skips Firebase SDK initialization; local server captures and real storefront/admin consent checks are described in [NOTIFICATIONS.md](NOTIFICATIONS.md). No new Firebase-enabled device or signed release was run in this phase.

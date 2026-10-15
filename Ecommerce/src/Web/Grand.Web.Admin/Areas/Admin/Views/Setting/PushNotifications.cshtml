@@ -3,7 +3,7 @@
     //page title
     ViewBag.Title = Loc["Admin.PushNotifications"];
 }
-<form asp-area="@Constants.AreaAdmin" asp-controller="Setting" asp-action="PushNotifications" method="post" enctype="multipart/form-data">
+<form asp-area="@Constants.AreaAdmin" asp-controller="Setting" asp-action="PushNotifications" method="post">
 
     <div class="row">
         <div class="col-md-12">
@@ -26,6 +26,7 @@
                         <div class="form-body">
                             <div class="alert alert-info">
                                 <p>@Loc["Admin.Settings.PushNotifications.PushNotifications.Info"]</p>
+                                <p>@Loc["Admin.Settings.PushNotifications.ServerIdentityInfo"]</p>
                             </div>
                             <div class="alert alert-danger">
                                 <p>@Loc["Admin.Settings.PushNotifications.PushNotifications.Warning"]</p>
@@ -37,12 +38,6 @@
                                         <admin-input asp-for="Enabled"/>
                                         <div class="control__indicator"></div>
                                     </label>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <admin-label asp-for="PrivateApiKey"/>
-                                <div class="col-md-9 col-sm-9">
-                                    <admin-input asp-for="PrivateApiKey"/>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -97,31 +92,7 @@
                                 </div>
                             </div>
                             
-                            <div class="form-group">
-                                <admin-label asp-for="UseHttpV1Api"/>
-                                <div class="col-md-9">
-                                    <label class="mt-checkbox mt-checkbox-outline control control-checkbox">
-                                        <admin-input asp-for="UseHttpV1Api"/>
-                                        <div class="control__indicator"></div>
-                                    </label>
-                                    <span class="help-block">@Loc["Admin.Settings.PushNotifications.UseHttpV1Api.Hint"]</span>
-                                </div>
-                            </div>
                             
-                            <div class="form-group">
-                                <admin-label asp-for="ServiceAccountFile"/>
-                                <div class="col-md-9 col-sm-9">
-                                    <admin-input asp-for="ServiceAccountFile" />
-                                    <span class="help-block">@Loc["Admin.Settings.PushNotifications.ServiceAccountFile.Hint"]</span>
-                                    @if (Model.HasServiceAccountConfigured)
-                                    {
-                                        <div class="alert alert-success mt-2">
-                                            <i class="fa fa-check"></i>
-                                            @Loc["Admin.Settings.PushNotifications.ServiceAccountFile.Configured"]
-                                        </div>
-                                    }
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>

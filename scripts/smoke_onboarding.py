@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 import demo
 import smoke
+import smoke_notifications
 
 class LoginForm(HTMLParser):
     def __init__(self):super().__init__();self.action=None;self.fields={};self.active=False
@@ -153,7 +154,7 @@ def main():
         check(ready['business']['databaseReady'] and ready['business']['status'] in (3,'Trial','trial'),'SaaS durably records the ready database and trial subscription state')
         session_code,session=api(opener,'/api/Auth/sessionInfo')
         check(session_code==200 and session['data']['user']['isSetupCompleted'] and session['data']['registrationStep']['isCompleted'],'Ordinary SaaS session recognizes the completed trial without card registration')
-        account['slug']=slug;admin_cookie=administrator_session(account,slug);sessions.append((opener,jar,configuration['requestToken'],token,admin_cookie))
+        account['slug']=slug;admin_cookie=administrator_session(account,slug);smoke_notifications.check_tenant(account,slug,admin_cookie);sessions.append((opener,jar,configuration['requestToken'],token,admin_cookie))
     # Independently authenticated owners must not see or retry each other's installation.
     foreign=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(sessions[1][1]),NoRedirect())
     check(api(foreign,'/api/Provisioning/'+accounts[0]['registrationId'])[0] in (401,403),'Another owner cannot read the first tenant job')

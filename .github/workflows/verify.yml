@@ -44,6 +44,17 @@ jobs:
       - name: Check local encryption boundaries
         working-directory: Ecommerce
         run: dotnet test ../tests/LocalDemo.Tests/LocalDemo.Tests.csproj --nologo
+      - name: Verify Google provisioning contracts without cloud credentials
+        run: dotnet test tests/Google.Provisioning.Tests/Google.Provisioning.Tests.csproj -c Release --nologo
+      - name: Verify storefront form and JSON model binding
+        run: dotnet test tests/Storefront.Binding.Tests/Storefront.Binding.Tests.csproj -c Release --nologo
+      - name: Verify tenant notification routing and consent
+        run: dotnet test tests/Notifications.Tests/Notifications.Tests.csproj -c Release --nologo
+      - name: Build the Firebase export and distribution tool
+        run: dotnet build tools/Platform.Cloud/Platform.Cloud.csproj -c Release --nologo
+      - name: Verify portable card and file providers with owner isolation
+        working-directory: SaasManager
+        run: dotnet test ../tests/Portable.Services.Tests/Portable.Services.Tests.csproj -c Release --nologo
       - name: Check business registration security
         working-directory: SaasManager
         run: dotnet test ../tests/Registration.Security.Tests/Registration.Security.Tests.csproj -c Release --nologo

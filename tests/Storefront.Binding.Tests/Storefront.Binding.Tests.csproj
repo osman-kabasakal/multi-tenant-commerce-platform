@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><IsTestProject>true</IsTestProject><IsPackable>false</IsPackable></PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <Compile Include="../../Ecommerce/src/Web/Grand.Web.MultiTenant/ModelBinders/ComplexTypeModelBinder.cs" Link="Production/ComplexTypeModelBinder.cs" />
+    <Compile Include="../../Ecommerce/src/Web/Grand.Web.MultiTenant/ModelBinders/ComplexTypeModelBinderProvider.cs" Link="Production/ComplexTypeModelBinderProvider.cs" />
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.3.1" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.3.1" />
+  </ItemGroup>
+</Project>

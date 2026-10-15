@@ -1,7 +1,6 @@
-using Grand.Infrastructure.TypeConverters.JsonConverters;
-using Grand.Web.Models.ShoppingCart;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using System.Text;
 using System.Text.Json;
 
 namespace Grand.Web.MultiTenant.ModelBinders;
@@ -12,6 +11,7 @@ public class ComplexTypeModelBinder : IModelBinder
 
     public ComplexTypeModelBinder(IModelBinder overriddenModelBinder)
     {
+        ArgumentNullException.ThrowIfNull(overriddenModelBinder);
         _overriddenModelBinder = overriddenModelBinder;
     }
 
@@ -43,7 +43,7 @@ public class ComplexTypeModelBinder : IModelBinder
                     return;
                 }
 
-                var jsonDoc = JsonDocument.Parse(requestBody);
+                using var jsonDoc = JsonDocument.Parse(requestBody);
                 var rootElement = jsonDoc.RootElement;
 
                 // Action'daki complex type parameter sayısını kontrol et
@@ -89,9 +89,6 @@ public class ComplexTypeModelBinder : IModelBinder
                         }
                         else
                         {
-                            if(bindingContext.ModelType==typeof(CheckoutAttributeSelectedModel)){
-                                var debug=true;
-                            }
                             // Yoksa direkt body'yi deserialize et
                             model = JsonSerializer.Deserialize(
                                 requestBody,
@@ -110,11 +107,11 @@ public class ComplexTypeModelBinder : IModelBinder
 
                 bindingContext.Result = ModelBindingResult.Success(model);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 bindingContext.ModelState.AddModelError(
                     bindingContext.ModelName,
-                    $"Model binding failed: {ex.Message}"
+                    "The request body could not be read."
                 );
                 bindingContext.Result = ModelBindingResult.Failed();
             }

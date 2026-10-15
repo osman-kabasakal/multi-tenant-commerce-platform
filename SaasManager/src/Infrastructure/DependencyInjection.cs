@@ -510,7 +510,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IPaymentProvider, IyzicoPaymentProvider>();
         builder.Services.AddScoped<IPaymentProviderFactory, PaymentProviderFactory>();
 
-        builder.Services.AddScoped<IBlobStorageService, BlobStorageService>();
+        builder.Services.AddFileStorage(builder.Configuration,builder.Environment.ContentRootPath);
 
         builder.Services.AddHostedService<RedisBackgroundListenerHostedService>();
         if (builder.Configuration.GetValue<bool>("Provisioning:Enabled"))

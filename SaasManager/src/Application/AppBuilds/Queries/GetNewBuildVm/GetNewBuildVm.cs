@@ -38,11 +38,12 @@ public class GetNewBuildVmQueryHandler : IRequestHandler<GetNewBuildVmQuery, Ser
         CancellationToken cancellationToken)
     {
         
+        var ownerBusiness=BusinessOwnerContext.BusinessId(_workContext);
         var businessAppQuery = from businessApp in _context.BusinessApps
             join business in _context.Businesses on businessApp.BusinessId equals business.Id
             where businessApp.Type == AppType.CustomerMobile &&
-                  businessApp.BusinessId == _workContext.GuestRegistration!.ConvertedBusinessId &&
-                  (businessApp.BuildStatus != BuildStatus.Queued || businessApp.BuildStatus != BuildStatus.Building)
+                  businessApp.BusinessId == ownerBusiness && !businessApp.IsDeleted && !business.IsDeleted &&
+                  (businessApp.BuildStatus != BuildStatus.Queued && businessApp.BuildStatus != BuildStatus.Building)
                   // (!appBuilds.Any() || !(appBuilds.Any(ab => ab.IsActive && ab.Platform == BuildPlatform.Android) &&
                   //                        appBuilds.Any(ab => ab.IsActive && ab.Platform == BuildPlatform.Ios)))
             select new

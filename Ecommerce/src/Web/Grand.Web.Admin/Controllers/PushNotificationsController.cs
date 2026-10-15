@@ -8,6 +8,7 @@ using Grand.Business.Core.Interfaces.Storage;
 using Grand.Business.Core.Utilities.Common.Security;
 using Grand.Domain.PushNotifications;
 using Grand.Infrastructure;
+using Platform.Notifications;
 using Grand.Web.Admin.Models.PushNotifications;
 using Grand.Web.Common.DataSource;
 using Grand.Web.Common.Security.Authorization;
@@ -18,6 +19,7 @@ namespace Grand.Web.Admin.Controllers;
 [PermissionAuthorize(PermissionSystemName.PushNotifications)]
 public class PushNotificationsController(
     PushNotificationsSettings pushNotificationsSettings,
+    NotificationOptions notificationOptions,
     ITranslationService translationService,
     ISettingService settingService,
     IPushNotificationsService pushNotificationsService,
@@ -44,7 +46,7 @@ public class PushNotificationsController(
     [HttpPost]
     public async Task<IActionResult> Send(PushModel model)
     {
-        if (!string.IsNullOrEmpty(pushNotificationsSettings.PrivateApiKey) && !string.IsNullOrEmpty(model.MessageText))
+        if (notificationOptions.Provider != "Disabled" && !string.IsNullOrWhiteSpace(model.MessageText))
         {
             pushNotificationsSettings.PictureId = model.PictureId;
             pushNotificationsSettings.ClickUrl = model.ClickUrl;
@@ -52,9 +54,15 @@ public class PushNotificationsController(
             
             var store = await storeService.GetStoreById(workContext.CurrentStore.Id);
             var storeDomain = store.Domains.FirstOrDefault();
-            var pictureUrl = await pictureService.GetPictureUrl(model.PictureId);
+            string pictureUrl = null;
+            if (!string.IsNullOrEmpty(model.PictureId))
+            {
+                var picture = await pictureService.GetPictureUrl(model.PictureId);
+                if (Uri.TryCreate(picture, UriKind.Absolute, out var absolute)) pictureUrl = absolute.AbsoluteUri;
+                else if (Uri.TryCreate(storeDomain?.Url, UriKind.Absolute, out var origin)) pictureUrl = new Uri(origin, picture).AbsoluteUri;
+            }
             var result =
-                await pushNotificationsService.SendPushNotification(model.Title, model.MessageText, $"{storeDomain?.Url.TrimEnd('/')??""}/{pictureUrl.TrimStart('/')}",
+                await pushNotificationsService.SendPushNotification(model.Title, model.MessageText, pictureUrl,
                     model.ClickUrl);
             if (result.Item1)
                 Success(translationService.GetResource(result.Item2));
@@ -63,7 +71,8 @@ public class PushNotificationsController(
         }
         else
         {
-            Error(translationService.GetResource("PushNotifications.Error.PushApiMessage"));
+            Error(translationService.GetResource(notificationOptions.Provider == "Disabled"
+                ? "Admin.PushNotifications.Error.Disabled" : "Admin.PushNotifications.Error.MessageRequired"));
         }
 
         return RedirectToAction("Send");

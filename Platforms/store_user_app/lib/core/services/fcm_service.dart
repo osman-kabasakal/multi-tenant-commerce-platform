@@ -421,12 +421,16 @@ class FCMService {
             provisional: false,
           );
       // Token'ı sunucuya kaydetmek için gerekli API çağrısını yap
+      final allowed =
+          settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
       final response = await _dio.post(
         '/PushNotifications/ProcessRegistration',
-        queryParameters: {
-          'success': settings.authorizationStatus != AuthorizationStatus.denied,
-          'value': token,
+        data: {
+          'success': allowed,
+          'value': allowed ? token : 'Permission denied',
         },
+        options: Options(contentType: Headers.formUrlEncodedContentType),
       );
 
       if (response.statusCode == 200) {
@@ -435,12 +439,12 @@ class FCMService {
         }
       } else {
         if (kDebugMode) {
-          _logger.e('Token kaydetme hatası: ${response.data}');
+          _logger.e('Token kaydetme isteği reddedildi: ${response.statusCode}');
         }
       }
     } catch (e) {
       if (kDebugMode) {
-        _logger.e('Token kaydetme hatası: $e');
+        _logger.e('Token kaydetme isteği başarısız oldu');
       }
     }
   }

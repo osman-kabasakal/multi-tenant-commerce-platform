@@ -48,7 +48,6 @@ namespace Grand.Business.Marketing.Services.PushNotifications
             IConnectionMultiplexer redis,
             ILogger<RedisFCMNotificationService> logger,
             // IPushNotificationsService pushNotificationsService,
-            FirebaseService firebaseService,
             IServiceProvider serviceProvider,
             IKeycloakClientService keycloakClientService,
             KeycloakSettings keycloakSettings,

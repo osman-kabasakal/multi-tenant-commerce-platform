@@ -91,7 +91,7 @@ Mağaza yöneticisi bu profilde GrandNode parola doğrulamasını kullanır. Saa
 3. Kurulum ilerledikçe veritabanı, mağaza, kimlik ve yayın adımları görünür. Hazır olduğunda verilen mağaza/yönetim bağlantılarını açın. Yönetimde hesabınızın e-postasını ve seçtiğiniz mağaza parolasını kullanın.
 4. Her yerel hesap tek bir işletmeye bağlıdır. Başka bir işletme denemek için Keycloak yönetiminde e-postası doğrulanmış ayrı bir test hesabı oluşturabilirsiniz.
 
-Yeni tenant için servisleri yeniden başlatmanız gerekmez. Bildirimler `.local/notifications/`, mobil ayarlar `.local/mobile/` altında oluşur. İşletmeler yalnızca kendi kurulum durumlarına erişebilir. Ayrıntılı [kurulum mimarisi ve kalan bulut işleri](docs/PROVISIONING.md).
+Yeni tenant için servisleri yeniden başlatmanız gerekmez. Bildirimler `.local/notifications/`, mobil ayarlar `.local/mobile/` altında oluşur. İşletmeler yalnızca kendi kurulum durumlarına erişebilir. Ayrıntılı [kurulum mimarisi ve kalan bulut işleri](docs/PROVISIONING.md). İsteğe bağlı [Google/Firebase kurulumu ve App Distribution aracı](docs/GOOGLE_FIREBASE.md), gerçek bulut kimliğiyle açıkça etkinleştirilebilir; varsayılan demo bulutsuz kalır.
 
 ```sh
 # İki yeni hesapla gerçek giriş, abonelik, mağaza, yönetim ve izolasyon kontrolü:
@@ -116,7 +116,7 @@ Aktif uygulama `Platforms/store_user_app`, Flutter **3.44.6** ile ARM64 Android 
 | `scripts/` | Yerel kurulum, sunucu taraflı token ağ geçidi ve smoke kontrolü |
 | `docs/` | Mimari, güvenlik temizliği, doğrulama ve yayın aşamaları |
 
-[Tenant şifreleme ve dağıtık secret kurulumu](docs/TENANT_SECURITY.md) · [Architecture / English overview](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+[Tenant bildirimleri ve doğrulama](docs/NOTIFICATIONS.md) · [Tenant şifreleme ve dağıtık secret kurulumu](docs/TENANT_SECURITY.md) · [Architecture / English overview](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## CodeGraph
 

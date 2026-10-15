@@ -1,0 +1,18 @@
+{
+  "Provisioning": {
+    "Google": {
+      "Provider": "Google",
+      "AllowCloudWrites": false,
+      "Parent": "folders/REPLACE_WITH_FOLDER_NUMBER",
+      "DeploymentId": "my-commerce",
+      "ProjectIdPrefix": "commerce",
+      "SenderServiceAccount": "commerce-fcm@REPLACE_WITH_SENDER_PROJECT.iam.gserviceaccount.com",
+      "BillingAccount": null,
+      "DistributionGroupAlias": "tenant-testers",
+      "TesterEmails": [],
+      "IncludeOwnerAsTester": false,
+      "OperationTimeoutSeconds": 600,
+      "PollIntervalSeconds": 3
+    }
+  }
+}

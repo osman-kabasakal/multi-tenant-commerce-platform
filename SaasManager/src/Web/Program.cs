@@ -17,8 +17,9 @@ using SaasManager.Web;
 using SaasManager.Web.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
-var localConfigPath = builder.Configuration["LocalDemo:ConfigPath"];
+var localConfigPath = builder.Configuration["PlatformConfiguration:ConfigPath"] ?? builder.Configuration["LocalDemo:ConfigPath"];
 if (!string.IsNullOrWhiteSpace(localConfigPath)) builder.Configuration.AddJsonFile(localConfigPath, optional: false);
+builder.Configuration.AddEnvironmentVariables();
 var isLocalDemo = builder.Configuration.GetValue<bool>("LocalDemo:Enabled");
 if (isLocalDemo && !builder.Environment.IsDevelopment())
     throw new InvalidOperationException("LocalDemo requires Development.");
@@ -111,7 +112,9 @@ if (isLocalDemo)
             path.Value?.StartsWith("/api/swagger-ui", StringComparison.OrdinalIgnoreCase) == true;
         var localOnboarding = app.Configuration.GetValue<bool>("LocalDemo:SelfService") &&
             (path.StartsWithSegments("/api/LocalBusinesses") || path.StartsWithSegments("/api/Provisioning"));
-        if (path.StartsWithSegments("/api") && !localOnboarding && (!readOnlyMethod || !allowedDemoEndpoint))
+        var localFiles = app.Configuration.GetValue<bool>("LocalDemo:AssetsEnabled") &&
+            (path.Equals("/api/uploads/app-asset") || path.Equals("/api/uploads/app-asset/file") || path.Equals("/api/app-builds/download") || path.Equals("/api/app-builds/get-vm"));
+        if (path.StartsWithSegments("/api") && !localOnboarding && !localFiles && (!readOnlyMethod || !allowedDemoEndpoint))
         {
             context.Response.StatusCode = StatusCodes.Status409Conflict;
             await context.Response.WriteAsJsonAsync(new { message = "Local demo uses pre-seeded tenants. Cloud provisioning and billing are disabled." });

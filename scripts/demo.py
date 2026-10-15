@@ -45,6 +45,7 @@ def prepare():
     security['BootstrapSecrets'].update({'applicationdb':database_connection('demo-a'),'redispublisher':'127.0.0.1:16389'})
     conf={
         'PlatformSecurity':security,
+        'Notifications':{'Provider':'LocalSink','LocalDirectory':str(LOCAL/'notifications')},
         'LocalDemo':{'Enabled':True,'SecretsPath':str(LOCAL/'secrets'),'TenantDirectory':str(LOCAL/'tenants')},
         'Database':{'ConnectionString':database_connection('demo-a'),'DbProvider':0},
         'Application':{'DisableHostedService':True,'SkipMigrationProcess':True},
@@ -66,9 +67,12 @@ def prepare():
     write_json(LOCAL/'commerce.json',conf)
     saas={
         'PlatformSecurity':security,
-        'LocalDemo':{'Enabled':True,'SelfService':True,'MailDirectory':str(LOCAL/'mail')},
+        'LocalDemo':{'Enabled':True,'SelfService':True,'AssetsEnabled':True,'MailDirectory':str(LOCAL/'mail')},
         'Provisioning':{'Enabled':True,'InitializeSchema':True},
         'AZURE_KEY_VAULT_ENDPOINT':'',
+        'PlatformConfiguration':{'Provider':'Environment'},
+        'CardProtection':{'Provider':'Disabled'},
+        'FileStorage':{'Provider':'FileSystem','FileSystem':{'RootDirectory':str(LOCAL/'files')}},
         'ConnectionStrings':{'SaasManagerDb':f'Host=127.0.0.1;Port=15439;Database=commerce_saas;Username=commerce_demo;Password={c["postgres"]}'},
         'AuthConfiguration':conf['AuthConfiguration'],
         'ClientSecret-centraladminapp':secret('ClientSecret-centraladminapp'),

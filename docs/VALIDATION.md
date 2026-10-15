@@ -79,3 +79,31 @@ Mevcut tüm test projeleri yeşil değildir: eski test altyapısında MongoDB `M
 - The original **25 demo smoke checks passed**. Six registration/security tests passed, including queue-outage replay without duplicate subscriptions or payments and denial outside Development.
 - New-tenant Flutter debug bundle generation passed using generated public-only Dart defines. Dart analysis of `lib/core` reported 61 inherited warnings/info and no errors. No new emulator or signed release run was performed. Angular demo compilation passed.
 - CI now includes the live two-business onboarding test, but the updated remote workflow has not yet been run. Portable production startup and all real cloud/mobile-distribution gates remain in [PROVISIONING.md](PROVISIONING.md).
+
+## Optional Google/Firebase provider (2026-10-16)
+
+- Eighteen HTTP contract/adapter tests passed against the real Google provisioning, encrypted-store adapter boundary, client publication, per-tenant FCM transport and App Distribution code. Cases include owned-resource replay, partial provider failure, async polling, IAM conditions/etag conflicts, billing mismatch, app pagination, client configuration ownership and a saved target change being refused before cloud writes. No ADC credentials were loaded by these tests.
+- Five existing encryption/provider tests passed. Shared Google/adapters and the management tool built with no warnings/errors; TenantManager built with 187 existing warnings and no errors. The management tool's help command ran successfully.
+- Default local onboarding registration still contains exactly five steps and does not register a Google credential provider. This was verified in the adapter test; no fresh full Docker/bootstrap/onboarding run was performed in this phase.
+- Source filename guard passed for 12,815 files. Asset/license inventory passed with 144 licensing inputs. The changed-source Gitleaks scan found no leaks; whitespace checks passed.
+- CI now includes the Google contract tests and management tool build; the updated remote workflow has not been run. No live Google project, real FCM device delivery, signed mobile upload, Crashlytics report or public deployment was verified. [Google setup and remaining gates](GOOGLE_FIREBASE.md).
+
+## Tenant notification runtime and live consent (2026-10-16)
+
+- Commerce and the actual tenant-admin send action now use the shared tenant sender. Fourteen notification tests passed, including independent tenant scopes, verified HTTP routing instead of an ambient tenant, missing/foreign config denial, per-token failures, private local captures, permission revocation, batching and safe errors. Eighteen Google provisioning/transport contracts also passed against the updated transport. No live Google credentials were loaded by these contract tests.
+- A fresh real HTTP/OIDC run created two new businesses and passed **82 checks**: onboarding, actual storefront/admin notification sending, canonical tenant captures, opt-out, rejection of private credential uploads, owner/tenant isolation, mobile catalog tokens and Mongo database isolation. The original **25 demo smoke checks passed** afterwards. Test data remains in ignored local storage.
+- The live probe exposed a null fallback binder on the storefront login page. MVC now continues to its normal providers when that binder does not handle the parameter type. Four production-source binding tests passed; actual tenant login forms loaded during the final notification smoke. This does not establish every customer login/checkout flow.
+- Updated commerce, admin, installer and worker components published successfully. Existing compiler/dependency warnings remain. Flutter analysis of the changed FCM service found no errors, with two existing warnings and two existing info messages. No Firebase-enabled emulator/device or signed mobile release was run.
+- Private credential fields were removed from notification settings; new submissions are rejected, existing legacy values are preserved, and settings no longer rewrite a shared browser service-worker file. Automatic browser push and the legacy Redis FCM cache-invalidation consumer remain outside the completed notification path.
+- Source filename guard, asset/license inventory (147 inputs), changed-source Gitleaks (no leaks) and whitespace checks passed. Updated remote CI, real FCM/APNs delivery, automatic signed builds/Crashlytics and portable production deployment still require verification; see [NOTIFICATIONS.md](NOTIFICATIONS.md) and [PROVISIONING.md](PROVISIONING.md).
+
+## Portable SaaS card and file providers (2026-10-16)
+
+- Ten production-source tests passed for card envelopes without CVV, tenant ownership, tamper/master-key rejection, private filesystem safety and atomic writes, handler access checks, and Azure SDK CRUD through a test HTTP transport. No existing encryption engine, ciphertext or key was migrated.
+- SaaS Web Release build passed with inherited compiler warnings. The provider tests are included in CI using the SaaS .NET 9 SDK selection.
+- Live file HTTP flows, payments, legacy card decryption, real Azure resources, complete production startup and the updated remote CI have not been verified for this change. [Provider selection and compatibility limits](SAAS_PROVIDERS.md).
+
+## Commit preparation verification (2026-10-16)
+
+- Re-ran 57 tests: Google contracts 18, notification routing/consent 14, model binding 4, portable SaaS providers 10, registration security 6 and encryption 5. All passed. SaaS Web and the Firebase management tool built successfully; SaaS retained compiler warnings.
+- The staged changed-source Gitleaks scan found no leaks. The tracked-source filename guard passed for 12,836 paths; the asset/license inventory passed with 148 inputs. Whitespace checks passed. No Docker services or cloud resources were started for these commit checks; remote CI was not run.

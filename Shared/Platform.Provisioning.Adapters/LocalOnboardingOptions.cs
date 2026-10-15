@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Platform.Provisioning;
+using Platform.Google;
 
 namespace Platform.Provisioning.Adapters;
 
@@ -60,8 +61,10 @@ public static class LocalOnboarding
         var options = config.GetSection("Provisioning:Local").Get<LocalOnboardingOptions>()
             ?? throw new InvalidOperationException("Configure Provisioning:Local.");
         options.Validate(environment, config);
-        if (config["Provisioning:Google:Provider"] != "Disabled")
-            throw new InvalidOperationException("Local onboarding requires an explicit Disabled Google provider until cloud credentials are configured through a cloud profile.");
+        var google = config["Provisioning:Google:Provider"];
+        if (google is not ("Disabled" or "Google"))
+            throw new InvalidOperationException("Choose an explicit Disabled or Google provisioning provider.");
+        if (google == "Google") services.AddGoogleCloud(config);
         services.AddSingleton(options);
         services.AddHttpClient("onboarding-keycloak", client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
@@ -69,6 +72,7 @@ public static class LocalOnboarding
         services.AddScoped<IProvisioningStep, MongoDatabaseStep>();
         services.AddScoped<IProvisioningStep, StoreInstallerStep>();
         services.AddScoped<IProvisioningStep, KeycloakTenantStep>();
+        if (google == "Google") services.AddScoped<IProvisioningStep, GoogleTenantStep>();
         services.AddScoped<IProvisioningStep, LocalTenantPublicationStep>();
         return services;
     }

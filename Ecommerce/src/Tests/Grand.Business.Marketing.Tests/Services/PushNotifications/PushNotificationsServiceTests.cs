@@ -4,10 +4,13 @@ using Grand.Data;
 using Grand.Data.Tests.MongoDb;
 using Grand.Domain.PushNotifications;
 using MediatR;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Moq.Protected;
+using Grand.Infrastructure.MultiTenant;
+using Platform.Notifications;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
@@ -32,22 +35,12 @@ public class PushNotificationsServiceTests
         _mediatorMock = new Mock<IMediator>();
         _loggerMock = new Mock<ILogger<PushNotificationsService>>();
 
-        var mockMessageHandler = new Mock<HttpMessageHandler>();
-
-        var output = JsonSerializer.Serialize(new JsonResponse { success = 1, failure = 0, canonical_ids = 1 });
-
-        mockMessageHandler.Protected()
-            .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage {
-                StatusCode = HttpStatusCode.OK,
-                Content = new StringContent(output)
-            });
-        var httpClient = new HttpClient(mockMessageHandler.Object);
-
+        var sender = new Mock<ITenantPushSender>();
+        sender.Setup(s => s.SendAsync(It.IsAny<string>(),It.IsAny<IReadOnlyList<string>>(),It.IsAny<TenantPushMessage>(),It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TenantPushReceipt(1,1,"LocalSink"));
+        var tenant = new Mock<ITenantIdentityAccessor>(); tenant.SetupGet(t => t.TenantId).Returns("test-store");
         _pushNotificationsService = new PushNotificationsService(_repositoryPushRegistration, _repositoryPushMessage,
-            _mediatorMock.Object, new PushNotificationsSettings(),
-            _loggerMock.Object, httpClient);
+            _mediatorMock.Object, _loggerMock.Object, sender.Object, tenant.Object, new HttpContextAccessor());
     }
 
     [TestMethod]
@@ -188,9 +181,9 @@ public class PushNotificationsServiceTests
     public async Task SendPushNotificationTest()
     {
         //Arrange
-        await _repositoryPushRegistration.InsertAsync(new PushRegistration { Allowed = true });
-        await _repositoryPushRegistration.InsertAsync(new PushRegistration { Allowed = true });
-        await _repositoryPushRegistration.InsertAsync(new PushRegistration { Allowed = true });
+        await _repositoryPushRegistration.InsertAsync(new PushRegistration { Allowed = true, Token = "test-device" });
+        await _repositoryPushRegistration.InsertAsync(new PushRegistration { Allowed = true, Token = "test-device" });
+        await _repositoryPushRegistration.InsertAsync(new PushRegistration { Allowed = true, Token = "test-device" });
         //Act
         var result = await _pushNotificationsService.SendPushNotification("my title", "sample text", "", "");
         //Assert

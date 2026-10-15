@@ -748,9 +748,9 @@ public class SettingController(
         var settings = settingService.LoadSetting<PushNotificationsSettings>(storeScope);
         var model = settings.ToModel();
         
-        // Set ServiceAccountJson from settings
-        model.ServiceAccountJson = settings.ServiceAccountJson;
-        model.UseHttpV1Api = settings.UseHttpV1Api;
+        // Server credentials belong to deployment identity, never to browser settings models.
+        model.ServiceAccountJson = null;
+        model.PrivateApiKey = null;
 
         return View(model);
     }
@@ -761,33 +761,23 @@ public class SettingController(
         var storeScope = await GetActiveStore();
         var settings = settingService.LoadSetting<PushNotificationsSettings>(storeScope);
         
-        // Process service account file if uploaded
-        if (model.ServiceAccountFile != null && model.ServiceAccountFile.Length > 0)
-        {
-            using var streamReader = new StreamReader(model.ServiceAccountFile.OpenReadStream());
-            model.ServiceAccountJson = await streamReader.ReadToEndAsync();
-        }
-        
-        // Keep the existing service account JSON if not changed
-        if (string.IsNullOrEmpty(model.ServiceAccountJson) && model.ServiceAccountFile == null)
-        {
-            model.ServiceAccountJson = settings.ServiceAccountJson;
-        }
-        
-        // Map model to settings
+        if ((model.ServiceAccountFile?.Length ?? 0) > 0 || !string.IsNullOrWhiteSpace(model.ServiceAccountJson) || !string.IsNullOrWhiteSpace(model.PrivateApiKey))
+            return BadRequest("Private notification credentials must be configured on the server.");
+        // Preserve existing legacy material verbatim; adopting ADC performs no credential migration.
+        var legacyJson = settings.ServiceAccountJson;
+        var legacyKey = settings.PrivateApiKey;
+        var legacyMode = settings.UseHttpV1Api;
         settings = model.ToEntity(settings);
-        
-        // Ensure the service account JSON is transferred
-        settings.ServiceAccountJson = model.ServiceAccountJson;
-        settings.UseHttpV1Api = model.UseHttpV1Api;
+        settings.ServiceAccountJson = legacyJson;
+        settings.PrivateApiKey = legacyKey;
+        settings.UseHttpV1Api = legacyMode;
 
         await settingService.SaveSetting(settings);
 
         //now clear cache
         await ClearCache();
 
-        //save to file
-        SavePushNotificationsToFile(model);
+        // Public browser configuration is tenant-scoped; never rewrite a shared service-worker file here.
 
         Success(translationService.GetResource("Admin.Configuration.Updated"));
         return await PushNotifications();

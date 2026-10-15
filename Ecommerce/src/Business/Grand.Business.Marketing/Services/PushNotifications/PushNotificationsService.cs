@@ -1,52 +1,46 @@
-using FirebaseAdmin.Messaging;
 using Grand.Business.Core.Interfaces.Marketing.PushNotifications;
-using Grand.Business.Marketing.Utilities;
 using Grand.Data;
 using Grand.Domain;
 using Grand.Domain.PushNotifications;
 using Grand.Infrastructure.Extensions;
 using MediatR;
+using Microsoft.AspNetCore.Http;
+using Grand.Infrastructure.MultiTenant;
+using Platform.Notifications;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
-using Action = FirebaseAdmin.Messaging.Action;
-using Message = FirebaseAdmin.Messaging.Message;
 
 namespace Grand.Business.Marketing.Services.PushNotifications;
 
 public class PushNotificationsService : IPushNotificationsService
 {
-    private const string FcmUrl = "https://fcm.googleapis.com/v1/projects/{0}/messages:send";
-    private readonly HttpClient _httpClient;
     private readonly ILogger<PushNotificationsService> _logger;
     private readonly IMediator _mediator;
     private readonly IRepository<PushMessage> _pushMessagesRepository;
-    private readonly PushNotificationsSettings _pushNotificationsSettings;
     private readonly IRepository<PushRegistration> _pushRegistrationRepository;
-    private readonly FirebaseService _firebaseService;
+    private readonly ITenantPushSender _sender;
+    private readonly ITenantIdentityAccessor _tenant;
+    private readonly IHttpContextAccessor _context;
 
     public PushNotificationsService(
         IRepository<PushRegistration> pushRegistrationRepository,
         IRepository<PushMessage> pushMessagesRepository,
         IMediator mediator,
-        PushNotificationsSettings pushNotificationsSettings,
         ILogger<PushNotificationsService> logger,
-        HttpClient httpClient,
-        FirebaseService firebaseService)
+        ITenantPushSender sender,
+        ITenantIdentityAccessor tenant,
+        IHttpContextAccessor context)
     {
         _pushRegistrationRepository = pushRegistrationRepository;
         _pushMessagesRepository = pushMessagesRepository;
         _mediator = mediator;
-        _pushNotificationsSettings = pushNotificationsSettings;
         _logger = logger;
-        _httpClient = httpClient;
-        _firebaseService = firebaseService;
+        _sender = sender;
+        _tenant = tenant;
+        _context = context;
     }
 
     /// <summary>
@@ -154,148 +148,33 @@ public class PushNotificationsService : IPushNotificationsService
     public virtual async Task<(bool, string)> SendPushNotification(string title, string text, string pictureUrl,
         string clickUrl, List<string> registrationIds = null)
     {
-        var tokens = new List<string>();
-
-        if (registrationIds != null && registrationIds.Any())
-        {
-            tokens = registrationIds;
-        }
-        else
-        {
-            var receivers = await GetPushReceivers();
-            if (!receivers.Any()) return (false, "Admin.PushNotifications.Error.NoReceivers");
-
-            const int batchSize = 1000;
-            for (var batch = 0;
-                 batch <= Math.Round((double)(receivers.Count / batchSize), 0, MidpointRounding.ToEven);
-                 batch++)
-            {
-                var t = receivers.Skip(batch * batchSize).Take(batchSize);
-                foreach (var receiver in receivers.Where(receiver => !tokens.Contains(receiver.Token)))
-                    tokens.Add(receiver.Token);
-            }
-        }
-
+        var tenant = _context.HttpContext is { } http ? http.GetTenantId() : _tenant.TenantId;
+        if (string.IsNullOrWhiteSpace(tenant))
+            return (false, "Admin.PushNotifications.Error.MissingTenant");
+        var tokens = registrationIds?.Where(t => !string.IsNullOrWhiteSpace(t) && t != "[DENIED]").Distinct().ToList();
+        if (tokens == null)
+            tokens = (await GetPushReceivers()).Where(r => r.Allowed && !string.IsNullOrWhiteSpace(r.Token) && r.Token != "[DENIED]")
+                .Select(r => r.Token).Distinct().ToList();
+        if (tokens.Count == 0) return (false, "Admin.PushNotifications.Error.NoReceivers");
         var successCount = 0;
-
         try
         {
-            if (_pushNotificationsSettings.UseHttpV1Api &&
-                !string.IsNullOrEmpty(_pushNotificationsSettings.ServiceAccountJson))
+            foreach (var batch in tokens.Chunk(500))
             {
-                // Get Firebase access token using service account
-                var accessToken = await _firebaseService.GetAccessTokenAsync();
-
-                if (string.IsNullOrEmpty(accessToken))
-                {
-                    _logger.LogError("Failed to obtain Firebase access token");
-                    return (false, "Admin.PushNotifications.Error.FailedToObtainToken");
-                }
-
-                var multicastMessage = new MulticastMessage {
-                        Tokens = tokens,
-                        Data = new Dictionary<string, string>() {
-                            {"action_link",clickUrl}
-                        },
-                        Notification = new Notification() {
-                            Title = title,
-                            Body = text,
-                        },
-                        Android = new AndroidConfig() {
-                            Notification = new AndroidNotification() {
-                                Body = text,
-                                Title = title,
-                                DefaultSound = true,
-                                ChannelId = "high_importance_channel",
-                            }
-                        },
-                    Apns = new ApnsConfig {
-                        Headers = new Dictionary<string, string>() {
-                            { "apns-priority", "10" }
-                        },
-                        Aps = new Aps {
-                            Alert = new ApsAlert {
-                                Title = title,
-                                Body = text,
-                            },
-                            Sound = "default",
-                            MutableContent = true,
-                            ContentAvailable = true,
-                        },
-                    }
-                };
-
-                successCount= await _firebaseService.SendMultiCastMessageAsync(multicastMessage);
+                var receipt = await _sender.SendAsync(tenant, batch,
+                    new TenantPushMessage(title, text, pictureUrl, clickUrl));
+                successCount += receipt.Accepted;
             }
-            else
-            {
-                // Use legacy FCM API
-                var data = new {
-                    registration_ids = tokens,
-                    notification = new {
-                        body = text,
-                        title,
-                        icon = pictureUrl,
-                        click_action = clickUrl
-                    },
-                    apns = new {
-                        payload = new {
-                            aps = new {
-                                alert = new {
-                                    title = title,
-                                    body = text
-                                },
-                                sound = "default",
-                                badge = 1,
-                                mutable_content = true,
-                                category = "NEW_MESSAGE_CATEGORY"
-                            },
-                            url = clickUrl
-                        },
-                        fcm_options = new {
-                            image = pictureUrl
-                        }
-                    }
-                };
-
-                var json = JsonSerializer.Serialize(data);
-
-                using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://fcm.googleapis.com/fcm/send");
-                httpRequest.Headers.Add("Authorization", $"key={_pushNotificationsSettings.PrivateApiKey}");
-                httpRequest.Headers.Add("Sender", $"id={_pushNotificationsSettings.SenderId}");
-                httpRequest.Content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                using var response = await _httpClient.SendAsync(httpRequest);
-                var responseString = await response.Content.ReadAsStringAsync();
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogError("Error occured while sending push notification {ResponseString}", responseString);
-                    return (false, responseString);
-                }
-
-                var responseMessage = JsonSerializer.Deserialize<JsonResponse>(responseString);
-                if (responseMessage == null) return (false, "PushNotifications.ResponseMessage.Empty");
-                successCount = responseMessage.success;
-            }
-
-            if (successCount == 0)
-            {
-                return (false, "Admin.PushNotifications.Error.NoSuccessfulDeliveries");
-            }
-
+            if (successCount == 0) return (false, "Admin.PushNotifications.Error.NoSuccessfulDeliveries");
             await InsertPushMessage(new PushMessage {
-                NumberOfReceivers = successCount,
-                SentOn = DateTime.UtcNow,
-                Text = text,
-                Title = title
+                NumberOfReceivers = successCount, SentOn = DateTime.UtcNow, Text = text, Title = title
             });
-
             return (true, "Admin.PushNotifications.MessageSent");
         }
-        catch (Exception ex)
+        catch (Exception error)
         {
-            _logger.LogError(ex, "Exception when sending push notifications");
-            return (false, ex.Message);
+            _logger.LogWarning("Tenant push notification failed ({ErrorType}).", error.GetType().Name);
+            return (false, "Admin.PushNotifications.Error.SendFailed");
         }
     }
 
@@ -312,7 +191,7 @@ public class PushNotificationsService : IPushNotificationsService
         string customerId, string clickUrl)
     {
         var receiver = await GetPushReceiverByCustomerId(customerId);
-        if (receiver == null)
+        if (receiver == null || !receiver.Allowed || string.IsNullOrWhiteSpace(receiver.Token) || receiver.Token == "[DENIED]")
             return (false, "Admin.PushNotifications.Error.CustomerNotFound");
 
         return await SendPushNotification(title, text, pictureUrl, clickUrl,

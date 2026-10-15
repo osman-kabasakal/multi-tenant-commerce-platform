@@ -17596,4 +17596,10 @@
 	<Resource Name="Wishlist.YourWishlistURL" Area="Front">
 		<Value>Your wishlist URL for sharing</Value>
 	</Resource>
+	<Resource Name="Admin.PushNotifications.Error.MissingTenant" Area="Admin"><Value>The store could not be identified. Sign in to your store and try again.</Value></Resource>
+	<Resource Name="Admin.PushNotifications.Error.NoSuccessfulDeliveries" Area="Admin"><Value>The notification was not accepted for any recipient.</Value></Resource>
+	<Resource Name="Admin.PushNotifications.Error.SendFailed" Area="Admin"><Value>The notification could not be sent. Check the notification configuration and try again.</Value></Resource>
+	<Resource Name="Admin.Settings.PushNotifications.ServerIdentityInfo" Area="Admin"><Value>Notification delivery uses the server identity configured for this deployment.</Value></Resource>
+	<Resource Name="Admin.PushNotifications.Error.Disabled" Area="Admin"><Value>Notifications are not enabled for this deployment.</Value></Resource>
+	<Resource Name="Admin.PushNotifications.Error.MessageRequired" Area="Admin"><Value>Enter a notification message.</Value></Resource>
 </Language>

@@ -15,9 +15,11 @@ public class ComplexTypeModelBinderProvider(IModelBinderProvider overriddenModel
             && context.Metadata.ModelType != typeof(string)
             && context.Metadata.ModelType != typeof(decimal)
             && !context.Metadata.ModelType.IsEnum
-            && context.BindingInfo.BindingSource==null)
+            && context.BindingInfo?.BindingSource==null)
         {
-            return new ComplexTypeModelBinder(overriddenModelBinderProvider.GetBinder(context));
+            var fallback = overriddenModelBinderProvider.GetBinder(context);
+            // Unsupported types (including nullable values) must continue through MVC's normal providers.
+            return fallback == null ? null : new ComplexTypeModelBinder(fallback);
         }
 
         return null;

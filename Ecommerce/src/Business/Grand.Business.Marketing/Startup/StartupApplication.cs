@@ -13,6 +13,7 @@ using Grand.Business.Marketing.Services.Documents;
 using Grand.Business.Marketing.Services.Newsletters;
 using Grand.Business.Marketing.Services.PushNotifications;
 using Grand.Infrastructure;
+using Platform.Notifications;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -27,11 +28,13 @@ public class StartupApplication : IStartupApplication
         RegisterCoursesService(services);
         RegisterDocumentsService(services);
         RegisterCommon(services);
+        services.AddTenantNotifications(configuration);
         RegisterCustomer(services);
     }
 
     public void Configure(IApplicationBuilder application, IWebHostEnvironment webHostEnvironment)
     {
+        application.ApplicationServices.GetRequiredService<NotificationOptions>();
     }
 
     public int Priority => 100;
@@ -53,8 +56,7 @@ public class StartupApplication : IStartupApplication
         serviceCollection.AddScoped<INewsletterCategoryService, NewsletterCategoryService>();
         serviceCollection.AddScoped<ICampaignService, CampaignService>();
 
-        serviceCollection.AddHttpClient<IPushNotificationsService, PushNotificationsService>();
-        serviceCollection.AddScoped<FirebaseService>();
+        serviceCollection.AddScoped<IPushNotificationsService, PushNotificationsService>();
     }
 
     private void RegisterCoursesService(IServiceCollection serviceCollection)
