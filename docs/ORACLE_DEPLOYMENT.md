@@ -55,7 +55,7 @@ Dağıtım `StrictHostKeyChecking=yes` kullanır. Kimliği değişen veya doğru
 
 ## 5. DNS, TLS ve sağlayıcı girdilerini yerleştirin
 
-Sunucunun ilk açılış kurulumu Ubuntu Docker/Compose, Git, Python ve OpenSSL'i hazırlar. SSH kullanıcısı `ubuntu` olmalı. Uygulama girdilerini şu özel dizinde hazırlayın:
+Sunucunun ilk açılış kurulumu Ubuntu Docker/Buildx/Compose, Git, Python ve OpenSSL'i hazırlar. SSH kullanıcısı `ubuntu` olmalı. Uygulama girdilerini şu özel dizinde hazırlayın:
 
 ```text
 /home/ubuntu/commerce-DEPLOYMENT_ID/inputs/deployment.json
@@ -101,7 +101,9 @@ Oracle’ın 8 Ekim 2026 fiyat verisinde E5 işlemci **0,03 USD/OCPU-saat**, RAM
 4. Zamanlayıcı belirtilen UTC saatinde Oracle API'si üzerinden stop ister; geçici hata için saatlik tekrarları bir gün sürdürür. Oracle servisinin başarıyla çalışmasına bağlıdır; kesin parasal limit değildir. [Sadece işletim sistemini kapatmak faturalandırmayı durdurmaz](https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/restartinginstance-stop-instance.htm). [Standard VM'de Oracle stop işlemi işlemci/RAM ölçümünü duraklatır](https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/resource-billing-stopped-instances.htm); saklanan disklerin maliyet/kota kullanımı devam edebilir.
 5. Test daha erken biterse aynı girdi/state ile `python3 scripts/oracle.py stop ...` çalıştırın ve Console'da **STOPPED** durumunu doğrulayın. Bu komut yalnızca açık kredi profilindeki sahip olunan test VM'sini hedefler; veritabanı veya disk silmez. Süresi dolmuş bir testi sessizce yeniden başlatmaz. Süre uzatma/yeni test yeni, açık bir maliyet kararıdır.
 
-Kredi profilinin **29 yerel güvenlik/tekrar deneme testi** ve gerçek sağlayıcı şema kontrolü geçti. Krediyle canlı apply, zamanlayıcının gerçek yürütmesi ve uygulama/Android kabulü kendi sonuçlarıyla ayrıca kaydedilir. Önceki ücretsiz ARM planı, o günkü [kaynak hash’lerine bağlı kayıtta](validation/oracle-plan-20261017.json) korunur; sonradan eklenen kredi seçeneğinin doğrulanması anlamına gelmez.
+Kredi profilinin **30 yerel güvenlik/tekrar deneme testi** ve gerçek sağlayıcı şema kontrolü geçti. Krediyle canlı apply, zamanlayıcının gerçek yürütmesi ve uygulama/Android kabulü kendi sonuçlarıyla ayrıca kaydedilir. Önceki ücretsiz ARM planı, o günkü [kaynak hash’lerine bağlı kayıtta](validation/oracle-plan-20261017.json) korunur; sonradan eklenen kredi seçeneğinin doğrulanması anlamına gelmez.
 
 
 Bir kaynak şablonu güncellemesi gerekiyorsa ve özgün girdiler değişmiyorsa `plan --update-template` kullanın. Araç uzak stack kimliği, eski şablon hash’i, yerel sahiplik kaydı ve tüm özgün değişkenleri karşılaştırır; devam eden bir job varken güncellemez. Önceki şablon/kurulum kaydı özel geçmişte korunur. Belirsiz update cevabında aynı isteği tekrar çağırmak mevcut sonucu doğrular. Bu komut kaynak oluşturmaz; oluşan yeni plan yine ayrıca incelenip uygulanır. Bölge, anahtar, boyut veya durdurma saatini değiştirme yolu değildir.
+
+Kredi testini `stop` ile durdurmak kaynak şablonunun değişmiş olmasından veya test süresinin dolmasından etkilenmez: özgün özel girdiler ve uzak stack sahipliği yine doğrulanır. Durdurmak için yeniden plan/apply veya süre uzatma gerekmez.

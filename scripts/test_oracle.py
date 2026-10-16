@@ -280,6 +280,26 @@ class OracleTests(unittest.TestCase):
         actions = [c for c in calls if c[:3] == ('compute', 'instance', 'action')]
         self.assertEqual(actions, [('compute', 'instance', 'action', '--instance-id', 'ours', '--action', 'SOFTSTOP')])
 
+    def test_cli_stop_survives_template_upgrade_and_expired_deadline_but_refuses_retargeting(self):
+        value = {**self.credit_value(), 'stop_at_utc': '2000-01-01T00:00:00Z'}
+        variables = self.write('credit.json', json.dumps(value))
+        state = self.root / 'state'; state.mkdir(mode=0o700)
+        oracle.save(state / 'installation.json', {'stack': 'owned-stack', 'fingerprint': 'old-source'})
+        oracle.save(state / 'variables.json', value)
+        stack = {'compartment-id': value['compartment_ocid'], 'variables': value,
+                 'freeform-tags': {'commerce-deployment': value['deployment_id']}}
+        with patch.object(oracle, 'Oracle') as client, patch.object(oracle, 'package', side_effect=AssertionError('Stop cannot depend on current template')), patch('sys.stdout', io.StringIO()), patch('sys.argv', [
+                'oracle.py', 'stop', '--variables', str(variables), '--state', str(state)]):
+            client.return_value.call.return_value = stack
+            oracle.main(); client.return_value.stop_credit_instance.assert_called_once()
+            client.return_value.stop_credit_instance.reset_mock()
+            client.return_value.call.return_value = {**stack, 'freeform-tags': {'commerce-deployment': 'foreign'}}
+            with self.assertRaisesRegex(ValueError, 'original owned'): oracle.main()
+            client.return_value.stop_credit_instance.assert_not_called()
+            variables.write_text(json.dumps({**value, 'image_ocid': 'ocid1.image.oc1.eu-frankfurt-1.different'}))
+            with self.assertRaisesRegex(ValueError, 'retarget'): oracle.main()
+            client.return_value.stop_credit_instance.assert_not_called()
+
     def test_free_profile_emergency_stop_cannot_touch_resources(self):
         client = self.client(); client.call = lambda *args: self.fail('must not call OCI')
         with self.assertRaises(ValueError): client.stop_credit_instance()

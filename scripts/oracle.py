@@ -13,7 +13,6 @@ import os
 from pathlib import Path
 import re
 import shlex
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -288,6 +287,17 @@ def main():
     require(state != ROOT and (ROOT not in state.parents or ROOT / '.local' in state.parents), 'Keep private Oracle state outside Git or under ignored .local.')
     with (state / 'operator.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Stopping a known paid test must remain possible after a source/template upgrade.
+        # Bind to the unchanged original inputs and remote stack ownership; no ZIP/image preflight is needed.
+        if args.action == 'stop':
+            saved = json.loads(private_path(state / 'installation.json').read_text())
+            require('stack' in saved and value['compute_profile'] == 'credit-minimal-amd64', 'Stop requires the existing owned credit test installation.')
+            require(json.loads(private_path(state / 'variables.json').read_text()) == value, 'Stop cannot retarget the original test inputs.')
+            oracle = Oracle(args, value, state)
+            actual = oracle.call('resource-manager', 'stack', 'get', '--stack-id', saved['stack'])
+            require(actual['compartment-id'] == value['compartment_ocid'] and actual.get('variables') == value and
+                    actual.get('freeform-tags', {}).get('commerce-deployment') == value['deployment_id'], 'Stop requires the original owned remote stack.')
+            oracle.stop_credit_instance(); print('Owned credit test stop requested; disks and private state retained.'); return
         if (state / 'terraform.zip').is_file():
             archive = state / 'template-history'; archive.mkdir(exist_ok=True, mode=0o700)
             private_path(archive, directory=True)
@@ -309,9 +319,6 @@ def main():
         if args.action == 'package':
             print('Private Resource Manager ZIP and variables prepared; no cloud calls.'); return
         oracle = Oracle(args, value, state); oracle.preflight()
-        if args.action == 'stop':
-            require('stack' in saved and value['compute_profile'] == 'credit-minimal-amd64', 'Stop requires the existing owned credit test installation.')
-            oracle.stop_credit_instance(); print('Owned credit test stop requested; disks and private state retained.'); return
         stack = oracle.stack(template_hash, state / 'terraform.zip', state / 'variables.json')
         saved['stack'] = stack; save(path, saved)
         if args.action == 'plan':
