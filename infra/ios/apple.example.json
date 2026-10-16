@@ -1,0 +1,8 @@
+{
+  "DevelopmentTeam": "",
+  "KeyId": "",
+  "IssuerId": "",
+  "KeyFile": "/absolute/private/app-store-connect.p8",
+  "AllowAppleWrites": false,
+  "RequiredDeviceUdids": []
+}

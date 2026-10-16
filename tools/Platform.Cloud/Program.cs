@@ -4,10 +4,12 @@ using Google.Apis.Auth.OAuth2;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Platform.Google;
+using Platform.Provisioning.Adapters;
 using Platform.Security;
 
 if (args.Length == 0 || args[0] is "--help" or "help")
 {
+    Console.WriteLine("check-apple-access --config <absolute-private-apple-json>");
     Console.WriteLine("check-access --credentials <service-account-file> [--parent organizations/ID|folders/ID]");
     Console.WriteLine("export-mobile --config <file> --tenant <business-guid-N> --output <directory>");
     Console.WriteLine("distribute --config <file> --tenant <business-guid-N> --platform <android|ios> --binary <apk|ipa>");
@@ -16,6 +18,18 @@ if (args.Length == 0 || args[0] is "--help" or "help")
 try
 {
     var command = args[0];
+    if (command == "check-apple-access")
+    {
+        if (args.Length != 3 || args[1] != "--config") throw new ArgumentException();
+        var apple = AppleApiOptions.Read(args[2]);
+        using var http = AppleApiClient.CreateHttpClient();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+        var report = await new AppleAccessVerifier(apple, new AppleApiClient(http, apple, new AppleApiTokens(apple))).CheckAsync(timeout.Token);
+        Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions(JsonSerializerDefaults.Web) {
+            WriteIndented = true, DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        }));
+        return report.ReadAccessVerified ? 0 : 2;
+    }
     if (command == "check-access")
     {
         if (args.Length is not (3 or 5) || args[1] != "--credentials" ||
