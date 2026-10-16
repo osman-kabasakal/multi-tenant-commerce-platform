@@ -25,6 +25,7 @@ import production_config
 from portable_saas_enrollment import enroll, verify, browser, api
 from smoke_onboarding import check
 from fixture_identity_mail import IdentityMail
+import production_backup
 
 ROOT = production.ROOT
 
@@ -83,7 +84,9 @@ def identity_admin_api(deployment, path, value=None):
 
 def main():
     os.umask(0o077)
-    parser = argparse.ArgumentParser(description=__doc__); parser.add_argument('--image', default='commerce-platform:ci'); parser.add_argument('--browser', action='store_true', help='Also exercise real Angular enrollment and preserved browser cookies with Firefox'); args = parser.parse_args()
+    parser = argparse.ArgumentParser(description=__doc__); parser.add_argument('--image', default='commerce-platform:ci'); parser.add_argument('--browser', action='store_true', help='Also exercise real Angular enrollment and preserved browser cookies with Firefox')
+    parser.add_argument('--backup-restore', action='store_true', help='Also cold-snapshot and restore only this disposable installation')
+    args = parser.parse_args()
     if args.browser:
         if not sys.platform.startswith('linux') or not shutil.which('node') or not shutil.which('certutil'):
             raise RuntimeError('Browser acceptance requires Linux, Node.js and libnss3-tools; see docs/VALIDATION.md.')
@@ -237,6 +240,28 @@ def main():
                 tenant_pages(administration, publication, tenant)
                 code, _, body = page(administration, publication['adminUrl'])
                 check(code == 200 and 'logout' in body.lower(), 'The actual tenant administration session survives the full Compose restart')
+            if args.backup_restore:
+                marker = state / 'saas-files/snapshot-fixture.bin'
+                marker_bytes = secrets.token_bytes(64); marker.write_bytes(marker_bytes)
+                snapshot = root / 'data-snapshot'
+                tool = [sys.executable, str(ROOT / 'scripts/production_backup.py')]
+                subprocess.run(tool + ['backup', '--state', str(state), '--backup', str(snapshot)],
+                    stdout=log, stderr=subprocess.STDOUT, env=environment, check=True, timeout=600)
+                production_backup.verify_snapshot(snapshot)
+                check(True, 'The real cold backup verifies its private state and all three stopped database volumes')
+                # This uniquely owned fixture is disposable; real restore always refuses existing data.
+                deployment.run('down', '--volumes', '--remove-orphans')
+                shutil.rmtree(state)
+                subprocess.run(tool + ['restore', '--state', str(state), '--backup', str(snapshot)],
+                    stdout=log, stderr=subprocess.STDOUT, env=environment, check=True, timeout=600)
+                check(master == (state / 'secrets/platform-master-key').read_bytes() and marker.read_bytes() == marker_bytes,
+                    'Restore preserves the original shared encryption key and exact private file bytes')
+                subprocess.run(up, stdout=log, stderr=subprocess.STDOUT, env=environment, check=True, timeout=600)
+                verify(portal, sessions)
+                for administration, publication, tenant in tenant_sessions:
+                    tenant_pages(administration, publication, tenant)
+                    code, _, body = page(administration, publication['adminUrl'])
+                    check(code == 200 and 'logout' in body.lower(), 'The actual tenant administration session survives cold database and private-state restoration')
             if args.browser:
                 production_config.write_json(root / 'browser-resume.json', {'ready': True})
                 if browser_process.wait(timeout=240) != 0:

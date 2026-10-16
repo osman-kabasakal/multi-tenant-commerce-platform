@@ -71,6 +71,11 @@ async function main() {
   page = await context.newPage();
   page.setDefaultTimeout(30000);
   page.setDefaultNavigationTimeout(30000);
+  let loginRequests = 0;
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (url.origin === config.portal && url.pathname.toLowerCase() === '/api/auth/login') loginRequests++;
+  });
   page.on('response', response => {
     if (response.request().isNavigationRequest() || response.status() >= 400) {
       try { responses.push({url: location(response.url()), status: response.status()}); if (responses.length > 30) responses.shift(); } catch { /* No raw URLs. */ }
@@ -172,6 +177,7 @@ async function main() {
   await page.reload({waitUntil: 'domcontentloaded'});
   await ready(result);
   check(true, 'Refreshing the actual Angular page resumes the same completed tenant without another enrollment');
+  const loginsBeforeRestart = loginRequests;
   privateJson(config.result, result);
   stage = 'wait for Compose restart';
   const deadline = Date.now() + 900000;
@@ -182,7 +188,8 @@ async function main() {
   stage = 'browser session after Compose restart';
   await page.reload({waitUntil: 'domcontentloaded'});
   await ready(result);
-  check(new URL(page.url()).origin === config.portal, 'The real browser owner session survives the full Compose restart without another login');
+  check(new URL(page.url()).origin === config.portal && loginRequests === loginsBeforeRestart,
+    'The real browser owner session survives the full Compose restart without another login');
   await page.screenshot({path: path.join(config.screenshots, 'after-restart.png'), mask: [page.locator('input, textarea')]});
 }
 
