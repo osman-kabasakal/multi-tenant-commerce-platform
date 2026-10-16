@@ -212,6 +212,33 @@ class IosReleaseTests(unittest.TestCase):
                 release.upload_symbols(self.root, binary, result, settings, None)
             uploader.assert_not_called()
 
+    def test_distribution_target_must_match_the_authoritative_tenant_export_before_writes(self):
+        sdk = {"PROJECT_ID": "fixture-project", "API_KEY": "synthetic-public-key"}
+        client = {"tenantId": "1" * 32, "projectId": "fixture-project", "projectNumber": "123456789", "iosAppId": "1:123456789:ios:bbbbbbbb", "iosBundleId": "dev.commerce.fixture"}
+        tenant = dict(client, iosSdkSha256=hashlib.sha256(plistlib.dumps(sdk, sort_keys=True)).hexdigest())
+        config = self.root / "cloud.json"; config.write_text("{}"); config.chmod(0o600)
+        exported_client, exported_sdk = dict(client), dict(sdk)
+        def export(command, *unused):
+            self.assertIn("export-mobile", command)
+            self.assertNotIn("distribute", command)
+            self.assertEqual(command[command.index("--tenant") + 1], tenant["tenantId"])
+            output = Path(command[command.index("--output") + 1])
+            release.common.private_json(output / "firebase-client.json", exported_client)
+            path = output / "GoogleService-Info.plist"; path.write_bytes(plistlib.dumps(exported_sdk)); path.chmod(0o600)
+        with patch.object(release.common, "run_private", side_effect=export):
+            good = self.root / "good"; good.mkdir()
+            release.verify_distribution_target(good, tenant, config, None)
+            for name in client:
+                work = self.root / name; work.mkdir()
+                exported_client[name] = "foreign"
+                with self.subTest(field=name), self.assertRaisesRegex(ValueError, "stored Firebase identity"):
+                    release.verify_distribution_target(work, tenant, config, None)
+                exported_client[name] = client[name]
+            work = self.root / "wrong-sdk"; work.mkdir()
+            exported_sdk["API_KEY"] = "changed-public-key"
+            with self.assertRaisesRegex(ValueError, "stored Firebase configuration"):
+                release.verify_distribution_target(work, tenant, config, None)
+
     def test_symbol_upload_cannot_run_without_permission_or_after_artifact_mutation(self):
         binary = self.root / "Runner.ipa"; binary.write_bytes(b"verified-synthetic")
         result = {"symbolsVerified": True, "xcodeExported": True, "ipaSha256": release.common.file_hash(binary)}

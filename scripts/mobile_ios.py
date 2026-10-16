@@ -197,6 +197,9 @@ def main():
         if args.build_ipa:
             with private_log(workspace / "ios-release.log") as log:
                 binary, result, settings = release.build(workspace, tenant, args.signing_config, args.ruby, args.flutter, log, compile_unsigned, verify_compiled_app)
+                if args.distribute_config:
+                    release.verify_distribution_target(workspace, tenant, args.distribute_config, log)
+                    result["distributionTargetVerified"] = True
                 if args.upload_symbols:
                     release.upload_symbols(workspace, binary, result, settings, log)
                 if args.distribute_config:

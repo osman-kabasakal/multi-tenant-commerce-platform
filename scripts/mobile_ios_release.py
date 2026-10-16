@@ -284,6 +284,21 @@ def build(workspace, tenant, signing_file, ruby, flutter, log, compile_native, v
     return binaries[0], result, settings
 
 
+def verify_distribution_target(workspace, tenant, config, log):
+    config = Path(config).absolute()
+    preflight.read_json(config, private=True)
+    directory = workspace / "ios-distribution-target"; directory.mkdir(mode=0o700)
+    # Re-read the selected tenant's authoritative encrypted configuration before any Firebase write.
+    common.run_private(["dotnet", "run", "--project", str(common.ROOT / "tools/Platform.Cloud"), "-c", "Release", "--", "export-mobile",
+                        "--config", str(config), "--tenant", tenant["tenantId"], "--output", str(directory)], common.ROOT, os.environ.copy(), log, 1800)
+    client = common.read_json(directory / "firebase-client.json")
+    if any(client.get(name) != tenant[name] for name in ["tenantId", "projectId", "projectNumber", "iosAppId", "iosBundleId"]):
+        raise ValueError("The verified iOS build differs from the tenant's stored Firebase identity.")
+    sdk = plistlib.loads(read_bytes((directory / "GoogleService-Info.plist").absolute(), private=True))
+    if hashlib.sha256(plistlib.dumps(sdk, sort_keys=True)).hexdigest() != tenant["iosSdkSha256"]:
+        raise ValueError("The verified iOS SDK differs from the tenant's stored Firebase configuration.")
+
+
 def upload_symbols(workspace, binary, result, settings, log):
     if settings.get("AllowFirebaseWrites") is not True or not result.get("symbolsVerified") or not result.get("xcodeExported") or common.file_hash(Path(binary)) != result.get("ipaSha256"):
         raise ValueError("Symbol upload requires explicit Firebase writes and the unchanged verified Xcode export.")
