@@ -37,3 +37,29 @@ Each application runs from its own `/app/<role>` directory with Production selec
 The dedicated [Production image workflow](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/workflows/production-image.yml) builds every actual server project and the Angular frontend from the exact commit on clean Ubuntu. It then executes the real runtime offline as non-root, checks both shared frameworks and required artifacts, runs the bootstrap entrypoint, and initializes/replays fresh isolated PostgreSQL schemas with a nonsuperuser owner and private key/config mounts. A different key must fail an independent verification container. Synthetic probe resources are removed. Exact source commit `c67735245e0af2fe38494ff9abec01db52d395b0` passed all of these actual image/container checks in [Ubuntu CI run 38863657306](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/runs/38863657306). This proves the server package and isolated database initialization, with the complete Compose rollout still pending.
 
 The next deployment gate is a complete Compose installation that prepares infrastructure and private configuration, uses least-privilege runtime accounts, starts empty shared hosts, exposes only the intended HTTPS ingress, and provisions actual new businesses. Public DNS/certificates, live Google/Firebase/App Distribution and device delivery require their explicit operator configuration and separate verification.
+
+
+## Complete Compose entry point (awaiting fresh Linux rollout verification)
+
+The new `scripts/production.py` generates a private Compose definition, per-component settings, stable credentials and the master key. It starts PostgreSQL/MongoDB/Redis, creates separate schema-owner/SaaS/worker/reader/identity accounts, runs the existing owner bootstrap, grants runtime row privileges, and starts optimized PostgreSQL-backed Keycloak plus the actual application containers and Caddy HTTPS ingress. Only HTTP/HTTPS ingress ports are published. Backend proxy trust uses the explicit gateway/edge IPs in the dedicated Docker network. This complete path is under integration verification; the earlier successful image CI alone does not prove it.
+
+Before startup, configure DNS for the portal/identity names and both tenant wildcard parents. Supply an existing valid certificate/full chain and matching private key covering all four targets. Choose an unused private Docker /24 subnet. Copy the example to ignored private configuration and edit its values; confirm wildcard DNS only after creating it:
+
+```sh
+mkdir -p .local
+cp infra/production/deployment.example.json .local/production-input.json
+# Edit the private input: domains, TLS files, trial plan, network and explicit providers.
+python3 scripts/production.py up --config .local/production-input.json --state .local/production
+python3 scripts/production.py verify --state .local/production
+python3 scripts/production.py stop --state .local/production
+```
+
+Run startup as a non-root Linux account with Docker access. The command builds the committed server image and optimized Keycloak image when missing; no host Node/.NET SDK is required. `prepare` can validate/render settings without starting infrastructure. Repeated preparation preserves the installation record, master key and passwords. Existing Docker data/network without the matching installation id is refused. Missing original application databases/roles or changed deployment targets require explicit repair/backup restoration rather than silent reinitialization. Restart reuses the same owned data and forces application containers to reload their private settings. `stop` retains all data, keys and volumes.
+
+The private state contains plaintext operator credentials and the common master key; keep the directory 0700, files 0600 and an access-controlled backup of both state and databases. Never commit it or remove it while keeping the database volumes. A verified consistent backup/restore runbook is still a separate deployment gate.
+
+The default enables the configured zero-amount trial and creates no example stores, accounts or products. Keycloak public registration is disabled until the operator configures identity email delivery. Optional private input `Identity:RegistrationAllowed=true` requires `Identity:Smtp` in Keycloak's realm SMTP format; email verification remains enabled. Alternatively use the private identity administration API from the deployment operator host to manage verified accounts. Public identity routing excludes the master realm and administration console; the tenant provisioner can reach the target realm's administration API only from the owned Docker subnet. Account/self-registration browser verification and live email delivery remain separate checks.
+
+`Providers:Google`, `Providers:Domains`, `Providers:ReadinessEmail` and `Providers:Notifications` are passed to the existing explicitly selected adapters. An optional private `GoogleCredentialsFile` is mounted only in the worker/tenant runtime containers, never baked into the image. Disabled providers do not claim a successful cloud deployment. This baseline image does not include an Android toolchain, so the separately configured automatic mobile build host remains required; the complete Compose/Android worker packaging is not claimed here. Azure provider selection remains supported through the shared interfaces and standalone portable configuration, while this initial generated Compose profile uses AesGcm.
+
+The fresh Linux probe runs `production.py up` against new owned resources, enrolls two real OIDC owners through SaaS, waits for actual tenant readiness, repeats startup and checks preserved SaaS sessions/key/runtime privileges. Synthetic DNS is supplied through an isolated CONNECT fixture, with a private CA and strict end-to-end HTTPS; it does not change the hosts file or global trust. No real DNS/Google/SMTP account is used.

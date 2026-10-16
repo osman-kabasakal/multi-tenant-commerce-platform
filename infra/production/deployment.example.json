@@ -1,0 +1,31 @@
+{
+  "DeploymentId": "commerce-production",
+  "PortalHost": "portal.example.com",
+  "IdentityHost": "identity.example.com",
+  "StoreParentDomain": "shops.example.com",
+  "AdminParentDomain": "manage.example.com",
+  "NetworkSubnet": "172.30.80.0/24",
+  "HttpPort": 80,
+  "HttpsPort": 443,
+  "Tls": {
+    "CertificateFile": "/absolute/private/fullchain.pem",
+    "PrivateKeyFile": "/absolute/private/privkey.pem"
+  },
+  "TrialPlan": {
+    "Id": "11111111-1111-1111-1111-111111111111",
+    "Name": "Starter trial",
+    "Code": "STARTER_TRIAL",
+    "Price": 299,
+    "TrialDays": 14,
+    "MaxProducts": 100,
+    "MaxUsers": 3,
+    "MaxMonthlyOrders": 1000,
+    "Features": ["Catalog", "Tenant notifications"]
+  },
+  "Providers": {
+    "Domains": {"Provider": "Wildcard", "WildcardConfigured": false},
+    "Google": {"Provider": "Disabled"},
+    "ReadinessEmail": {"Provider": "Disabled"},
+    "Notifications": {"Provider": "Disabled"}
+  }
+}
