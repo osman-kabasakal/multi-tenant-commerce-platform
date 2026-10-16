@@ -1,0 +1,9 @@
+{
+  "AllowSigning": false,
+  "AllowFirebaseWrites": false,
+  "DevelopmentTeam": "",
+  "SigningCertificateSha1": "",
+  "ApplicationProfile": "/absolute/private/application.mobileprovision",
+  "ExtensionProfile": "/absolute/private/notification-extension.mobileprovision",
+  "RequiredDeviceUdids": []
+}

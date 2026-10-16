@@ -1,5 +1,6 @@
 """Prepare a tenant-owned Xcode workspace; optionally compile an unsigned device app on a Mac."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -13,9 +14,10 @@ import uuid
 
 import mobile_android as common
 import mobile_ios_preflight as preflight
+import mobile_ios_release as release
 
 ROOT = Path(__file__).resolve().parents[1]
-TOOLS = ("scripts/mobile_ios.py", "scripts/mobile_ios_project.rb", "scripts/mobile_ios_preflight.py")
+TOOLS = ("scripts/mobile_ios.py", "scripts/mobile_ios_project.rb", "scripts/mobile_ios_preflight.py", "scripts/mobile_ios_release.py", "scripts/mobile_ios_signing.rb")
 
 
 def read_plist(path):
@@ -86,6 +88,7 @@ def prepare(manifest_path, firebase_directory, workspace, team, build_number=1, 
     if not match:
         raise ValueError("Tracked pubspec must declare a supported iOS version.")
     tenant["buildName"] = match.group(1)
+    tenant["iosSdkSha256"] = hashlib.sha256(plistlib.dumps(ios, sort_keys=True)).hexdigest()
     native = app / "ios"
     sdk = native / "Runner/GoogleService-Info.plist"
     sdk.write_bytes(plistlib.dumps(ios)); sdk.chmod(0o600)
@@ -115,6 +118,8 @@ def verify_compiled_app(binary, tenant):
                 "GOOGLE_APP_ID": tenant["iosAppId"], "BUNDLE_ID": tenant["iosBundleId"]}
     if any(ios.get(key) != value for key, value in expected.items()):
         raise ValueError("Compiled Firebase configuration differs from this tenant build.")
+    if hashlib.sha256(plistlib.dumps(ios, sort_keys=True)).hexdigest() != tenant.get("iosSdkSha256"):
+        raise ValueError("Compiled Firebase SDK content differs from the owned export.")
     extension = binary / "PlugIns/NotificationServiceExtension.appex"
     extension_info = read_plist(extension / "Info.plist")
     if extension.is_symlink() or extension_info.get("CFBundleIdentifier") != tenant["extensionBundleId"] or extension_info.get("CFBundleVersion") != str(tenant["buildNumber"]) or extension_info.get("CFBundleShortVersionString") != tenant["buildName"]:
@@ -122,12 +127,17 @@ def verify_compiled_app(binary, tenant):
     point = extension_info.get("NSExtension", {})
     if point.get("NSExtensionPointIdentifier") != "com.apple.usernotifications.service" or point.get("NSExtensionPrincipalClass") != "NotificationServiceExtension.NotificationService":
         raise ValueError("The compiled notification service entry point was not verified.")
+    if info.get("CFBundleSupportedPlatforms") != ["iPhoneOS"]:
+        raise ValueError("Expected an iPhone device application, not a Simulator bundle.")
     executable = binary / "Runner"
     if executable.is_symlink() or not executable.is_file() or not (binary / "Frameworks/App.framework/App").is_file():
         raise ValueError("The compiled native executable or Flutter release framework is missing.")
     architectures = subprocess.check_output(["/usr/bin/lipo", "-archs", str(executable)], text=True).strip().split()
     if architectures != ["arm64"]:
         raise ValueError("Expected an ARM64 device build.")
+    build = subprocess.check_output(["/usr/bin/xcrun", "vtool", "-show-build", str(executable)], text=True)
+    if len(re.findall(r"^\s*platform IOS\s*$", build, re.MULTILINE)) != 1:
+        raise ValueError("The compiled ARM64 executable does not target iOS devices.")
     return dict(tenant, compiledIosApp=True, nativeExecutableSha256=common.file_hash(executable),
                 signedIpaBuilt=False, distributed=False, symbolsUploaded=False)
 
@@ -165,7 +175,17 @@ def main():
     parser.add_argument("--ruby", default="ruby", help="Ruby with the pinned xcodeproj 1.27.0 gem.")
     parser.add_argument("--flutter", default="flutter")
     parser.add_argument("--compile-unsigned", action="store_true", help="Compile a device app for validation only; never sign, create an IPA or distribute.")
+    parser.add_argument("--build-ipa", action="store_true", help="Archive/export a manually signed tenant IPA using installed identities and profiles.")
+    parser.add_argument("--signing-config", type=Path, help="Absolute owner-only signing policy; required with --build-ipa.")
+    parser.add_argument("--upload-symbols", action="store_true", help="Explicitly upload matching Crashlytics symbols after verified Xcode export.")
+    parser.add_argument("--distribute-config", type=Path, help="Private Platform.Cloud settings; requires signed IPA, symbol upload and explicit provider writes.")
     args = parser.parse_args()
+    if args.build_ipa and (args.compile_unsigned or not args.signing_config):
+        parser.error("Choose --build-ipa with --signing-config, or --compile-unsigned.")
+    if (args.signing_config or args.upload_symbols or args.distribute_config) and not args.build_ipa:
+        parser.error("Signing/publication settings require --build-ipa.")
+    if args.distribute_config and not args.upload_symbols:
+        parser.error("Distribution requires --upload-symbols for the verified archive.")
     os.umask(0o077)
     try:
         workspace = args.workspace or ROOT / ".local/ios-builds" / uuid.uuid4().hex
@@ -174,6 +194,17 @@ def main():
             with private_log(workspace / "ios-build.log") as log:
                 result = compile_unsigned(workspace, tenant, args.flutter, log)
             common.private_json(workspace / "ios-compile-result.json", result)
+        if args.build_ipa:
+            with private_log(workspace / "ios-release.log") as log:
+                binary, result, settings = release.build(workspace, tenant, args.signing_config, args.ruby, args.flutter, log, compile_unsigned, verify_compiled_app)
+                if args.upload_symbols:
+                    release.upload_symbols(workspace, binary, result, settings, log)
+                if args.distribute_config:
+                    if common.file_hash(binary) != result["ipaSha256"]:
+                        raise ValueError("Verified IPA changed before distribution.")
+                    common.run_private(["dotnet", "run", "--project", str(ROOT / "tools/Platform.Cloud"), "-c", "Release", "--", "distribute", "--config", str(args.distribute_config.absolute()), "--tenant", tenant["tenantId"], "--platform", "ios", "--binary", str(binary)], ROOT, os.environ.copy(), log, 1800)
+                    result["distributed"] = True
+            common.private_json(workspace / "ios-release-result.json", result)
         print(workspace)
         return 0
     except Exception as error:

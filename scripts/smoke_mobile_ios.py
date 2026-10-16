@@ -77,6 +77,33 @@ puts({extensionBeforeFlutterEmbedding: copy && thin && runner.build_phases.index
     return {"nativeTargetsVerified": True, "schemeVerified": True, "firebaseResourceMembershipVerified": True}
 
 
+def verify_manual_signing(workspace, tenant, ruby):
+    plan = {"developmentTeam": tenant["developmentTeam"], "certificateSha1": "a" * 40,
+            "application": {"bundle": tenant["iosBundleId"], "uuid": "11111111-1111-1111-1111-111111111111"},
+            "extension": {"bundle": tenant["extensionBundleId"], "uuid": "22222222-2222-2222-2222-222222222222"}}
+    common.private_json(workspace / "ios-signing-plan.json", plan)
+    project = workspace / "Platforms/store_user_app/ios/Runner.xcodeproj/project.pbxproj"
+    original = project.read_bytes()
+    try:
+        with mobile_ios.private_log(workspace / "ios-signing-project.log") as log:
+            common.run_private([ruby, str(workspace / "scripts/mobile_ios_signing.rb"), str(workspace)], workspace, os.environ.copy(), log, 60)
+        script = r"""
+require 'json'
+gem 'xcodeproj', '1.27.0'
+require 'xcodeproj'
+project = Xcodeproj::Project.open(File.join(ARGV[0], 'Platforms/store_user_app/ios/Runner.xcodeproj'))
+puts project.targets.select { |target| ['Runner', 'NotificationServiceExtension'].include?(target.name) }.map { |target| config = target.build_configurations.find { |value| value.name == 'Release-tenant' }; {target: target.name, team: config.build_settings['DEVELOPMENT_TEAM'], style: config.build_settings['CODE_SIGN_STYLE'], certificate: config.build_settings['CODE_SIGN_IDENTITY'], profile: config.build_settings['PROVISIONING_PROFILE_SPECIFIER']} }.to_json
+"""
+        values = json.loads(subprocess.check_output([ruby, "-e", script, str(workspace)], text=True, timeout=30))
+        expected = {"Runner": plan["application"]["uuid"], "NotificationServiceExtension": plan["extension"]["uuid"]}
+        if len(values) != 2 or any(x["team"] != tenant["developmentTeam"] or x["style"] != "Manual" or x["certificate"] != plan["certificateSha1"] or x["profile"] != expected.get(x["target"]) for x in values):
+            raise ValueError("Actual Xcode signing settings did not bind both tenant targets to their selected profiles.")
+        return True
+    finally:
+        project.write_bytes(original)
+        (workspace / "ios-signing-plan.json").unlink()
+
+
 def read_display_name(native):
     return mobile_ios.read_plist(native / "Runner/Info.plist")["CFBundleDisplayName"]
 
@@ -125,6 +152,7 @@ def main():
         workspace, tenant = mobile_ios.prepare(manifest, manifest.parent, workspace, "ABCDE12345", 7, args.ruby)
         result = dict(verify_project(workspace, tenant, args.ruby), sourceHash=tenant["sourceHash"], compiledIosApp=False,
                       signedIpaBuilt=False, distributed=False, symbolsUploaded=False)
+        result["manualSigningBindingsVerified"] = verify_manual_signing(workspace, tenant, args.ruby)
         if args.compile_unsigned:
             with mobile_ios.private_log(directory / "fixture.log") as log:
                 result.update(mobile_ios.compile_unsigned(workspace, tenant, args.flutter, log))
@@ -135,8 +163,9 @@ def main():
         return 0
     finally:
         if workspace.is_dir() and not workspace.is_symlink():
-            log = workspace / "ios-prepare.log"
-            if log.is_file() and not log.is_symlink(): shutil.copyfile(log, directory / "prepare.log")
+            for source, target in [("ios-prepare.log", "prepare.log"), ("ios-signing-project.log", "signing-project.log")]:
+                log = workspace / source
+                if log.is_file() and not log.is_symlink(): shutil.copyfile(log, directory / target)
             shutil.rmtree(workspace)
         cleanup_derived_data(workspace)
         shutil.rmtree(directory / "inputs", ignore_errors=True)

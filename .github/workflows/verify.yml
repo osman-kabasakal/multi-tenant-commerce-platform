@@ -20,7 +20,7 @@ jobs:
         run: python3 scripts/check_public_source.py
       - name: Verify cloud-free tenant Android build boundaries
         run: python3 -m unittest discover -s scripts -p test_mobile_android.py -v
-      - name: Verify iOS tenant and Mac preflight gates without Apple credentials
+      - name: Verify iOS tenant, signing policy and Mac preflight without Apple credentials
         run: python3 -m unittest discover -s scripts -p 'test_mobile_ios*.py' -v
       - name: Verify generated Production configuration and identity ownership fences
         run: python3 -m unittest discover -s scripts -p 'test_production_*.py' -v
@@ -240,6 +240,24 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-project-diagnostics
-          path: .local/ios-probe-*/prepare.log
+          path: |
+            .local/ios-probe-*/prepare.log
+            .local/ios-probe-*/signing-project.log
+          include-hidden-files: true
+          retention-days: 3
+
+  ios-native-signature:
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify real iPhone Mach-O metadata and reject a non-Apple signature
+        run: python3 scripts/smoke_ios_signature.py
+      - name: Preserve synthetic native signature diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-native-signature-diagnostics
+          path: .local/ios-signature-probe-*/fixture.log
           include-hidden-files: true
           retention-days: 3

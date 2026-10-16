@@ -1,5 +1,6 @@
 """Verify iOS tenant identity boundaries without Apple accounts or cloud writes."""
 import copy
+import hashlib
 import json
 from pathlib import Path
 import plistlib
@@ -23,7 +24,7 @@ class IosTenantTests(unittest.TestCase):
         self.sdk = ios.read_plist(self.manifest_path.parent / "GoogleService-Info.plist")
 
     def tenant(self):
-        return dict(ios.validate(self.manifest, self.client, self.android, self.sdk, "ABCDE12345", 7), buildName="1.0.0")
+        return dict(ios.validate(self.manifest, self.client, self.android, self.sdk, "ABCDE12345", 7), buildName="1.0.0", iosSdkSha256=hashlib.sha256(plistlib.dumps(self.sdk, sort_keys=True)).hexdigest())
 
     def test_foreign_apple_app_project_or_sender_is_rejected_before_copying(self):
         for key in ["BUNDLE_ID", "PROJECT_ID", "GCM_SENDER_ID", "GOOGLE_APP_ID"]:
@@ -55,7 +56,7 @@ class IosTenantTests(unittest.TestCase):
     def native_app(self):
         app = self.root / "Runner.app"; app.mkdir()
         tenant = self.tenant()
-        (app / "Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": tenant["iosBundleId"], "CFBundleVersion": "7", "CFBundleShortVersionString": "1.0.0"}))
+        (app / "Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": tenant["iosBundleId"], "CFBundleVersion": "7", "CFBundleShortVersionString": "1.0.0", "CFBundleSupportedPlatforms": ["iPhoneOS"]}))
         (app / "GoogleService-Info.plist").write_bytes(plistlib.dumps(self.sdk))
         extension = app / "PlugIns/NotificationServiceExtension.appex"; extension.mkdir(parents=True)
         (extension / "Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": tenant["extensionBundleId"], "CFBundleVersion": "7", "CFBundleShortVersionString": "1.0.0", "NSExtension": {"NSExtensionPointIdentifier": "com.apple.usernotifications.service", "NSExtensionPrincipalClass": "NotificationServiceExtension.NotificationService"}}))
@@ -66,12 +67,12 @@ class IosTenantTests(unittest.TestCase):
 
     def test_compile_verification_never_claims_a_signed_ipa_or_distribution(self):
         app, tenant = self.native_app()
-        with patch.object(ios.subprocess, "check_output", return_value="arm64\n") as lipo:
+        with patch.object(ios.subprocess, "check_output", side_effect=lambda command, **kw: "arm64\n" if "-archs" in command else "    platform IOS\n") as lipo:
             result = ios.verify_compiled_app(app, tenant)
         self.assertTrue(result["compiledIosApp"])
         self.assertFalse(result["signedIpaBuilt"] or result["distributed"] or result["symbolsUploaded"])
         self.assertEqual(len(result["nativeExecutableSha256"]), 64)
-        self.assertEqual(lipo.call_args.args[0][:2], ["/usr/bin/lipo", "-archs"])
+        self.assertEqual(lipo.call_args_list[0].args[0][:2], ["/usr/bin/lipo", "-archs"])
 
     def test_foreign_bundle_wrong_version_and_missing_extension_fail_native_verification(self):
         app, tenant = self.native_app()
@@ -105,6 +106,11 @@ class IosTenantTests(unittest.TestCase):
                 data = plistlib.loads(original); data.update(change); path.write_bytes(plistlib.dumps(data))
                 with self.assertRaises(ValueError): ios.verify_compiled_app(app, tenant)
         path.write_bytes(original)
+
+    def test_arm64_simulator_binary_cannot_pass_as_a_device_release(self):
+        app, tenant = self.native_app()
+        with patch.object(ios.subprocess, "check_output", side_effect=lambda command, **kw: "arm64\n" if "-archs" in command else "    platform IOSSIMULATOR\n"):
+            with self.assertRaises(ValueError): ios.verify_compiled_app(app, tenant)
 
     def test_non_mac_compile_cannot_start_tools_or_download_dependencies(self):
         with patch.object(ios.platform, "system", return_value="Linux"), patch.object(ios.common, "run_private") as commands:
