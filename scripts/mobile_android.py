@@ -253,12 +253,18 @@ def build(workspace, tenant, signing, flutter, sdk, build_number, log):
         raise ValueError('A signed Android build requires at least 15 GiB free disk space.')
     environment = dict(os.environ, PLATFORM_TENANT_CONFIG=str(workspace / 'tenant-build.json'), PLATFORM_ANDROID_SIGNING_PROPERTIES=str(signing), ANDROID_HOME=str(sdk), GRADLE_OPTS=os.environ.get('GRADLE_OPTS', '') + ' -Dorg.gradle.daemon=false')
     app = workspace / 'Platforms/store_user_app'
+    lockfile = app / 'pubspec.lock'
+    locked_dependencies = file_hash(lockfile)
     commands = [
         [flutter, 'pub', 'get', '--enforce-lockfile'],
-        [flutter, 'build', 'apk', '--release', '--no-pub', '--flavor', 'tenant', '--target-platform', 'android-arm64', '--build-number', str(build_number), '--dart-define-from-file=' + str(workspace / 'tenant.defines.json')],
+        [flutter, 'build', 'apk', '--release', '--flavor', 'tenant', '--target-platform', 'android-arm64', '--build-number', str(build_number), '--dart-define-from-file=' + str(workspace / 'tenant.defines.json')],
     ]
     for command in commands:
+        # Flutter must regenerate release-mode plugin registration. --no-pub skips
+        # that phase and retains development-only native plugins from pub get.
         run_private(command, app, environment, log, 3600)
+        if lockfile.is_symlink() or not lockfile.is_file() or file_hash(lockfile) != locked_dependencies:
+            raise ValueError('The release build changed its locked dependencies.')
     binary = app / 'build/app/outputs/flutter-apk/app-tenant-release.apk'
     result = verify_binary(binary, tenant, sdk, build_number, environment)
     result['crashlytics'] = 'Native plugin and Dart handlers configured; live delivery unverified'

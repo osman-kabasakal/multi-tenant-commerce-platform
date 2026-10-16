@@ -212,6 +212,33 @@ class WorkspaceTests(unittest.TestCase):
             mobile.build(workspace, tenant, signing, 'flutter', self.directory, 7, io.StringIO())
         run.assert_not_called()
 
+    def test_release_regenerates_native_plugins_without_changing_locked_dependencies(self):
+        workspace, tenant = self.prepare()
+        signing = self.config / 'signing.properties'; signing.write_text('synthetic-signing-config'); signing.chmod(0o600)
+        usage = type('Usage', (), {'free': 20 * 1024**3})()
+        with patch.object(mobile.shutil, 'disk_usage', return_value=usage), patch.object(mobile, 'run_private') as run, patch.object(mobile, 'verify_binary', return_value={}) as verify:
+            mobile.build(workspace, tenant, signing, 'flutter', self.directory, 7, io.StringIO())
+        commands = [call.args[0] for call in run.call_args_list]
+        self.assertEqual(commands[0], ['flutter', 'pub', 'get', '--enforce-lockfile'])
+        self.assertEqual(commands[1][:4], ['flutter', 'build', 'apk', '--release'])
+        self.assertNotIn('--no-pub', commands[1])
+        verify.assert_called_once()
+
+    def test_release_refuses_dependency_lock_drift_before_promoting_an_apk(self):
+        signing = self.config / 'signing.properties'; signing.write_text('synthetic-signing-config'); signing.chmod(0o600)
+        usage = type('Usage', (), {'free': 20 * 1024**3})()
+        for phase in [0, 1]:
+            with self.subTest(phase=phase):
+                workspace, tenant = self.prepare(self.directory / ('drift-' + str(phase)))
+                calls = []
+                def drift(command, app, *_):
+                    calls.append(command)
+                    if len(calls) == phase + 1: (app / 'pubspec.lock').write_text('unexpected dependency change')
+                with patch.object(mobile.shutil, 'disk_usage', return_value=usage), patch.object(mobile, 'run_private', side_effect=drift), patch.object(mobile, 'verify_binary') as verify, self.assertRaisesRegex(ValueError, 'locked dependencies'):
+                    mobile.build(workspace, tenant, signing, 'flutter', self.directory, 7, io.StringIO())
+                verify.assert_not_called()
+                self.assertEqual(len(calls), phase + 1)
+
     def test_no_distribution_without_actual_build(self):
         result = subprocess.run([sys.executable, str(Path(mobile.__file__)), str(self.config / 'manifest.json'), '--firebase-directory', str(self.config), '--distribute-config', str(self.config / 'operator.json')], capture_output=True, text=True)
         self.assertEqual(result.returncode, 2)

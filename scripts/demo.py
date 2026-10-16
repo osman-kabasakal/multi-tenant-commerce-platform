@@ -158,8 +158,11 @@ def build(component=None):
         if component and name != component: continue
         log=LOCAL/'logs'/f'build-{name}.log'
         with log.open('w') as output:
-            result=subprocess.run(['dotnet','publish',project,'--nologo','-c','Release','-o',str(LOCAL/'runtime'/name),
-                '-p:UseAppHost=false','-v','quiet'],cwd=ROOT/base,stdout=output,stderr=subprocess.STDOUT)
+            command=['dotnet','publish',project,'--nologo','-c','Release','-o',str(LOCAL/'runtime'/name),
+                '-p:UseAppHost=false','-v','quiet']
+            # The demo intentionally installs its separate Development-only UI below.
+            if name == 'saas': command.append('-p:BuildSaasFrontend=false')
+            result=subprocess.run(command,cwd=ROOT/base,stdout=output,stderr=subprocess.STDOUT)
         if result.returncode:raise RuntimeError(f'{name} build failed; see {log}')
         (LOCAL/'runtime'/name/'Plugins').mkdir(exist_ok=True)
         shutil.copytree(ROOT/'Ecommerce/src/Web/Grand.Web/App_Data/Resources/Installation',

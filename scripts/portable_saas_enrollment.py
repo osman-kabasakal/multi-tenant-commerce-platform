@@ -29,8 +29,28 @@ def api(opener,portal,path,data=None,csrf=None):
         except ValueError:value=None
         return response.code,value
 
+def verify_published_frontend(opener,portal):
+    class Assets(HTMLParser):
+        def __init__(self):super().__init__();self.urls=[]
+        def handle_starttag(self,tag,attributes):
+            values=dict(attributes)
+            url=values.get('src') if tag=='script' else values.get('href') if tag=='link' and values.get('rel')=='stylesheet' else None
+            if url:self.urls.append(url)
+    with opener.open(portal+'/register',timeout=30) as response:
+        page=response.read().decode();status=response.code
+    assets=Assets();assets.feed(page)
+    check(status==200 and '<app-root' in page and assets.urls,'The ordinary published Production package serves the real Angular registration entry point')
+    for relative in assets.urls:
+        address=urllib.parse.urljoin(portal+'/',relative)
+        check(urllib.parse.urlsplit(address).netloc==urllib.parse.urlsplit(portal).netloc,'Published registration assets remain on the configured portal origin')
+        with opener.open(address,timeout=30) as response:
+            payload=response.read();kind=response.headers.get_content_type()
+            check(response.code==200 and bool(payload) and kind in ('text/javascript','application/javascript','text/css'),
+                  'The fresh Production SaaS package serves its compiled registration JavaScript or stylesheet')
+
 def enroll(portal,identity,proxy,tenants,password):
     anonymous=browser(proxy,identity['root'],redirect=False)
+    verify_published_frontend(anonymous,portal)
     check(api(anonymous,portal,'/api/TrialBusinesses/availability')==(200,{'enabled':True}),'Production portal explicitly advertises the configured trial offer')
     check(api(anonymous,portal,'/api/TrialBusinesses/configuration')[0] in (401,403),'Anonymous callers cannot access trial configuration or its antiforgery token')
     sessions=[]

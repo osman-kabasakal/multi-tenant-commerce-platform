@@ -57,3 +57,16 @@ The portable SaaS probe uses this demo's loopback databases, the existing shared
 The [SaaS component example](../infra/portable/saas.example.json) intentionally contains no credentials. Copy it outside Git and supply `ConnectionStrings__SaasManagerDb`, `PlatformSecurity__ConnectionString`, `redispublisher`, `GuestAuth__Issuer`, `GuestAuth__Audience`, `GuestAuth__SecretKey`, and `AuthConfiguration__ClientSecret` through private deployment configuration. Provide an existing shared 32-byte base64 master key at the configured file path, durable private file/cookie volumes, and an HTTPS Kestrel endpoint/certificate or a separately configured trusted reverse proxy. Set `PlatformConfiguration__ConfigPath` to that private configuration and `DOTNET_ENVIRONMENT=Production`. Supply the public Keycloak client redirect URI `https://portal.example.test/remote-auth/signin-oidc` and corresponding origin. Private CA trust is optional.
 
 This component example does not create PostgreSQL/Redis/Keycloak or a production worker. Use the separate [owner database bootstrap](DATABASE_BOOTSTRAP.md) for fresh security/queue schemas, SaaS migrations and the explicit trial plan. The example selects `DatabaseBootstrap:Mode=External`; runtime startup verifies ownership and migrations without DDL or seeding. Supply runtime accounts without schema privileges and keep `InitializeSchema=false`. Existing migrated deployments may explicitly select `Existing` verification mode. Real payment-provider setup and end-to-end paid subscriptions remain unverified; the example keeps card processing disabled. A complete platform deployment profile remains tracked in [PROVISIONING.md](PROVISIONING.md).
+
+
+## Publish the complete SaaS web host
+
+Use .NET SDK 9 and Node.js 22/npm on the build machine. A normal publish now restores the locked Angular dependencies with `npm ci`, builds the Production frontend, and includes its index, entry assets and lazy chunks under `wwwroot` alongside the .NET web host:
+
+```sh
+(cd SaasManager && dotnet publish src/Web/Web.csproj -c Release -o ../.local/production/saas -p:UseAppHost=false)
+```
+
+Run the resulting `SaasManager.Web.dll` from that directory with the private Production configuration described above. No Node/npm process is required on the running server. Publish into a new versioned directory and switch the service to it after validation; do not overwrite a running application's files. This command builds an application artifact; it does not create the infrastructure, database schema, identity clients, DNS or certificates. Follow the owner bootstrap and provider runbooks for those prerequisites.
+
+Only the local demo explicitly sets `BuildSaasFrontend=false`, because it supplies its separate demo frontend afterwards. A publish without the Production frontend must not be treated as a complete deployment package. The Production enrollment probe uses a new isolated normal publish directory and verifies that `/register` and its compiled JavaScript/styles are actually served over HTTPS before exercising enrollment. It still does not execute the entire Angular form in a browser.

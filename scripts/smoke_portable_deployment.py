@@ -68,15 +68,13 @@ def main():
     with (demo.LOCAL/'logs/build-portable-deployment-fixture.log').open('w') as log:subprocess.run(['dotnet','build',str(project),'-c','Release','--nologo'],cwd=demo.ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
     with (demo.LOCAL/'logs/build-portable-gateway.log').open('w') as log:subprocess.run(['dotnet','publish','tools/Platform.Gateway/Platform.Gateway.csproj','-c','Release','--nologo','-o',str(demo.LOCAL/'runtime/portable-gateway'),'-p:UseAppHost=false','--verbosity','quiet'],cwd=demo.ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
     children=[];native=None;created=False;saas_created=False;portal="https://portal.example.test:18084";saas_database="portable_saas_test_"+tenant;second_tenant=uuid.uuid4().hex;trial_plan=uuid.uuid4().hex
+    saas_runtime=root/'saas-runtime'
     if args.saas_enrollment:
         for label,command,cwd in [
             ("saas-fixture",["dotnet","build",str(demo.ROOT/"tests/Portable.Services.Integration/Portable.Services.Integration.csproj"),"-c","Release","--nologo","--verbosity","quiet"],demo.ROOT/"SaasManager"),
-            ("saas",["dotnet","publish","src/Web/Web.csproj","-c","Release","--nologo","-o",str(demo.LOCAL/"runtime/saas"),"-p:UseAppHost=false","--verbosity","quiet"],demo.ROOT/"SaasManager"),
-            ("production-ui",["npm","run","build","--","--configuration","production"],demo.ROOT/"SaasManager/src/Web/ClientApp")
+            ("saas",["dotnet","publish","src/Web/Web.csproj","-c","Release","--nologo","-o",str(saas_runtime),"-p:UseAppHost=false","--verbosity","quiet"],demo.ROOT/"SaasManager")
         ]:
             with (demo.LOCAL/"logs"/("build-enrollment-"+label+".log")).open("w") as output:subprocess.run(command,cwd=cwd,stdout=output,stderr=subprocess.STDOUT,check=True)
-        import shutil
-        shutil.copytree(demo.ROOT/"SaasManager/src/Web/ClientApp/dist/browser",demo.LOCAL/"runtime/saas/wwwroot",dirs_exist_ok=True)
     try:
         with https_identity(root,provisioning=True,owner_count=2 if args.saas_enrollment else 1,portal_url=portal if args.saas_enrollment else "https://localhost:18084") as identity, synthetic_dns(18444,portal=args.saas_enrollment) as proxy:
             cert=root/'ingress.crt';key=root/'ingress.key';csr=root/'ingress.csr';extensions=root/'ingress-extensions.cnf';pfx=root/'ingress.pfx';password=root/'ingress-password'
@@ -137,7 +135,7 @@ def main():
             components=[('commerce',commerce_path,18182,'Grand.Web.MultiTenant.dll'),('admin',admin_path,18183,'Grand.Web.OnlyAdmin.dll'),('portable-gateway',gateway_path,18444,'Platform.Gateway.dll')]
             if args.saas_enrollment:components.append(('saas',saas_path,18084,'SaasManager.Web.dll'))
             for name,path,port,dll in components:
-                directory=demo.LOCAL/'runtime'/name;log=root/(name+'.log');child_env=dict(env,ASPNETCORE_URLS=('https' if name in ('portable-gateway','saas') else 'http')+'://127.0.0.1:'+str(port),PlatformConfiguration__ConfigPath=str(path),Gateway__ConfigPath=str(path))
+                directory=saas_runtime if name=='saas' else demo.LOCAL/'runtime'/name;log=root/(name+'.log');child_env=dict(env,ASPNETCORE_URLS=('https' if name in ('portable-gateway','saas') else 'http')+'://127.0.0.1:'+str(port),PlatformConfiguration__ConfigPath=str(path),Gateway__ConfigPath=str(path))
                 with log.open('w') as output:process=subprocess.Popen(['dotnet',str(directory/dll)],cwd=directory,env=child_env,stdout=output,stderr=subprocess.STDOUT,start_new_session=True)
                 children.append(process);wait_process(process,lambda path=log:production_started(path),name+' Production host')
                 check('Hosting environment: Production' in log.read_text(),name+' confirms Production with LocalDemo disabled')

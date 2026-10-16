@@ -8,6 +8,7 @@
     <RootNamespace>SaasManager.Web</RootNamespace>
     <AssemblyName>SaasManager.Web</AssemblyName>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <BuildSaasFrontend Condition="'$(BuildSaasFrontend)' == ''">true</BuildSaasFrontend>
   </PropertyGroup>
 
   <ItemGroup>
@@ -92,19 +93,20 @@
     <Error Text="$(NSwagOutput)" Condition="'$(NSwagExitCode)' != '0'" />
   </Target>
 
-<!--  <Target Name="PublishRunWebpack" AfterTargets="ComputeFilesToPublish">-->
-<!--    &lt;!&ndash; As part of publishing, ensure the JS resources are freshly built in production mode &ndash;&gt;-->
-<!--    <Exec WorkingDirectory="$(SpaRoot)" Command="node $(NpmPath) install" />-->
-<!--    <Exec WorkingDirectory="$(SpaRoot)" Command="node $(NpmPath) run build &#45;&#45; &#45;&#45;configuration production" />-->
-
-<!--    &lt;!&ndash; Include the newly-built files in the publish output &ndash;&gt;-->
-<!--    <ItemGroup>-->
-<!--      <DistFiles Include="$(SpaRoot)dist\**; $(SpaRoot)dist-server\**" />-->
-<!--      <ResolvedFileToPublish Include="@(DistFiles->'%(FullPath)')" Exclude="@(ResolvedFileToPublish)">-->
-<!--        <RelativePath>wwwroot\%(RecursiveDir)%(FileName)%(Extension)</RelativePath>-->
-<!--        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>-->
-<!--        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>-->
-<!--      </ResolvedFileToPublish>-->
-<!--    </ItemGroup>-->
-<!--  </Target>-->
+  <Target Name="PublishSaasFrontend" AfterTargets="ComputeFilesToPublish" Condition="'$(BuildSaasFrontend)' == 'true'">
+    <PropertyGroup>
+      <_SaasFrontendOutputPath>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)saas-frontend', '$(MSBuildProjectDirectory)'))</_SaasFrontendOutputPath>
+    </PropertyGroup>
+    <Exec WorkingDirectory="$(SpaRoot)" Command="npm ci --no-audit --no-fund" />
+    <Exec WorkingDirectory="$(SpaRoot)" Command="npm run build -- --configuration production --output-path &quot;$(_SaasFrontendOutputPath)&quot;" />
+    <Error Condition="!Exists('$(_SaasFrontendOutputPath)/browser/index.html')" Text="The Production SaaS frontend was not generated." />
+    <ItemGroup>
+      <_SaasFrontendFiles Include="$(_SaasFrontendOutputPath)/browser/**/*" />
+      <ResolvedFileToPublish Include="@(_SaasFrontendFiles->'%(FullPath)')" Exclude="@(ResolvedFileToPublish)">
+        <RelativePath>wwwroot/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
 </Project>
