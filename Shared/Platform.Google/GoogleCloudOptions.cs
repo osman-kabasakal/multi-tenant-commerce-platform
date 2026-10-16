@@ -16,6 +16,7 @@ public sealed class GoogleCloudOptions
     public string DistributionGroupAlias { get; init; } = "tenant-testers";
     public string[] TesterEmails { get; init; } = [];
     public bool IncludeOwnerAsTester { get; init; }
+    public bool GrantOrganizationAdminUsersProjectOwner { get; init; }
     public string IosPushTransport { get; init; } = "Fcm";
     public string? IosDevelopmentTeam { get; init; }
     public int PollIntervalSeconds { get; init; } = 3;

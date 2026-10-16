@@ -223,6 +223,17 @@ class ProductionConfigTests(unittest.TestCase):
         self.assertEqual(original['MasterKey'], json.loads((destination / 'installation.json').read_text())['MasterKey'])
         self.assertFalse(missing.exists())
 
+    def test_organization_admin_owner_policy_is_explicit_and_reaches_only_the_provisioning_worker(self):
+        plan = self.android_plan()
+        plan['Providers']['Google']['GrantOrganizationAdminUsersProjectOwner'] = True
+        state = self.root / 'organization-owner-state'
+        config.prepare(plan, state, 'commerce-platform:fixture')
+        worker = json.loads((state / 'config/worker.json').read_text())
+        self.assertTrue(worker['Provisioning']['Google']['GrantOrganizationAdminUsersProjectOwner'])
+        for role in ('saas', 'gateway', 'commerce', 'admin', 'bootstrap'):
+            self.assertNotIn('GrantOrganizationAdminUsersProjectOwner', (state / 'config' / (role + '.json')).read_text())
+        self.assertFalse(self.google['GrantOrganizationAdminUsersProjectOwner'])
+
     def test_google_administration_and_notification_credentials_have_separate_mounts(self):
         plan = copy.deepcopy(self.plan)
         for option in ('GoogleCredentialsFile', 'NotificationCredentialsFile'):

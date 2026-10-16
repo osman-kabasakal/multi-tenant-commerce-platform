@@ -12,7 +12,8 @@
       "TesterEmails": [],
       "IncludeOwnerAsTester": false,
       "OperationTimeoutSeconds": 600,
-      "PollIntervalSeconds": 3
+      "PollIntervalSeconds": 3,
+      "GrantOrganizationAdminUsersProjectOwner": false
     }
   }
 }

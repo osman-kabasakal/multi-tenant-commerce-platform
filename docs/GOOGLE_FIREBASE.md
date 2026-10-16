@@ -11,7 +11,7 @@ For every newly queued tenant, the `google-firebase` step:
 3. Links the optional explicitly supplied billing account, refusing to replace another account. Leaving it null does not require the worker to link a billing account; it does not remove billing inherited from an existing project.
 4. Enables Firebase Management, Installations, FCM, Crashlytics and App Distribution APIs and adds Firebase. Long-running operations are polled, bounded and checked for errors.
 5. Lists all Android/iOS app pages, reconciles package/bundle IDs, downloads client SDK configuration and validates its project/app identity.
-6. Adds the configured central sender service account to the target project's `roles/firebasecloudmessaging.admin` binding. Existing bindings, conditions and IAM etags are retained. An IAM conflict fails safely and is reconciled on retry.
+6. Optionally reads the actual parent organization's direct, unconditional Organization Administrator user members and adds them as project Owners when `GrantOrganizationAdminUsersProjectOwner=true`. This is disabled by default; see [console owner access](#console-owner-access). Adds the configured central sender service account to the target project's `roles/firebasecloudmessaging.admin` binding. Existing bindings, conditions and IAM etags are retained. An IAM conflict fails safely and is reconciled on retry.
 7. Creates the App Distribution group and adds only explicitly configured testers. `IncludeOwnerAsTester=true` also invites the owner; leave it false to avoid automatic tester invitations.
 8. Stores backend resource configuration under the canonical tenant's encrypted `firebase-configuration` secret. Job checkpoints contain public IDs only. It never creates service-account keys.
 
@@ -177,3 +177,24 @@ The real adapter stored the tenant Firebase record through the portable AES-GCM/
 Effective-permission checks using the separate sender confirmed tenant FCM send permission and the absence of the selected IAM-write, Firebase-app-create and API-enable permissions. None of the requested send/admin permissions was granted on the sender/credential project. Replaying the same tenant preserved project/app/group/checkpoint identities and issued zero project, app or group create requests. The temporary PostgreSQL container, network and minimal reader directory were removed; encrypted snapshots and the live Google resources remain private for subsequent checks.
 
 This proves the Google provider and shared encrypted storage against real services. It does not prove SaaS registration with the live provider, a device FCM/APNs send, a readable Crashlytics device report, a binary upload/tester installation or signed iOS delivery. Those acceptance gates remain open. The previous Android release evidence used synthetic Firebase identity; it is not a live SDK/device claim.
+
+
+## Console owner access
+
+Creating a project with a provisioning service account does not automatically grant a human Firebase Console access. A role such as Service Account Creator does not grant Firebase app listing. The platform operator can explicitly enable this policy in the private Google options:
+
+```json
+{
+  "GrantOrganizationAdminUsersProjectOwner": true
+}
+```
+
+Merge this field into `Provisioning:Google` for a standalone worker, or `Providers:Google` in the Linux deployment input. The generated setting reaches only the provisioning worker. This grants full project ownership, including IAM management; enable it only when that authority is intended. It is separate from tester invitations and is never inferred from a business owner's registration email. The public example leaves it false.
+
+Before creating a project, the provider resolves the configured parent organization (following active, matching folder ancestors when necessary), reads its version-3 IAM policy and selects only direct, unconditional `user:` members of `roles/resourcemanager.organizationAdmin`. The provisioning identity additionally needs `resourcemanager.organizations.getIamPolicy` and, for folder parents, ancestor-folder `get` permission. Service accounts are excluded. Groups, domains, conditional human memberships, invalid accounts, no eligible users, more than 100 users or an invalid/cyclic/deeper-than-10-folder ancestry fail the step before project creation. Group expansion and conditional-role evaluation are not implemented; resolve those membership policies explicitly before selecting this mode.
+
+After the normal tenant/deployment/parent ownership checks, one project IAM update adds missing Owner users and the existing limited FCM sender binding. Existing owners, unrelated bindings, conditions and etags are retained. Conflicting writes fail safely for reconciliation. Replaying unchanged access performs no policy write. Organization administrators are read again for every new provisioning execution, so newly created tenants receive the current eligible users. Removing an administrator from the organization does not revoke a previously granted project Owner role; review/revoke existing project access deliberately. Completed onboarding jobs are not automatically rerun when this setting changes. Organization policy or Google's ownership-invitation restrictions can reject a grant; the worker reports that failure rather than marking the tenant ready.
+
+On 2026-10-17 (operator local date), the operator explicitly chose Owner access for organization administrator users on the existing Firebase test tenant and future tenants. The actual provider added the single eligible human account, preserved all other IAM grants and kept the FCM sender restricted. The operator confirmed that the Firebase Console and both app registrations became accessible. A second live execution performed zero IAM writes and zero project/app/group creates. The [scoped verification record](validation/google-organization-owners-20261017.json) excludes operator identities and credentials.
+
+Official references: [Firebase Console access](https://firebase.google.com/docs/projects/iam/overview), [organization roles](https://docs.cloud.google.com/resource-manager/docs/access-control-org), [project IAM update and ownership restrictions](https://docs.cloud.google.com/resource-manager/reference/rest/v3/projects/setIamPolicy).

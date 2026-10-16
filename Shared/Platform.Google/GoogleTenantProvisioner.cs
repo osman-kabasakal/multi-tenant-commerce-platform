@@ -16,6 +16,7 @@ public sealed class GoogleTenantProvisioner(GoogleRestClient api, GoogleCloudOpt
             !Regex.IsMatch(spec.AndroidPackageName, "^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$") ||
             spec.IosBundleId.Length > 220 || !Regex.IsMatch(spec.IosBundleId, "^[a-zA-Z][a-zA-Z0-9-]*(\\.[a-zA-Z][a-zA-Z0-9-]*)+$"))
             throw new ArgumentException("Invalid Google tenant specification.");
+        var owners = await OrganizationAdminOwnersAsync(ct);
         var id = options.ProjectId(spec.TenantId);
         var project = await EnsureProjectAsync(id, spec, ct);
         var number = Text(project, "name")["projects/".Length..];
@@ -34,7 +35,7 @@ public sealed class GoogleTenantProvisioner(GoogleRestClient api, GoogleCloudOpt
             throw new InvalidOperationException("Firebase project identity does not match the owned Google project.");
         var android = await EnsureAppAsync(id, number, "androidApps", "packageName", spec.AndroidPackageName, spec.DisplayName, ct);
         var ios = await EnsureAppAsync(id, number, "iosApps", "bundleId", spec.IosBundleId, spec.DisplayName, ct);
-        await GrantSenderAsync(number, ct);
+        await GrantProjectAccessAsync(number, owners, ct);
         await EnsureTestersAsync(number, spec.OwnerEmail, ct);
         var androidConfig = await ConfigAsync(id, "androidApps", android, ct);
         var iosConfig = await ConfigAsync(id, "iosApps", ios, ct);
@@ -141,23 +142,70 @@ public sealed class GoogleTenantProvisioner(GoogleRestClient api, GoogleCloudOpt
         return new UTF8Encoding(false, true).GetString(bytes);
     }
 
-    private async Task GrantSenderAsync(string number, CancellationToken ct)
+    private async Task<string[]> OrganizationAdminOwnersAsync(CancellationToken ct)
+    {
+        if (!options.GrantOrganizationAdminUsersProjectOwner) return [];
+        var parent = options.Parent;
+        HashSet<string> folders = [];
+        while (parent.StartsWith("folders/", StringComparison.Ordinal))
+        {
+            if (!Regex.IsMatch(parent, @"\Afolders/[1-9][0-9]*\z") || !folders.Add(parent) || folders.Count > 10)
+                throw new InvalidOperationException("Cannot resolve the configured folder's organization safely.");
+            var folder = (await api.SendAsync(GoogleApi.ResourceManager, HttpMethod.Get, "v3/" + parent, null, ct))!;
+            if (Text(folder, "name") != parent || Text(folder, "state") != "ACTIVE")
+                throw new InvalidOperationException("The configured folder ancestry is not active or has conflicting identity.");
+            parent = Text(folder, "parent");
+        }
+        if (!Regex.IsMatch(parent, @"\Aorganizations/[1-9][0-9]*\z"))
+            throw new InvalidOperationException("Organization administrator owners require a verified organization parent.");
+        var policy = (await api.SendAsync(GoogleApi.ResourceManager, HttpMethod.Post, "v3/" + parent + ":getIamPolicy",
+            new { options = new { requestedPolicyVersion = 3 } }, ct))!;
+        if (policy["bindings"] is not JsonArray bindings)
+            throw new InvalidOperationException("The organization IAM policy is missing its bindings.");
+        HashSet<string> owners = new(StringComparer.Ordinal);
+        foreach (var binding in bindings.OfType<JsonObject>().Where(b => b["role"]?.GetValue<string>() == "roles/resourcemanager.organizationAdmin"))
+        {
+            if (binding["members"] is not JsonArray members)
+                throw new InvalidOperationException("The organization administrator binding is missing its members.");
+            foreach (var node in members)
+            {
+                var member = node?.GetValue<string>() ?? throw new InvalidOperationException("Invalid organization administrator member.");
+                if (member.StartsWith("serviceAccount:", StringComparison.Ordinal)) continue;
+                // Groups and conditional bindings cannot be expanded into unconditional human ownership.
+                if (binding["condition"] != null || !member.StartsWith("user:", StringComparison.Ordinal) ||
+                    member.Any(char.IsWhiteSpace) || !System.Net.Mail.MailAddress.TryCreate(member[5..], out var address) ||
+                    address.Address != member[5..] || address.Host.EndsWith(".gserviceaccount.com", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Automatic project owners require direct, unconditional organization administrator user accounts.");
+                owners.Add(member);
+            }
+        }
+        if (owners.Count is 0 or > 100)
+            throw new InvalidOperationException("Automatic project ownership requires between one and 100 organization administrator users.");
+        return owners.Order(StringComparer.Ordinal).ToArray();
+    }
+
+    private async Task GrantProjectAccessAsync(string number, string[] owners, CancellationToken ct)
     {
         var basePath = $"v3/projects/{number}";
         var policy = (await api.SendAsync(GoogleApi.ResourceManager, HttpMethod.Post, basePath + ":getIamPolicy",
             new { options = new { requestedPolicyVersion = 3 } }, ct))!;
         if (string.IsNullOrEmpty(policy["etag"]?.GetValue<string>()))
             throw new InvalidOperationException("Google IAM policy is missing its concurrency token.");
-        const string role = "roles/firebasecloudmessaging.admin";
-        var member = "serviceAccount:" + options.SenderServiceAccount;
         var bindings = policy["bindings"] as JsonArray;
         if (bindings == null) { bindings = []; policy["bindings"] = bindings; }
-        var binding = bindings.OfType<JsonObject>().FirstOrDefault(b => b["role"]?.GetValue<string>() == role && b["condition"] == null);
-        if (binding == null) { binding = new JsonObject { ["role"] = role, ["members"] = new JsonArray() }; bindings.Add(binding); }
-        var members = binding["members"] as JsonArray ?? throw new InvalidOperationException("Invalid Google IAM binding.");
-        if (members.Any(m => m?.GetValue<string>() == member)) return;
-        members.Add(member);
-        await api.SendAsync(GoogleApi.ResourceManager, HttpMethod.Post, basePath + ":setIamPolicy", new { policy }, ct);
+        var grants = owners.Select(member => (Role: "roles/owner", Member: member))
+            .Prepend((Role: "roles/firebasecloudmessaging.admin", Member: "serviceAccount:" + options.SenderServiceAccount));
+        var changed = false;
+        foreach (var (role, member) in grants)
+        {
+            var binding = bindings.OfType<JsonObject>().FirstOrDefault(b => b["role"]?.GetValue<string>() == role && b["condition"] == null);
+            if (binding == null) { binding = new JsonObject { ["role"] = role, ["members"] = new JsonArray() }; bindings.Add(binding); }
+            var members = binding["members"] as JsonArray ?? throw new InvalidOperationException("Invalid Google IAM binding.");
+            if (members.Any(m => m?.GetValue<string>() == member)) continue;
+            members.Add(member);
+            changed = true;
+        }
+        if (changed) await api.SendAsync(GoogleApi.ResourceManager, HttpMethod.Post, basePath + ":setIamPolicy", new { policy }, ct);
     }
 
     private async Task EnsureTestersAsync(string number, string owner, CancellationToken ct)

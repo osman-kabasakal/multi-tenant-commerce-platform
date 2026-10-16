@@ -1,0 +1,51 @@
+{
+  "verifiedAtUtc": "2026-10-16T21:05:03.175326+00:00",
+  "sourceParentCommit": "4f8844fe2495cb25d43a3e08505ac636ac56f81a",
+  "sourceFilesSha256": {
+    "Shared/Platform.Google/GoogleCloudOptions.cs": "2b425884dbd2d7c594a9a02abd19ad089bcdc5d2293c54c1c09162cc9d72eb24",
+    "Shared/Platform.Google/GoogleTenantProvisioner.cs": "ee0b43174fff1b1ad2353b1875ddc79549d692fd07542e790c60d580bf890970",
+    "tests/Google.Provisioning.Tests/GoogleProjectOwnerTests.cs": "1cbf5131651b2b1a4edb5371105b83697537c80c0f97bfe29281a28d3862c78b",
+    "scripts/test_production_config.py": "50e823d406f8b6ebee284af8527d4c331afa758bef32f2a524322caacac0d552"
+  },
+  "checks": {
+    "explicitHumanAuthorizationForCurrentAndFutureTenantOwners": true,
+    "liveOrganizationAdministratorUsersRead": true,
+    "humanOwnersAdded": 1,
+    "onlyVerifiedAdministratorUsersAddedAsOwners": true,
+    "existingIamGrantsPreserved": true,
+    "runtimeFcmSenderNotElevated": true,
+    "humanConfirmedFirebaseConsoleAndAppsAccessible": true,
+    "replayResourceCreates": 0,
+    "replayIamPolicyWrites": 0,
+    "encryptedIndependentLinuxReaderPassed": true,
+    "ownedTemporaryDatabaseAndNetworkRemoved": true
+  },
+  "scope": {
+    "operatorAndResourceIdentifiers": "private diagnostics only",
+    "defaultOwnerAutomationEnabled": false,
+    "privateOperatorOwnerAutomationEnabled": true,
+    "eligiblePrincipals": "direct unconditional user members of roles/resourcemanager.organizationAdmin",
+    "groupsOrConditionalHumanAdministrators": "fail closed before project creation",
+    "existingOwnersRemovedAutomatically": false,
+    "cloudOrganizationPolicyChanged": false,
+    "newCloudProjectOrKeyCreated": false,
+    "deviceNotificationOrDistributionVerified": false,
+    "cleanRemoteCiVerified": false
+  },
+  "cleanLocalSourceChecks": {
+    "completedAtUtc": "2026-10-16T21:07:42.999482+00:00",
+    "googleTestsPassed": 75,
+    "portableProvisioningTestsPassed": 118,
+    "productionConfigurationTestsPassed": 13,
+    "testsFailedOrSkipped": 0,
+    "cloudToolAndIosWorkerBuildsPassed": true,
+    "toolBuildWarnings": 0,
+    "licensingInputsUnchanged": 164,
+    "trackedSourceGuardPaths": 13026,
+    "operatorIdentifiersAbsent": true,
+    "gitleaksFindings": 0,
+    "unrelatedUserChangesExcluded": true,
+    "temporarySourceCopyRemoved": true,
+    "remoteCi": false
+  }
+}
