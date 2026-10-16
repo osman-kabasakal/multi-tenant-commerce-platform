@@ -121,6 +121,21 @@ python3 scripts/smoke_mobile_android_profile.py --android-sdk /absolute/path/to/
 The native profile probe uses only synthetic app identifiers and unused signing placeholders to run real Google Services/Crashlytics resource tasks. It validates actual generated project/sender/app resources, a Crashlytics mapping id, Turkish/quoted Android labels through AAPT2 and the ordinary demo resource build without Firebase configuration. It also signs a tiny synthetic native APK to verify the actual signature/package/version boundary, including rejection of unsigned, debuggable, wrong-version and foreign-package artifacts; its ephemeral test key is removed afterward. It builds/distributes no Flutter release and creates no Google resources. It removes its isolated source/build copy after success and retains small private diagnostics.
 
 
+## Full tenant Flutter release probe without a cloud account
+
+The separate `Verify real tenant Flutter release` GitHub workflow builds a complete ARM64 `tenant` release from the tracked checkout. It runs on mobile/tooling changes, or manually from Actions. No repository signing secret or Google account is required. Use the same command locally with Flutter 3.44.6, JDK 17, Android SDK build-tools 35.0.0 and at least **20 GiB** free for this probe's isolated Gradle cache:
+
+```sh
+python3 scripts/smoke_flutter_release.py --android-sdk /absolute/path/to/Android/sdk
+# Preparation and disposable signing checks only, without a Flutter build:
+python3 scripts/smoke_flutter_release.py --prepare-only
+```
+
+The probe uses synthetic tenant/Firebase identifiers and a fresh two-day RSA-3072 identity. It invokes the ordinary `mobile_android.build` release path, verifies the APK's actual package/version/non-debuggable flag, exact signing certificate and hash, checks the compiled ARM64 Flutter libraries, and checks generated Firebase/Crashlytics resources. Its own Gradle init script disables outbound Crashlytics upload tasks; normal production sources/configuration are not rewritten. It never invokes App Distribution or starts the application. This proves compilation/signing only after a successful run; it cannot establish a live crash report, tester installation or provider delivery.
+
+Only ignored `.local/flutter-release-<id>/fixture.log`, public `result.json` and the public Gradle task audit remain. The isolated copied sources, Gradle cache, SDK export, signing key/password and APK are removed even on failure. The diagnostic artifact in CI includes only that synthetic build log. `--prepare-only` records `flutterReleaseBuilt=false` and is not evidence of a release build.
+
+
 ## Automatic Android publication from a SaaS subscription
 
 Select `Provisioning:Mobile:Provider=AndroidAppDistribution` in **both** SaaS and the Portable worker. SaaS puts that explicit requirement in the durable tenant request. Local demo workers and workers with a different mobile policy reject it before resource work. New Android enrollment requires the updated PostgreSQL queue completion trigger: apply the current `Provisioning:InitializeSchema=true` initialization once with the schema owner before enabling the feature, then return runtime instances to `InitializeSchema=false`. Keep ordinary runtime roles separate from schema-owner credentials. An older worker's direct completion update is rejected when the required mobile checkpoint is absent. Legacy requests without this field remain equivalent to Disabled; their original JSON is not rewritten and they cannot silently acquire a signed/cloud release.
