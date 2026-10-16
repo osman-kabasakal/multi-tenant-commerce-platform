@@ -3787,8 +3787,8 @@ export interface IPaginatedListOfTodoItemBriefDto {
 }
 
 export class TodoItemBriefDto implements ITodoItemBriefDto {
-    id?: number;
-    listId?: number;
+    id?: string;
+    listId?: string;
     title?: string | undefined;
     done?: boolean;
 
@@ -3828,8 +3828,8 @@ export class TodoItemBriefDto implements ITodoItemBriefDto {
 }
 
 export interface ITodoItemBriefDto {
-    id?: number;
-    listId?: number;
+    id?: string;
+    listId?: string;
     title?: string | undefined;
     done?: boolean;
 }
@@ -4070,7 +4070,7 @@ export interface ILookupDto {
 }
 
 export class TodoListDto implements ITodoListDto {
-    id?: number;
+    id?: string;
     title?: string | undefined;
     colour?: string | undefined;
     items?: TodoItemDto[];
@@ -4119,15 +4119,15 @@ export class TodoListDto implements ITodoListDto {
 }
 
 export interface ITodoListDto {
-    id?: number;
+    id?: string;
     title?: string | undefined;
     colour?: string | undefined;
     items?: TodoItemDto[];
 }
 
 export class TodoItemDto implements ITodoItemDto {
-    id?: number;
-    listId?: number;
+    id?: string;
+    listId?: string;
     title?: string | undefined;
     done?: boolean;
     priority?: number;
@@ -4173,8 +4173,8 @@ export class TodoItemDto implements ITodoItemDto {
 }
 
 export interface ITodoItemDto {
-    id?: number;
-    listId?: number;
+    id?: string;
+    listId?: string;
     title?: string | undefined;
     done?: boolean;
     priority?: number;

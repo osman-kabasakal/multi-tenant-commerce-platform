@@ -72,6 +72,7 @@ try
     await Cli("verify",runtime);
     await Initialiser(runtime);
     Check(await Relations(options.SaasConnection)>0,"Read-only runtime credentials pass real SaaS initialization and seed hooks without DDL or seed writes");
+    await TodoProjectionFixture.RunAsync(options.SaasConnection,Reader(options.SaasConnection),Check);
     await Refused(async()=>await Sql(Reader(options.SaasConnection),"CREATE TABLE public.forbidden_runtime_ddl(id integer)"),"The runtime role cannot create application tables");
     await Cli("initialize",runtime,success:false);
     var changed=json.DeepClone().AsObject();changed["Bootstrap"]!["DeploymentId"]="another-deployment";changed["Provisioning"]!["DeploymentId"]="another-deployment";

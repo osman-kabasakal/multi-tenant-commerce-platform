@@ -22,8 +22,6 @@ public static class DependencyInjection
         builder.Services.AddScoped<IRegistrationStep, SubscriptionSelectionStep>();
         builder.Services.AddScoped<IRegistrationStep, PaymentVerificationStep>();
         
-        builder.Services.AddAutoMapper(Assembly.GetExecutingAssembly());
-
         builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 
         builder.Services.AddMediatR(cfg => {

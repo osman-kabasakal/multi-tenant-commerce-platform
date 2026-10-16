@@ -72,6 +72,9 @@ jobs:
       - name: Verify portable card and file providers with owner isolation
         working-directory: SaasManager
         run: dotnet test ../tests/Portable.Services.Tests/Portable.Services.Tests.csproj -c Release --nologo
+      - name: Verify SaaS queries without runtime mapping dependencies
+        working-directory: SaasManager
+        run: dotnet test tests/Application.UnitTests/Application.UnitTests.csproj -c Release --nologo
       - name: Check business registration security
         working-directory: SaasManager
         run: dotnet test ../tests/Registration.Security.Tests/Registration.Security.Tests.csproj -c Release --nologo
