@@ -1,6 +1,6 @@
 # Linux + Docker Compose deployment
 
-Linux Docker Engine plus Docker Compose is the selected Production target. The container packaging below is implemented; the complete fresh-server Compose bootstrap, ingress/DNS/TLS setup and restart/backup runbook are still being built. Do not treat an image build as proof of a complete hosting deployment. The existing local demo remains the ready-to-run cloud-free entry point.
+Linux Docker Engine plus Docker Compose is the selected Production target. The container packaging below is implemented and verified in clean Linux CI; the complete fresh-server Compose bootstrap, ingress/DNS/TLS setup and restart/backup runbook are still being built. Do not treat an image build as proof of a complete hosting deployment. The existing local demo remains the ready-to-run cloud-free entry point.
 
 ## Build the committed server image
 
@@ -34,6 +34,6 @@ Each application runs from its own `/app/<role>` directory with Production selec
 
 ## Verification scope
 
-The dedicated [Production image workflow](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/workflows/production-image.yml) builds every actual server project and the Angular frontend from the exact commit on clean Ubuntu. It then executes the real runtime offline as non-root, checks both shared frameworks and required artifacts, runs the bootstrap entrypoint, and initializes/replays fresh isolated PostgreSQL schemas with a nonsuperuser owner and private key/config mounts. A different key must fail an independent verification container. Synthetic probe resources are removed. Check the exact run result in [VALIDATION.md](VALIDATION.md); workflow presence alone does not prove these checks passed.
+The dedicated [Production image workflow](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/workflows/production-image.yml) builds every actual server project and the Angular frontend from the exact commit on clean Ubuntu. It then executes the real runtime offline as non-root, checks both shared frameworks and required artifacts, runs the bootstrap entrypoint, and initializes/replays fresh isolated PostgreSQL schemas with a nonsuperuser owner and private key/config mounts. A different key must fail an independent verification container. Synthetic probe resources are removed. Exact source commit `c67735245e0af2fe38494ff9abec01db52d395b0` passed all of these actual image/container checks in [Ubuntu CI run 38863657306](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/runs/38863657306). This proves the server package and isolated database initialization, with the complete Compose rollout still pending.
 
 The next deployment gate is a complete Compose installation that prepares infrastructure and private configuration, uses least-privilege runtime accounts, starts empty shared hosts, exposes only the intended HTTPS ingress, and provisions actual new businesses. Public DNS/certificates, live Google/Firebase/App Distribution and device delivery require their explicit operator configuration and separate verification.

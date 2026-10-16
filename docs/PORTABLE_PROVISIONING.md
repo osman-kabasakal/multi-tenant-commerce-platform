@@ -2,7 +2,7 @@
 
 `TenantManager --provisioning-worker` now supports an explicit `Provisioning:Profile=Portable` alongside the unchanged Development-only Local profile. Portable runs the real GrandNode installer in the deployment environment, uses authenticated MongoDB and a scoped Keycloak service account, and supports configured Google/Firebase plus explicit domain providers. Azure encryption remains selectable through `PlatformSecurity`; a portable deployment does not require Azure credentials.
 
-This is an implemented provisioning foundation. It is **not yet a complete production deployment**: fresh infrastructure bootstrap/deployment orchestration, paid enrollment and automatic signed mobile builds are still being completed. The worker deliberately fails its publication step until the public store and owned admin login actually work. Creating databases/clients alone never marks the SaaS business ready.
+This is an implemented provisioning foundation. It is **not yet a complete production deployment**: the complete Linux Compose rollout, paid enrollment, iOS and live public cloud/device verification remain. The complete Android signed-release path and the [Linux server image](LINUX_PRODUCTION.md) have passed their separate clean CI checks. The worker deliberately fails its publication step until the public store and owned admin login actually work. Creating databases/clients alone never marks the SaaS business ready.
 
 ## Configuration
 
