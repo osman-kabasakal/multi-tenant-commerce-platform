@@ -27,7 +27,10 @@ try
         using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
         var report = await new GoogleAccessVerifier(new GoogleRestClient(http,
             new ExplicitServiceAccountTokens(account))).CheckAsync(account.ProjectId, args.Length == 5 ? args[4] : null, timeout.Token);
-        Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true }));
+        var output = JsonSerializer.SerializeToNode(report, new JsonSerializerOptions(JsonSerializerDefaults.Web))!.AsObject();
+        output["serviceAccountEmail"] = account.Id;
+        output["checkedAtUtc"] = DateTimeOffset.UtcNow;
+        Console.WriteLine(output.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         return report.Checks.All(check => check.Status == "passed") ? 0 : 2;
     }
     if (command is not ("export-mobile" or "distribute") || args.Length % 2 != 1) throw new ArgumentException();
