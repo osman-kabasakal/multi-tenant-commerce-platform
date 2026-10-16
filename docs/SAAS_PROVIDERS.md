@@ -25,4 +25,35 @@ cd SaasManager
 dotnet test ../tests/Portable.Services.Tests/Portable.Services.Tests.csproj -c Release --nologo
 ```
 
-Ten tests cover the real card provider and existing encryption engine, cross-business/master-key/tamper denial, CVV exclusion, filesystem traversal/symlink/size/cancellation handling, independent-instance reads, handler ownership, and Azure SDK CRUD through an HTTP test transport. No real payment or Azure resources are used. The SaaS Web Release build passes with inherited compiler warnings. Live HTTP upload/download, full portable production startup, deployment, and remote CI for this snapshot remain unverified; see [PROVISIONING.md](PROVISIONING.md).
+Provider and hosting tests cover the real card provider and existing encryption engine, cross-business/master-key/tamper denial, CVV exclusion, filesystem traversal/symlink/size/cancellation handling, independent-instance reads, handler ownership, and Azure SDK CRUD through an HTTP test transport. No real payment or Azure resources are used. The SaaS Web Release build passes with inherited compiler warnings. Live file HTTP checks and a Production-mode SaaS HTTPS/OIDC probe are provided below. Complete portable production startup, deployment, and remote CI for this snapshot remain separate gates; see [PROVISIONING.md](PROVISIONING.md).
+
+## Portable SaaS hosting
+
+Set `ApplicationUrl` to the public HTTPS origin. `Web:AllowedOrigins` optionally supplies exact additional browser origins, without paths, wildcards or trailing slashes. Production CORS configuration no longer depends on the internal `ASPNETCORE_URLS` listen address. Set the secret through `AuthConfiguration__ClientSecret` or a private `AuthConfiguration:ClientSecret` setting; the legacy `ClientSecret-{clientId}` setting is still accepted when the hierarchical setting is absent. The identity authority, confidential client id and secret are validated at startup; HTTP identity metadata is permitted only in the Development local demo.
+
+For several SaaS replicas, set an absolute private `Web:DataProtectionKeyDirectory` and stable `Web:DataProtectionApplicationName` shared by those replicas. This is opt-in and does not move existing cookie keys. Choosing a new key ring/application name invalidates existing sessions. Persist and back up the private volume; filesystem permissions do not encrypt keys at rest. Apply volume/backup encryption or an appropriate key-at-rest provider for your deployment. [ASP.NET Core key persistence guidance](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-9.0).
+
+Publicly trusted HTTPS identity servers need no custom certificate configuration. Private-PKI deployments may explicitly set `AuthConfiguration:AuthorityRootCertificateFile` to an absolute PEM/DER CA certificate file mounted read-only. Trust is scoped to the OIDC and bearer identity backchannels. The ordinary TLS hostname, validity and chain-signature checks remain enabled; no global trust store or certificate validation callback is changed. The transport retains the normal HTTP revocation setting and does not fetch missing intermediate certificates, so the server must present its chain. [TLS chain policy](https://learn.microsoft.com/en-us/dotnet/api/system.net.security.sslclientauthenticationoptions.certificatechainpolicy?view=net-9.0).
+
+`AuthConfiguration:Scopes` can explicitly request issuer-configured scopes; defaults are `openid`, `profile`, `email`, `roles`. Include `openid`. Add `offline_access` or a custom store scope only when needed and configured at the issuer. Protected state and correlation validation use the ASP.NET Core defaults; signature, issuer, audience, expiry and nonce checks remain enabled. [Framework state handling](https://github.com/dotnet/aspnetcore/blob/v9.0.11/src/Security/Authentication/OpenIdConnect/src/OpenIdConnectOptions.cs).
+
+Raw SQL diagnostics are never mapped outside Development. In Development they are disabled by default and require `Diagnostics:DatabaseQueries:Enabled`, an explicit private key of at least 32 characters, the administrator policy, and antiforgery validation for writes. There is no default diagnostic key. The API document at `/api/specification.json` is now generated from actual mapped endpoints; the obsolete static snapshot has been removed.
+
+## Repeatable HTTP checks
+
+After `python3 scripts/demo.py up` and `python3 scripts/smoke_onboarding.py`:
+
+```sh
+python3 scripts/smoke_storage.py
+python3 scripts/smoke_portable_saas.py
+python3 scripts/demo.py smoke
+python3 scripts/demo.py stop
+```
+
+Storage checks use the two synthetic onboarding accounts and exercise multipart antiforgery, image validation, private response headers, owner/foreign/anonymous access, and HTTP ranges. An independent .NET process creates a clearly marked synthetic transport fixture. Its `.apk` extension does not make those bytes an actual mobile build or proof of signing.
+
+The portable SaaS probe uses this demo's loopback databases, the existing shared master key, private filesystem storage and a private cookie key ring. It launches SaaS with `LocalDemo` disabled and `Production`, and an isolated HTTPS Keycloak with an ephemeral volume. It does not reuse or alter the ordinary demo Keycloak volume. Generated certificates and test data remain in ignored `.local`; the temporary identity container/volume and Production host are removed when the probe exits. Ports `18084` and `18443`, Docker and OpenSSL are required. This verifies the SaaS host only; it is not a complete production deployment of commerce, the installer and provisioning worker.
+
+The [SaaS component example](../infra/portable/saas.example.json) intentionally contains no credentials. Copy it outside Git and supply `ConnectionStrings__SaasManagerDb`, `PlatformSecurity__ConnectionString`, `redispublisher`, `GuestAuth__Issuer`, `GuestAuth__Audience`, `GuestAuth__SecretKey`, and `AuthConfiguration__ClientSecret` through private deployment configuration. Provide an existing shared 32-byte base64 master key at the configured file path, durable private file/cookie volumes, and an HTTPS Kestrel endpoint/certificate or a separately configured trusted reverse proxy. Set `PlatformConfiguration__ConfigPath` to that private configuration and `DOTNET_ENVIRONMENT=Production`. Supply the public Keycloak client redirect URI `https://portal.example.test/remote-auth/signin-oidc` and corresponding origin. Private CA trust is optional.
+
+This component example does not create PostgreSQL/Redis/Keycloak or a production worker. SaaS currently migrates its EF database at startup; the deployment identity must have the necessary schema permissions until migrations are separated into a deployment step. Initialize shared security/provisioning schemas separately before using runtime credentials with `InitializeSchema=false`. Real payment-provider setup and end-to-end paid subscriptions remain unverified; the example keeps card processing disabled. A complete platform deployment profile remains tracked in [PROVISIONING.md](PROVISIONING.md).

@@ -1,3 +1,4 @@
+using System.Net.Http;
 using Grand.Business.Marketing.Extensions;
 using Grand.Infrastructure;
 using Grand.Infrastructure.Caching.Redis;
@@ -52,6 +53,9 @@ builder.Services.AddRedisCache(builder.Configuration);
 builder.Services.AddRedisCacheEventHandlers();
 
 
+builder.Services.AddHttpClient("tenant-identity").ConfigurePrimaryHttpMessageHandler(() =>
+    Platform.Security.PrivateCertificateAuthority.CreateHandler(builder.Configuration["AuthConfiguration:AuthorityRootCertificateFile"])
+        ?? new SocketsHttpHandler {AllowAutoRedirect=false});
 builder.Services.AddScoped<IKeycloakClientTokenValidation, KeycloakClientTokenValidation>();
 
 builder.Services.Configure<MvcOptions>((opt) =>
@@ -118,6 +122,25 @@ app.UseMiddleware<DeepLinksMiddleWare>();
 app.UseMiddleware<PublicPathMiddleware>();
 app.UseMiddleware<FileStoreMiddleware>();
 app.MapDefaultEndpoints();
+if (app.Configuration.GetValue<bool>("Provisioning:ReadinessEndpoint"))
+    app.MapGet("/_platform/ready", async (HttpContext context,
+        Grand.Business.Core.Interfaces.Common.Stores.IStoreService stores,Platform.Security.ITenantSecrets secrets) =>
+    {
+        // RequestValidationMiddleware already verified the real tenant JWT and decrypted its database context.
+        var storeId=context.Items["StoreId"] as string;
+        if (string.IsNullOrEmpty(storeId)) return Results.StatusCode(400);
+        try
+        {
+            var store=await stores.GetStoreById(storeId);
+            var tenant=await secrets.ResolveAsync(context.Request.Host.Host.Split('.')[0],context.RequestAborted);
+            if (store==null || store.Id!=storeId || await secrets.ResolveAsync(storeId,context.RequestAborted)!=tenant)
+                return Results.StatusCode(503);
+            context.Response.Headers.CacheControl="no-store";
+            return Results.Json(new {tenantId=tenant,storeId=store.Id});
+        }
+        catch { return Results.StatusCode(503); }
+    });
+
 app.UseMiddleware<CorrelationIdMiddleware>();
 
 //request pipeline

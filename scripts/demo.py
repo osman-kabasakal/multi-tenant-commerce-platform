@@ -46,6 +46,7 @@ def prepare():
     conf={
         'PlatformSecurity':security,
         'Notifications':{'Provider':'LocalSink','LocalDirectory':str(LOCAL/'notifications')},
+        'Provisioning':{'ReadinessEndpoint':True},
         'LocalDemo':{'Enabled':True,'SecretsPath':str(LOCAL/'secrets'),'TenantDirectory':str(LOCAL/'tenants')},
         'Database':{'ConnectionString':database_connection('demo-a'),'DbProvider':0},
         'Application':{'DisableHostedService':True,'SkipMigrationProcess':True},
@@ -164,6 +165,8 @@ def build(component=None):
         shutil.copytree(ROOT/'Ecommerce/src/Web/Grand.Web/App_Data/Resources/Installation',
             LOCAL/'runtime'/name/'App_Data/Resources/Installation', dirs_exist_ok=True)
         if name == 'saas':
+            # Remove the obsolete static API snapshot from an older publish directory.
+            (LOCAL/'runtime/saas/wwwroot/api/specification.json').unlink(missing_ok=True)
             client=ROOT/'SaasManager/src/Web/ClientApp'
             with (LOCAL/'logs/build-saas-ui.log').open('w') as output:
                 for command in (['npm','ci','--no-audit','--no-fund'],['npm','run','build','--','--configuration','demo']):

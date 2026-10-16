@@ -71,8 +71,11 @@ public static class ServiceDefaults
 
     public static IHostApplicationBuilder ConfigureSharedConfiguration(this IHostApplicationBuilder builder, string dbConnectionConnectionString=null)
     {
+        var deploymentConfig = builder.Configuration["PlatformConfiguration:ConfigPath"];
+        if (!string.IsNullOrWhiteSpace(deploymentConfig)) builder.Configuration.AddJsonFile(deploymentConfig,optional:false);
         var localConfig = builder.Configuration["LocalDemo:ConfigPath"];
         if (!string.IsNullOrEmpty(localConfig)) builder.Configuration.AddJsonFile(localConfig, optional: false);
+        builder.Configuration.AddEnvironmentVariables();
         if (builder.Configuration.GetValue<bool>("LocalDemo:Enabled"))
         {
             if (!builder.Environment.IsDevelopment())

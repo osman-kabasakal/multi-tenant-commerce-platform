@@ -57,7 +57,10 @@ if (isAzureWebApp)
 {
     app.UseForwardedHeaders();
 }
-app.UseExceptionHandler(options => { });
+app.UseExceptionHandler(new ExceptionHandlerOptions {
+    ExceptionHandler = context => Results.Problem(statusCode: StatusCodes.Status500InternalServerError,
+        title: "The request could not be completed.").ExecuteAsync(context)
+});
 if (!app.Environment.IsDevelopment())
 {
     app.UseHsts();
@@ -134,7 +137,7 @@ app.UseAntiforgery();
 app.UseHealthChecks("/health");
 
 // Middleware yapılandırması
-app.UseOpenApi(); // OpenAPI dökümanını sunar
+app.UseOpenApi(settings => settings.Path = "/api/specification.json");
 
 app.UseSwaggerUi(settings =>
 {

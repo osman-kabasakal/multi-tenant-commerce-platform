@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using SaasManager.Application.Common.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -15,6 +16,7 @@ public class CustomExceptionHandler : IExceptionHandler
         _exceptionHandlers = new()
             {
                 { typeof(ValidationException), HandleValidationException },
+                { typeof(BadHttpRequestException), HandleBadHttpRequestException },
                 { typeof(NotFoundException), HandleNotFoundException },
                 { typeof(UnauthorizedAccessException), HandleUnauthorizedAccessException },
                 { typeof(ForbiddenAccessException), HandleForbiddenAccessException },
@@ -32,6 +34,19 @@ public class CustomExceptionHandler : IExceptionHandler
         }
 
         return false;
+    }
+
+    private static async Task HandleBadHttpRequestException(HttpContext httpContext, Exception ex)
+    {
+        // Minimal API form/antiforgery validation can throw before the endpoint is invoked.
+        // Preserve its HTTP status without disclosing framework details or request contents.
+        var exception = (BadHttpRequestException)ex;
+        httpContext.Response.StatusCode = exception.StatusCode;
+        await httpContext.Response.WriteAsJsonAsync(new ProblemDetails
+        {
+            Status = exception.StatusCode,
+            Title = "Invalid request."
+        });
     }
 
     private async Task HandleValidationException(HttpContext httpContext, Exception ex)

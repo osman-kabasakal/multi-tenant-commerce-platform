@@ -13,7 +13,7 @@ public static class LocalDemoTenantRouting
 {
     public static void UseLocalDemoTenantRouting(this WebApplication app)
     {
-        if (!app.Configuration.GetValue<bool>("LocalDemo:Enabled")) return;
+        if (!app.Configuration.GetValue<bool>("LocalDemo:Enabled")) {app.UsePortableTenantRouting();return;}
         var directory=app.Configuration["LocalDemo:TenantDirectory"] ?? throw new InvalidOperationException("Demo tenant directory is required.");
         var routes=Path.Combine(Path.GetDirectoryName(directory)!,"routes");
         app.Use(async (context,next)=> {

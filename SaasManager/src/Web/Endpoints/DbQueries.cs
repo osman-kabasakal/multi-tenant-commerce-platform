@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using Microsoft.AspNetCore.Antiforgery;
 using System.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -11,24 +14,29 @@ public class DbQueries : EndpointGroupBase
 {
     public override void Map(WebApplication app)
     {
+        // Never expose raw SQL operations in a deployed host, even if the flag is accidentally copied.
+        if (!app.Environment.IsDevelopment() || !app.Configuration.GetValue<bool>("Diagnostics:DatabaseQueries:Enabled")) return;
+        var configuredKey = app.Configuration["Diagnostics:DatabaseQueries:Key"] ?? app.Configuration["DB_QUERY_API_KEY"];
+        if (string.IsNullOrWhiteSpace(configuredKey) || configuredKey.Length < 32)
+            throw new InvalidOperationException("Development database diagnostics require an explicit private key of at least 32 characters.");
+        var expected = SHA256.HashData(Encoding.UTF8.GetBytes(configuredKey));
         app.MapGroup(this)
+            .RequireAuthorization(SaasManager.Domain.Constants.Policies.RequireAdministratorRole)
             .AddEndpointFilter(async (ctx, next) =>
             {
-                // Middleware olarak request'ten "db-query-key" header'ını kontrol et
-                var apiKey = ctx.HttpContext.Request.Headers["db-query-key"].FirstOrDefault();
-                
-                // Environment'dan API anahtarını al veya varsayılan olarak "r876hjygfcfrvvbh" kullan
-                var validApiKey = Environment.GetEnvironmentVariable("DB_QUERY_API_KEY") ?? "r876hjygfcfrvvbh";
-                
-                if (string.IsNullOrEmpty(apiKey) || apiKey != validApiKey)
-                {
+                var supplied = ctx.HttpContext.Request.Headers["db-query-key"].ToString();
+                if (!CryptographicOperations.FixedTimeEquals(expected, SHA256.HashData(Encoding.UTF8.GetBytes(supplied))))
                     return Results.Unauthorized();
+                if (!HttpMethods.IsGet(ctx.HttpContext.Request.Method))
+                {
+                    try { await ctx.HttpContext.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(ctx.HttpContext); }
+                    catch (AntiforgeryValidationException) { return Results.BadRequest(new { message = "Invalid request." }); }
                 }
-                
+
                 var logger = ctx.HttpContext.RequestServices.GetRequiredService<ILogger<DbQueries>>();
-                logger.LogInformation("DB Query API accessed with valid key from IP: {IpAddress}", 
+                logger.LogInformation("DB Query API accessed with valid key from IP: {IpAddress}",
                     ctx.HttpContext.Connection.RemoteIpAddress);
-                
+
                 return await next(ctx);
             })
             .MapPost(ExecuteQuery, "execute")
@@ -47,7 +55,7 @@ public class DbQueries : EndpointGroupBase
 
         try
         {
-            logger.LogWarning("SQL query executed: {Query}", request.Query);
+            logger.LogWarning("Development database query executed.");
 
             var connection = ((ApplicationDbContext)dbContext).Database.GetDbConnection();
             if (connection.State != ConnectionState.Open)
@@ -64,7 +72,7 @@ public class DbQueries : EndpointGroupBase
             {
                 using var reader = await command.ExecuteReaderAsync();
                 var result = new List<Dictionary<string, object>>();
-                
+
                 while (await reader.ReadAsync())
                 {
                     var row = new Dictionary<string, object>();
@@ -88,7 +96,7 @@ public class DbQueries : EndpointGroupBase
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error executing SQL query: {Query}", request.Query);
+            logger.LogError("Development database query failed ({ErrorType}).", ex.GetType().Name);
             return TypedResults.StatusCode(StatusCodes.Status500InternalServerError);
         }
     }
@@ -108,9 +116,9 @@ public class DbQueries : EndpointGroupBase
             // PostgreSQL için tablo adlarını alın
             using var command = connection.CreateCommand();
             command.CommandText = @"
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = 'public' 
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
                 AND table_type = 'BASE TABLE'
                 ORDER BY table_name";
 
@@ -144,17 +152,17 @@ public class DbQueries : EndpointGroupBase
             // PostgreSQL için kolon bilgilerini alın
             using var command = connection.CreateCommand();
             command.CommandText = @"
-                SELECT 
-                    column_name, 
+                SELECT
+                    column_name,
                     data_type,
                     is_nullable,
                     column_default
-                FROM 
+                FROM
                     information_schema.columns
-                WHERE 
-                    table_schema = 'public' AND 
+                WHERE
+                    table_schema = 'public' AND
                     table_name = @tableName
-                ORDER BY 
+                ORDER BY
                     ordinal_position";
 
             var parameter = command.CreateParameter();

@@ -125,8 +125,16 @@ public static class DependencyInjection
         builder.Services.Configure<AuthConfiguration>(instance =>
         {
             builder.Configuration.GetSection("AuthConfiguration").Bind(instance);
-            instance.ClientSecret = builder.Configuration.GetValue<string>($"ClientSecret-{instance.ClientId}")!;
+            instance.ClientSecret = builder.Configuration["AuthConfiguration:ClientSecret"]
+                    ?? builder.Configuration.GetValue<string>($"ClientSecret-{instance.ClientId}")!;
         });
+
+        builder.Services.AddOptions<AuthConfiguration>().Validate(instance =>
+            Uri.TryCreate(instance.IdentityProviderUrl, UriKind.Absolute, out var authority) &&
+            (authority.Scheme == "https" || localDemo && builder.Environment.IsDevelopment() && authority.Scheme == "http") &&
+            string.IsNullOrEmpty(authority.UserInfo) && string.IsNullOrEmpty(authority.Query) && string.IsNullOrEmpty(authority.Fragment) &&
+            !string.IsNullOrWhiteSpace(instance.ClientId) && !string.IsNullOrWhiteSpace(instance.ClientSecret),
+            "Configure an HTTPS identity authority, client id and private client secret; HTTP is limited to the Development local demo.").ValidateOnStart();
 
         builder.Services.AddAuthentication(options =>
             {
@@ -265,6 +273,7 @@ public static class DependencyInjection
                 options.SaveTokens = true;
                 options.GetClaimsFromUserInfoEndpoint = true;
                 options.RequireHttpsMetadata = !localDemo;
+                options.BackchannelHttpHandler = IdentityTransport.Create(builder.Configuration);
                 if (localDemo)
                 {
                     options.ResponseMode = "query";
@@ -289,21 +298,18 @@ public static class DependencyInjection
 
                 // Security Headers
                 options.ProtocolValidator.RequireNonce = true;
-                // ASP.NET Core already validates protected state and its correlation cookie.
-                // Its protocol validator receives no State (IDX21329); use the framework default only in Development local demo.
+                // ASP.NET Core validates protected state and the correlation cookie itself.
+                // Preserve its protocol-validator default; the secondary validator does not receive state.
                 // Issuer, audience, signature, expiry, nonce and correlation validation remain enabled.
-                options.ProtocolValidator.RequireStateValidation = !localDemo;
                 options.ProtocolValidator.RequireTimeStampInNonce = true;
 
                 // Scopes
                 options.Scope.Clear();
-                options.Scope.Add("openid");
-                options.Scope.Add("profile");
-                options.Scope.Add("email");
-                // Local preview uses the interactive session; it does not need offline tokens.
-                if (!localDemo) options.Scope.Add("offline_access");
-                if (!localDemo) options.Scope.Add("store");
-                options.Scope.Add("roles");
+                var scopes = builder.Configuration.GetSection("AuthConfiguration:Scopes").Get<string[]>()
+                    ?? ["openid", "profile", "email", "roles"];
+                if (!scopes.Contains("openid", StringComparer.Ordinal))
+                    throw new InvalidOperationException("Identity scopes must include openid.");
+                foreach (var scope in scopes) options.Scope.Add(scope);
 
                 // Token Validation
                 options.TokenValidationParameters = new TokenValidationParameters
@@ -413,6 +419,7 @@ public static class DependencyInjection
                 var authConfiguration = builder.Configuration.GetSection("AuthConfiguration").Get<AuthConfiguration>();
 
                 options.Authority = authConfiguration!.IdentityProviderUrl;
+                options.BackchannelHttpHandler = IdentityTransport.Create(builder.Configuration);
                 options.RequireHttpsMetadata = !localDemo;
                 options.SaveToken = true;
 

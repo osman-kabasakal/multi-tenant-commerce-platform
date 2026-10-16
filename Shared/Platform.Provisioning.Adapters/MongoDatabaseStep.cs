@@ -17,14 +17,14 @@ public sealed class TenantSecretsStep(ITenantSecrets secrets) : IProvisioningSte
     }
 }
 
-public sealed class MongoDatabaseStep(LocalOnboardingOptions options, ITenantSecrets secrets) : IProvisioningStep
+public sealed class MongoDatabaseStep(OnboardingInfrastructureOptions options, ITenantSecrets secrets) : IProvisioningStep
 {
     public string Name => "database";
     public async Task<ProvisioningStepResult> ExecuteAsync(TenantProvisioningRequest request, IReadOnlyDictionary<string,ProvisioningStepResult> completed, CancellationToken ct)
     {
         var name = "tenant_" + request.TenantId;
         var username = name;
-        var password = await secrets.GetOrCreateAsync(request.TenantId,"database-password",()=>Convert.ToBase64String(RandomNumberGenerator.GetBytes(36)),ct);
+        string password;
         var adminSettings = MongoClientSettings.FromConnectionString(options.MongoAdminConnection);
         adminSettings.ServerSelectionTimeout=TimeSpan.FromSeconds(15);
         var database = new MongoClient(adminSettings).GetDatabase(name);
@@ -38,11 +38,13 @@ public sealed class MongoDatabaseStep(LocalOnboardingOptions options, ITenantSec
             var roles=user["roles"].AsBsonArray;
             if (roles.Count!=1 || roles[0]["role"]!="readWrite" || roles[0]["db"]!=name)
                 throw new InvalidOperationException("The tenant database user has unexpected roles.");
+            password=await secrets.GetAsync(request.TenantId,"database-password",ct);
         }
         else
         {
             var collections=await (await database.ListCollectionNamesAsync(cancellationToken:ct)).ToListAsync(ct);
             if (collections.Count!=0) throw new InvalidOperationException("Refusing to adopt an unowned database.");
+            password=await secrets.GetOrCreateAsync(request.TenantId,"database-password",()=>Convert.ToBase64String(RandomNumberGenerator.GetBytes(36)),ct);
             await database.RunCommandAsync<BsonDocument>(new BsonDocument {
                 ["createUser"]=username,["pwd"]=password,
                 ["customData"]=new BsonDocument("platformTenantId",request.TenantId),

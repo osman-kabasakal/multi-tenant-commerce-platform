@@ -30,7 +30,7 @@ public class KeycloakClientTokenValidation: IKeycloakClientTokenValidation
         _optionsAuthConfiguration = optionsAuthConfiguration;
         _logger = logger;
         _cache = cache;
-        _httpClient= clientFactory.CreateClient();
+        _httpClient= clientFactory.CreateClient("tenant-identity");
         
     }
     public async Task<ClaimsPrincipal?> ValidateJwt(string jwt,string audience, bool validateLifetime = true)

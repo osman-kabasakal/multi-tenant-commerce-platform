@@ -42,6 +42,8 @@ public sealed class ProvisioningWorker(PostgresProvisioningQueue queue, IService
         try
         {
             using var scope = scopes.CreateScope();
+            foreach (var guard in scope.ServiceProvider.GetServices<IProvisioningGuard>())
+                await guard.ValidateAsync(lease.Job.Request,lease.Job.Steps,owned.Token);
             var steps = scope.ServiceProvider.GetServices<IProvisioningStep>().ToArray();
             if (steps.Length == 0 || steps.Select(s => s.Name).Distinct().Count() != steps.Length)
                 throw new InvalidOperationException("Configure a nonempty provisioning pipeline with unique step names.");

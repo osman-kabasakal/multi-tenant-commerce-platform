@@ -2,7 +2,7 @@
 
 The target is a cloneable, Azure-optional platform where a SaaS subscription creates a working tenant: its database, identity, domains, notifications and mobile Firebase configuration, Crashlytics and App Distribution setup. Local development must exercise the same orchestration with explicit local adapters. Deployments must select and validate their infrastructure providers.
 
-This document tracks implementation against that full target. **Local trial onboarding is available end to end.** `demo.py prepare` explicitly enables the Local profile and disables Google/cloud providers. An opt-in Google/Firebase step and App Distribution management tool are implemented and contract-tested; production profiles and a complete portable production deployment remain unfinished; use the status table below.
+This document tracks implementation against that full target. **Local trial onboarding is available end to end.** `demo.py prepare` explicitly enables the Local profile and disables Google/cloud providers. An opt-in Google/Firebase step and App Distribution management tool are implemented and contract-tested; a Portable worker profile, scoped identity/domain adapters and public-readiness gates are implemented. The complete portable production deployment remains unfinished; use the status table below.
 
 ## Implemented foundation
 
@@ -24,14 +24,14 @@ The worker accepts ordered `IProvisioningStep` implementations. Each provider mu
 
 | Requirement | Work remaining | Completion evidence |
 | --- | --- | --- |
-| Azure-free local and production startup | Environment configuration bootstrap and compatible portable AES provider are implemented. Explicit card-protector and file-storage selection are implemented and contract-tested; all-host production startup verification remains | All hosts start without Azure credentials in local and portable deployment profiles |
+| Azure-free local and production startup | Environment configuration bootstrap and compatible portable AES provider are implemented. SaaS HTTPS Production startup, real OIDC and private storage are verified; Production managed installer and actual headless worker startup are verified; finish the public gateway and complete commerce/admin deployment | All hosts start without Azure credentials in local and portable deployment profiles |
 | New SaaS subscription provisions a tenant | Local trial enrollment, headless worker and durable completion are implemented; extend the same path to configured cloud subscriptions | Real OIDC enrollment creates a separate store; completed trial recognized by ordinary SaaS session |
 | Tenant database | Authenticated standalone Mongo adapter is implemented; optional Atlas adapter and deployment permissions remain | Two newly provisioned databases; replay preserves credentials and data; cross-tenant access denied |
-| Tenant identity and domains | Local Keycloak and dynamic localhost routing are implemented; public DNS/ingress and production identity configuration remain | New hosts and authenticated owner login work without manually editing fixed tenant lists |
+| Tenant identity and domains | Local Keycloak/routing and scoped production client provisioning are implemented. Owned Cloudflare CNAME contracts, explicit wildcard mode, admin directory routing and public readiness gates are implemented; live DNS and complete public ingress verification remain | New hosts and authenticated owner login work without manually editing fixed tenant lists |
 | Notifications | Tenant readiness reaches a local sink; FCM setup and the actual commerce sender/admin/consent flow are implemented; live device verification, browser push and the legacy cache-invalidation consumer remain | Local message delivery plus provider contract/live-config checks |
 | Google/Firebase per business | Configured owned-project/service/app reconciliation and tester groups are implemented; live configured verification remains | API contract tests and a configured cloud verification run |
 | Flutter Crashlytics and App Distribution | Public tenant manifest/debug defines are implemented and a new-tenant Flutter bundle builds; tester groups and an upload/distribute tool are implemented; automatic signed builds, Crashlytics runtime setup and live verification remain | Tenant-specific build, crash setup check and App Distribution release evidence |
-| Deployment | Add portable deployment configuration, preflight, optional Azure profile, provider permissions and cleanup/runbook | Clean clone CI plus a documented deploy smoke test |
+| Deployment | Component SaaS/worker examples and provider runbooks are implemented; finish the production gateway, trusted proxy/TLS bootstrap, complete deployment orchestration and live verification | Clean clone CI plus a documented deploy smoke test |
 
 ## Current verification
 
@@ -83,3 +83,5 @@ The fresh test uses two new verified Keycloak users and two new trial businesses
 ## Optional Google/Firebase provider
 
 See [GOOGLE_FIREBASE.md](GOOGLE_FIREBASE.md) for configuration, IAM boundaries, ADC, resource reconciliation, client export and App Distribution commands. The Google step runs before tenant publication when explicitly selected. Default cloud-free onboarding retains its five original steps. Commerce sends through the shared tenant sender without a process-global Firebase app; the real local storefront/admin consent flow is verified. See [NOTIFICATIONS.md](NOTIFICATIONS.md) for runtime configuration and remaining delivery gates. No live Google resources or device delivery have been verified yet.
+
+See [PORTABLE_PROVISIONING.md](PORTABLE_PROVISIONING.md) for the Portable profile, scoped Keycloak account, domain providers, ownership fencing and public runtime readiness requirements.

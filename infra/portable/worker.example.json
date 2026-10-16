@@ -1,0 +1,45 @@
+{
+  "LocalDemo": {
+    "Enabled": false
+  },
+  "PlatformSecurity": {
+    "Provider": "AesGcm",
+    "InitializeSchema": false,
+    "AesGcm": {
+      "MasterKeyFile": "/run/secrets/platform-master-key"
+    }
+  },
+  "Provisioning": {
+    "Enabled": true,
+    "InitializeSchema": false,
+    "Profile": "Portable",
+    "Google": {
+      "Provider": "Disabled"
+    },
+    "Worker": {
+      "LeaseDuration": "00:02:00",
+      "PollInterval": "00:00:02",
+      "MaxAttempts": 5
+    },
+    "Portable": {
+      "DeploymentId": "commerce-production",
+      "InstallerPath": "/app/installer/Grand.Installer.Cli.dll",
+      "CommerceConfigPath": "/run/secrets/commerce.json",
+      "WorkingDirectory": "/var/lib/commerce/onboarding",
+      "TenantDirectory": "/var/lib/commerce/tenants",
+      "RouteDirectory": "/var/lib/commerce/routes",
+      "NotificationDirectory": "/var/lib/commerce/readiness-outbox",
+      "MobileDirectory": "/var/lib/commerce/mobile",
+      "StoreBaseUrl": "https://shops.example.test",
+      "AdminBaseUrl": "https://manage.example.test",
+      "KeycloakAuthority": "https://identity.example.test",
+      "KeycloakRealm": "commerce",
+      "KeycloakAdminRealm": "commerce",
+      "KeycloakAdminClientId": "tenant-provisioner"
+    },
+    "Domains": {
+      "Provider": "Wildcard",
+      "WildcardConfigured": false
+    }
+  }
+}

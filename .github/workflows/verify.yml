@@ -44,6 +44,8 @@ jobs:
       - name: Check local encryption boundaries
         working-directory: Ecommerce
         run: dotnet test ../tests/LocalDemo.Tests/LocalDemo.Tests.csproj --nologo
+      - name: Verify portable provisioning ownership and public readiness contracts
+        run: dotnet test tests/Portable.Provisioning.Tests/Portable.Provisioning.Tests.csproj -c Release --nologo
       - name: Verify Google provisioning contracts without cloud credentials
         run: dotnet test tests/Google.Provisioning.Tests/Google.Provisioning.Tests.csproj -c Release --nologo
       - name: Verify storefront form and JSON model binding
@@ -52,6 +54,8 @@ jobs:
         run: dotnet test tests/Notifications.Tests/Notifications.Tests.csproj -c Release --nologo
       - name: Build the Firebase export and distribution tool
         run: dotnet build tools/Platform.Cloud/Platform.Cloud.csproj -c Release --nologo
+      - name: Build the portable gateway scaffold
+        run: dotnet build tools/Platform.Gateway/Platform.Gateway.csproj -c Release --nologo
       - name: Verify portable card and file providers with owner isolation
         working-directory: SaasManager
         run: dotnet test ../tests/Portable.Services.Tests/Portable.Services.Tests.csproj -c Release --nologo
@@ -67,8 +71,16 @@ jobs:
       - name: Build tenant worker with shared security
         working-directory: TenantManager
         run: dotnet build TenantManager.csproj -c Release --nologo
+      - name: Verify real Production installer resources and ingress readiness gate
+        run: python3 scripts/smoke_portable_worker.py
+      - name: Verify public tenant readiness and database routing
+        run: python3 scripts/smoke_readiness.py
       - name: Provision two new trial businesses through real OIDC
         run: python3 scripts/smoke_onboarding.py
+      - name: Verify private SaaS uploads and cross-process downloads
+        run: python3 scripts/smoke_storage.py
+      - name: Verify Azure-free Production SaaS over HTTPS and real OIDC
+        run: python3 scripts/smoke_portable_saas.py
       - name: Check tenant and authentication boundaries
         run: python3 scripts/demo.py smoke
       - name: Preserve build diagnostics on failure

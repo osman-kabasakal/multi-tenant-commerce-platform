@@ -25,20 +25,11 @@ public static class DependencyInjection
     public static void AddWebServices(this IHostApplicationBuilder builder)
     {
         
-        builder.Services.AddCors(options =>
-        {
-            options.AddPolicy("AllowedOrigins", policyBuilder =>
-            {
-                policyBuilder
-                    .WithOrigins(builder.Environment.IsDevelopment()?
-                        (Environment.GetEnvironmentVariable("ASPNETCORE_URLS")?.Split(";")??["https://localhost:5001","https://localhost:44447"]):
-                        Environment.GetEnvironmentVariable("ASPNETCORE_URLS")!.Split(";"))
-                    .AllowAnyMethod()
-                    .AllowAnyHeader()
-                    .AllowCredentials();
-            });
-        });
-        
+        var origins = SaasHostingSettings.AllowedOrigins(builder.Configuration, builder.Environment.IsDevelopment());
+        builder.Services.AddCors(options => options.AddPolicy("AllowedOrigins", policy =>
+            policy.WithOrigins(origins).AllowAnyMethod().AllowAnyHeader().AllowCredentials()));
+        SaasHostingSettings.AddPersistentCookies(builder.Services, builder.Configuration, builder.Environment.ContentRootPath);
+
         builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
         builder.Services.AddScoped<ICurrentUserService, CurrentUser>();

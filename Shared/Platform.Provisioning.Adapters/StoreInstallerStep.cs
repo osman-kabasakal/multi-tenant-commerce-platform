@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json;
@@ -5,7 +6,7 @@ using Platform.Security;
 
 namespace Platform.Provisioning.Adapters;
 
-public sealed class StoreInstallerStep(LocalOnboardingOptions options, ITenantSecrets secrets) : IProvisioningStep
+public sealed class StoreInstallerStep(OnboardingInfrastructureOptions options, ITenantSecrets secrets) : IProvisioningStep
 {
     public string Name => "store";
     public async Task<ProvisioningStepResult> ExecuteAsync(TenantProvisioningRequest request, IReadOnlyDictionary<string,ProvisioningStepResult> completed, CancellationToken ct)
@@ -41,9 +42,23 @@ public sealed class StoreInstallerStep(LocalOnboardingOptions options, ITenantSe
                 ["MongoConnectionString"]=await secrets.GetAsync(request.TenantId,TenantSecretNames.DatabaseConnection,ct)
             };
             foreach (var item in values) start.Environment["TenantMessage__"+item.Key]=item.Value;
-            start.Environment["DOTNET_ENVIRONMENT"]="Development";start.Environment["ASPNETCORE_ENVIRONMENT"]="Development";
-            start.Environment["LocalDemo__Enabled"]="true";start.Environment["LocalDemo__ConfigPath"]=options.CommerceConfigPath;
-            start.Environment["LocalDemo__TenantOutput"]=output;
+            if (options.IsLocal)
+            {
+                start.Environment["DOTNET_ENVIRONMENT"]="Development";start.Environment["ASPNETCORE_ENVIRONMENT"]="Development";
+                start.Environment["LocalDemo__Enabled"]="true";start.Environment["LocalDemo__ConfigPath"]=options.CommerceConfigPath;
+                start.Environment["LocalDemo__TenantOutput"]=output;
+            }
+            else
+            {
+                var portable=(PortableOnboardingOptions)options;
+                start.Environment["DOTNET_ENVIRONMENT"]=portable.InstallerEnvironment;start.Environment["ASPNETCORE_ENVIRONMENT"]=portable.InstallerEnvironment;
+                start.Environment.Remove("LocalDemo__ConfigPath");start.Environment.Remove("LocalDemo__TenantOutput");
+                start.Environment["LocalDemo__Enabled"]="false";start.Environment["PlatformConfiguration__ConfigPath"]=options.CommerceConfigPath;
+                start.Environment["PlatformConfiguration__Provider"]=new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+                    .AddJsonFile(options.CommerceConfigPath).Build()["PlatformConfiguration:Provider"];
+                start.Environment["Provisioning__ManagedInstallerProfile"]="Portable";start.Environment["Provisioning__TenantOutput"]=output;
+                start.Environment["Provisioning__StoreUrl"]=options.StoreUrl(request.Slug);
+            }
             start.Environment["Provisioning__ManagedInstaller"]="true";
             using var process=Process.Start(start) ?? throw new InvalidOperationException("Installer could not start.");
             // Drain output without propagating provider payloads or credentials into job logs.
@@ -59,6 +74,9 @@ public sealed class StoreInstallerStep(LocalOnboardingOptions options, ITenantSe
         using var result=JsonDocument.Parse(await File.ReadAllTextAsync(output,ct));
         if (result.RootElement.GetProperty("tenantId").GetString()!=request.TenantId || result.RootElement.GetProperty("slug").GetString()!=request.Slug)
             throw new InvalidOperationException("Installer output belongs to a different tenant.");
+        if (!options.IsLocal && (result.RootElement.TryGetProperty("connectionString",out _) ||
+            !result.RootElement.TryGetProperty("profile",out var profile) || profile.GetString()!="Portable"))
+            throw new InvalidOperationException("Portable installer output must contain only owned public metadata.");
         var storeId=result.RootElement.GetProperty("storeId").GetString()!;
         await secrets.BindAliasAsync(request.TenantId,storeId,ct);
         return new("GrandNode",new Dictionary<string,string> { ["storeId"]=storeId });

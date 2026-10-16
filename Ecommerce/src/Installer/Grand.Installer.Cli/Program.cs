@@ -109,10 +109,25 @@ else
     builder.Environment.WebRootPath = CommonPath.WebHostEnvironment;
 }
 
+var managedPortable = builder.Configuration.GetValue<bool>("Provisioning:ManagedInstaller") &&
+    builder.Configuration["Provisioning:ManagedInstallerProfile"] == "Portable";
+if (managedPortable && builder.Configuration.GetValue<bool>("LocalDemo:Enabled"))
+    throw new InvalidOperationException("A portable managed installer cannot use LocalDemo.");
 var tenantStatusMessage = new TenantStatusMessage();
 builder.Configuration.GetSection("TenantMessage").Bind(tenantStatusMessage);
 builder.Services.AddScoped<InstallerService>();
 builder.AddServiceDefaults(tenantStatusMessage.MongoConnectionString);
+if (managedPortable)
+{
+    var output=builder.Configuration["Provisioning:TenantOutput"];
+    if (!Guid.TryParseExact(tenantStatusMessage.TenantId,"N",out var tenant) || tenant==Guid.Empty ||
+        builder.Configuration["PlatformSecurity:Provider"] is not ("AesGcm" or "Azure") ||
+        string.IsNullOrWhiteSpace(output) || !Path.IsPathFullyQualified(output) ||
+        !Uri.TryCreate(builder.Configuration["Provisioning:StoreUrl"],UriKind.Absolute,out var storeUrl) || storeUrl.Scheme!="https" ||
+        !storeUrl.Host.StartsWith(tenantStatusMessage.StoreSubDomain+".",StringComparison.Ordinal) || !string.IsNullOrEmpty(storeUrl.UserInfo))
+        throw new InvalidOperationException("Portable installation requires owned tenant metadata, a private output and an HTTPS store URL.");
+}
+
 builder.Host.UseDefaultServiceProvider((_, options) =>
 {
     options.ValidateScopes = false;
@@ -138,9 +153,11 @@ builder.Services.AddRedisCache(builder.Configuration);
 
 builder.ConfigureApplicationSettings();
 
-if (!builder.Configuration.GetValue<bool>("LocalDemo:Enabled"))
+if (!builder.Configuration.GetValue<bool>("LocalDemo:Enabled") && !managedPortable)
     ((ConfigurationManager)builder.Configuration).AddJsonFile(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.multitenant.json"));
 
+if (!managedPortable)
+{
 var conf = new KeycloakSettings();
 builder.Configuration.GetSection("KeyCloakServiceClient").Bind(conf);
 conf.ClientSecret = builder.Services.BuildServiceProvider().GetRequiredService<ISecretStore>()
@@ -150,6 +167,8 @@ builder.Services.Configure<KeycloakSettings>(builder.Configuration.GetSection("K
 
 builder.Services.AddScoped<IKeycloakService, KeycloakService>();
 builder.Services.AddScoped<IKeycloakUserService, KeycloakUserService>();
+
+ }
 
 builder.Services.AddScoped<IInstallationLocalizedService, InstallationLocalizedService>();
 builder.Services.AddScoped<IInstallationService, InstallationService>();
@@ -221,7 +240,8 @@ using (var scope = serviceProvider.CreateScope())
         CompanyPhoneNumber = tenantStatusMessage.CompanyPhoneNumber,
         CompanyEmail = tenantStatusMessage.CompanyEmail,
         StoreHostScheme = builder.Configuration.GetValue<bool>("LocalDemo:Enabled") ? "http" : "https",
-        StoreHost = $"{tenantStatusMessage.StoreSubDomain}.{builder.Configuration["Web:Host"]}"
+        StoreHost = managedPortable ? new Uri(builder.Configuration["Provisioning:StoreUrl"]!).Authority
+            : $"{tenantStatusMessage.StoreSubDomain}.{builder.Configuration["Web:Host"]}"
     });
 
     stopwatch.Stop();
@@ -243,6 +263,27 @@ using (var scope = serviceProvider.CreateScope())
         StoreId = store.Id
     });
     await storeService.UpdateStore(store);
+    if (managedPortable)
+    {
+        if (!Guid.TryParseExact(tenantStatusMessage.TenantId,"N",out var businessId) || businessId==Guid.Empty ||
+            builder.Configuration["PlatformSecurity:Provider"] is not ("AesGcm" or "Azure"))
+            throw new InvalidOperationException("Portable installation requires canonical tenant ownership and a configured encryption provider.");
+        var outputPath=builder.Configuration["Provisioning:TenantOutput"];
+        if (string.IsNullOrWhiteSpace(outputPath) || !Path.IsPathFullyQualified(outputPath))
+            throw new InvalidOperationException("Configure an absolute private installer metadata output.");
+        var temporaryPath=outputPath+"."+Guid.NewGuid().ToString("N")+".tmp";
+        try
+        {
+            var fileOptions=new FileStreamOptions {Mode=FileMode.CreateNew,Access=FileAccess.Write,Share=FileShare.None};
+            if (!System.OperatingSystem.IsWindows()) fileOptions.UnixCreateMode=UnixFileMode.UserRead|UnixFileMode.UserWrite;
+            await using(var stream=new FileStream(temporaryPath,fileOptions))
+                await JsonSerializer.SerializeAsync(stream,new {profile="Portable",tenantId=tenantStatusMessage.TenantId,slug=tenantStatusMessage.StoreSubDomain,storeId=store.Id});
+            File.Move(temporaryPath,outputPath,false);
+        }
+        finally { if(File.Exists(temporaryPath))File.Delete(temporaryPath); }
+        logger.LogInformation("Managed tenant {TenantId} database installation completed.",tenantStatusMessage.TenantId);
+        return;
+    }
     if (builder.Configuration.GetValue<bool>("LocalDemo:Enabled"))
     {
         var products = scope.ServiceProvider.GetRequiredService<IRepository<Product>>();

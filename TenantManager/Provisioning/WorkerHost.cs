@@ -20,8 +20,10 @@ public static class WorkerHost
         builder.Services.AddPlatformProvisioning(builder.Configuration);
         if (builder.Configuration["Provisioning:Profile"]=="Local")
             builder.Services.AddLocalOnboarding(builder.Configuration,builder.Environment.EnvironmentName);
-        else throw new InvalidOperationException("Choose an implemented provisioning profile explicitly.");
-        builder.Services.AddProvisioningWorker();
+        else if (builder.Configuration["Provisioning:Profile"]=="Portable")
+            builder.Services.AddPortableOnboarding(builder.Configuration,builder.Environment.EnvironmentName);
+        else throw new InvalidOperationException("Choose an implemented Local or Portable provisioning profile explicitly.");
+        builder.Services.AddProvisioningWorker(builder.Configuration.GetSection("Provisioning:Worker").Get<ProvisioningWorkerOptions>());
         using var host=builder.Build();
         await host.RunAsync();
     }

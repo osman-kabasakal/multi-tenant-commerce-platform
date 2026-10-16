@@ -6,31 +6,11 @@ using Platform.Google;
 
 namespace Platform.Provisioning.Adapters;
 
-public sealed class LocalOnboardingOptions
+public sealed class LocalOnboardingOptions : OnboardingInfrastructureOptions
 {
-    public string MongoAdminConnection { get; init; } = "";
-    public string InstallerPath { get; init; } = "";
-    public string CommerceConfigPath { get; init; } = "";
-    public string WorkingDirectory { get; init; } = "";
-    public string TenantDirectory { get; init; } = "";
-    public string RouteDirectory { get; init; } = "";
-    public string SecretDirectory { get; init; } = "";
-    public string NotificationDirectory { get; init; } = "";
-    public string MobileDirectory { get; init; } = "";
-    public string StoreBaseUrl { get; init; } = "http://localhost:18090";
-    public string AdminBaseUrl { get; init; } = "http://localhost:18083";
-    public string KeycloakAuthority { get; init; } = "http://localhost:18080";
-    public string KeycloakRealm { get; init; } = "commerce-demo";
+    public override bool IsLocal => true;
     public string KeycloakAdminUsername { get; init; } = "";
     public string KeycloakAdminPassword { get; init; } = "";
-
-    public string StoreUrl(string slug) => TenantUrl(StoreBaseUrl, slug);
-    public string AdminUrl(string slug) => TenantUrl(AdminBaseUrl, slug) + "/Admin";
-    private static string TenantUrl(string baseUrl, string slug)
-    {
-        var uri = new Uri(baseUrl);
-        return new UriBuilder(uri) { Host = slug + "." + uri.Host }.Uri.GetLeftPart(UriPartial.Authority);
-    }
     public void Validate(string environment, IConfiguration config)
     {
         if (environment != "Development" || !config.GetValue<bool>("LocalDemo:Enabled"))
@@ -66,6 +46,7 @@ public static class LocalOnboarding
             throw new InvalidOperationException("Choose an explicit Disabled or Google provisioning provider.");
         if (google == "Google") services.AddGoogleCloud(config);
         services.AddSingleton(options);
+        services.AddSingleton<OnboardingInfrastructureOptions>(options);
         services.AddHttpClient("onboarding-keycloak", client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddScoped<IProvisioningStep, TenantSecretsStep>();

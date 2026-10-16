@@ -11,7 +11,7 @@ public sealed record TenantProvisioningRequest(
 {
     public void Validate()
     {
-        if (!Guid.TryParseExact(TenantId, "N", out var id) || id == Guid.Empty)
+        if (!Guid.TryParseExact(TenantId, "N", out var id) || id == Guid.Empty || id.ToString("N") != TenantId)
             throw new ArgumentException("TenantId must be a nonempty canonical business ID.");
         if (!Regex.IsMatch(Slug, "^[a-z][a-z0-9-]{1,38}[a-z0-9]$"))
             throw new ArgumentException("Use a lowercase DNS label of 3-40 characters for the tenant slug.");
@@ -48,3 +48,9 @@ public interface IProvisioningStep
 
 public sealed class ProvisioningLeaseLostException() : Exception("The provisioning lease is no longer owned by this worker.");
 public sealed class ProvisioningConflictException() : Exception("A different provisioning request already owns this business or tenant slug.");
+
+/// <summary>Validates immutable deployment ownership before any step, including checkpoint-only replays.</summary>
+public interface IProvisioningGuard
+{
+    Task ValidateAsync(TenantProvisioningRequest request,IReadOnlyDictionary<string,ProvisioningStepResult> completed,CancellationToken cancellationToken);
+}

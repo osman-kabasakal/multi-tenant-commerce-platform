@@ -98,6 +98,18 @@ try
     await portableSecrets.InitializeAsync();
     Check(await portableSecrets.GetAsync("compatibility", "sample") == "existing-value", "Portable provider reads an existing encrypted PostgreSQL store");
     Check((string)(await beforeCommand.ExecuteScalarAsync())! == beforeCipher, "Portable reader initialization leaves stored ciphertext unchanged");
+    var guardedRequest=request with {TenantId=Guid.NewGuid().ToString("N"),Slug="guarded-shop"};
+    await queue.EnqueueAsync(guardedRequest);
+    var guardedLease=(await queue.ClaimAsync(TimeSpan.FromSeconds(30)))!;
+    await queue.CheckpointAsync(guardedLease,"finished",new("test",new Dictionary<string,string>()));
+    var guardedJob=(await queue.GetAsync(guardedRequest.TenantId))!;
+    var completedStep=new CountingStep("finished");var guard=new RejectingGuard();
+    using var guardedServices=new ServiceCollection().AddSingleton<IProvisioningStep>(completedStep).AddSingleton<IProvisioningGuard>(guard).BuildServiceProvider();
+    using var guardedWorker=new ProvisioningWorker(queue,guardedServices.GetRequiredService<IServiceScopeFactory>(),new(){MaxAttempts=1},NullLogger<ProvisioningWorker>.Instance);
+    await guardedWorker.RunAsync(guardedLease with {Job=guardedJob},default);
+    var rejected=(await queue.GetAsync(guardedRequest.TenantId))!;
+    Check(guard.Calls==1 && completedStep.Calls==0 && rejected.State=="Failed" && rejected.ErrorCode=="pipeline:InvalidOperationException",
+        "Deployment guards run before checkpoint-only replay and prevent false completion");
     Console.WriteLine("Durable provisioning integration checks passed.");
 }
 finally
@@ -129,4 +141,11 @@ sealed class FlakyStep : IProvisioningStep
         if (Calls == 1) throw new InvalidOperationException("provider-response-secret");
         return Task.FromResult(new ProvisioningStepResult("test", new Dictionary<string, string>()));
     }
+}
+
+sealed class RejectingGuard:IProvisioningGuard
+{
+    public int Calls;
+    public Task ValidateAsync(TenantProvisioningRequest request,IReadOnlyDictionary<string,ProvisioningStepResult> completed,CancellationToken ct)
+    {Calls++;throw new InvalidOperationException("provider-response-secret");}
 }
