@@ -73,9 +73,6 @@ def receive(p, home=Path('/home/ubuntu')):
         plan = json.loads(config.read_text())
         if plan.get('DeploymentId') != deployment:
             raise ValueError('Production and Oracle deployment IDs must match.')
-        # The A1 template is ARM64; the current bundled Android worker is AMD64 only.
-        if plan.get('Providers', {}).get('Mobile', {}).get('Provider') != 'Disabled':
-            raise ValueError('This ARM64 host cannot run the packaged Android worker; use a compatible separate build lane.')
         with (root / 'deploy.log').open('ab') as log:
             subprocess.run(['python3', str(source / 'scripts/production.py'), 'up', '--config', str(config), '--state', str(root / 'state')],
                            stdout=log, stderr=subprocess.STDOUT, check=True, timeout=6600)

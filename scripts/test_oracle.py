@@ -1,8 +1,10 @@
 """Offline safety/reconciliation tests; these do not establish live OCI deployment."""
 import argparse
 import base64
+import datetime
 import struct
 import io
+import hashlib
 import types
 import json
 from pathlib import Path
@@ -23,7 +25,7 @@ class OracleTests(unittest.TestCase):
         self.value = {'deployment_id': 'commerce-test', 'region': 'eu-frankfurt-1',
                       'compartment_ocid': 'ocid1.compartment.oc1..example', 'availability_domain': 'Abcd:EU-FRANKFURT-1-AD-1',
                       'image_ocid': 'ocid1.image.oc1.eu-frankfurt-1.example', 'ssh_public_key': 'ssh-ed25519 ' + base64.b64encode(struct.pack('>I', 11) + b'ssh-ed25519' + struct.pack('>I', 32) + b'x' * 32).decode(),
-                      'ssh_source_cidr': '8.8.8.8/32'}
+                      'ssh_source_cidr': '8.8.8.8/32', 'compute_profile': 'always-free-arm', 'stop_at_utc': ''}
 
     def write(self, name, body):
         p = self.root / name; p.write_text(body); p.chmod(0o600); return p
@@ -233,6 +235,108 @@ class OracleTests(unittest.TestCase):
             self.assertEqual(client.call('resource-manager', 'stack', 'list', '--all'), [])
             with self.assertRaisesRegex(ValueError, 'no resource response'):
                 client.call('resource-manager', 'stack', 'create')
+
+
+
+    def credit_value(self):
+        deadline = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=5, minutes=50)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        return {**self.value, 'compute_profile': 'credit-minimal-amd64', 'stop_at_utc': deadline}
+
+    def test_credit_profile_requires_bounded_future_deadline(self):
+        value = self.credit_value()
+        self.assertEqual(self.load(value), value)
+        for deadline in ['', '2000-01-01T00:00:00Z', '2099-01-01T00:00:00Z', 'tomorrow']:
+            with self.subTest(deadline=deadline), self.assertRaises(ValueError):
+                self.load({**value, 'stop_at_utc': deadline})
+        self.assertEqual(oracle.variables(self.write('expired.json', json.dumps({**value, 'stop_at_utc': '2000-01-01T00:00:00Z'})), allow_expired=True)['compute_profile'], 'credit-minimal-amd64')
+
+    def test_free_profile_cannot_silently_enable_credit_schedule(self):
+        with self.assertRaises(ValueError): self.load({**self.value, 'stop_at_utc': self.credit_value()['stop_at_utc']})
+        with self.assertRaises(ValueError): self.load({**self.value, 'compute_profile': 'arbitrary-expensive-shape'})
+
+    def test_credit_apply_cannot_use_free_budget_confirmation(self):
+        repo = self.root / 'repo'; (repo / 'infra/oracle').mkdir(parents=True)
+        for name in oracle.TEMPLATE_FILES: (repo / 'infra/oracle' / name).write_text(name)
+        variables = self.write('credit.json', json.dumps(self.credit_value()))
+        common = ['--variables', str(variables), '--state', str(self.root / 'state')]
+        with patch.object(oracle, 'ROOT', repo), patch.object(oracle, 'Oracle') as client, patch('sys.stdout', io.StringIO()):
+            client.return_value.stack.return_value = 'stack'; client.return_value.job.return_value = 'plan'
+            with patch('sys.argv', ['oracle.py', 'plan', *common]): oracle.main()
+            client.return_value.job.reset_mock()
+            with patch('sys.argv', ['oracle.py', 'apply', *common, '--reviewed-plan', 'plan', '--always-free-budget-confirmed']), self.assertRaisesRegex(ValueError, 'matching'):
+                oracle.main()
+            client.return_value.job.assert_not_called()
+
+    def test_credit_stop_targets_only_owned_isolated_instance(self):
+        client = self.client(); client.value = self.credit_value(); calls = []
+        child = {'id': 'isolated', 'freeform-tags': {'commerce-deployment': 'commerce-test'}, 'lifecycle-state': 'ACTIVE'}
+        instance = {'id': 'ours', 'compartment-id': 'isolated', 'freeform-tags': child['freeform-tags'], 'lifecycle-state': 'RUNNING', 'shape': 'VM.Standard.E5.Flex'}
+        def call(*parts):
+            calls.append(parts)
+            if parts[:3] == ('iam', 'compartment', 'list'): return [child]
+            if parts[:3] == ('compute', 'instance', 'list'): return [instance, {**instance, 'id': 'foreign', 'freeform-tags': {}}]
+            return {}
+        client.call = call; client.stop_credit_instance()
+        actions = [c for c in calls if c[:3] == ('compute', 'instance', 'action')]
+        self.assertEqual(actions, [('compute', 'instance', 'action', '--instance-id', 'ours', '--action', 'SOFTSTOP')])
+
+    def test_free_profile_emergency_stop_cannot_touch_resources(self):
+        client = self.client(); client.call = lambda *args: self.fail('must not call OCI')
+        with self.assertRaises(ValueError): client.stop_credit_instance()
+
+    def test_credit_guard_rejects_foreign_targets_and_missing_stop_permission(self):
+        client = self.client(); client.value = self.credit_value()
+        outputs = {k: {'value': v} for k, v in {'instance_id': 'ours', 'resource_compartment_id': 'isolated', 'stop_schedule_id': 'schedule', 'stop_policy_id': 'policy'}.items()}
+        schedule = {'compartment-id': 'isolated', 'lifecycle-state': 'ACTIVE', 'action': 'STOP_RESOURCE', 'recurrence-type': 'ICAL',
+                    'recurrence-details': 'FREQ=HOURLY;INTERVAL=1', 'time-starts': client.value['stop_at_utc'],
+                    'time-ends': (datetime.datetime.strptime(client.value['stop_at_utc'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc) + datetime.timedelta(hours=24)).isoformat(), 'resources': [{'id': 'ours'}], 'freeform-tags': {'commerce-deployment': 'commerce-test'}}
+        statement = "Allow any-user to {INSTANCE_READ, INSTANCE_POWER_ACTIONS} in compartment id isolated where all {request.principal.type='resourceschedule', request.principal.id='schedule'}"
+        policy = {'compartment-id': 'isolated', 'lifecycle-state': 'ACTIVE', 'statements': [statement]}
+        client.call = lambda *parts: schedule if parts[0] == 'resource-scheduler' else policy
+        client.verify_credit_guard(outputs)
+        schedule['resources'].append({'id': 'foreign'})
+        with self.assertRaises(ValueError): client.verify_credit_guard(outputs)
+        schedule['resources'].pop(); policy['statements'] = ['Allow any-user to manage all-resources in tenancy']
+        with self.assertRaises(ValueError): client.verify_credit_guard(outputs)
+
+
+
+    def test_template_upgrade_keeps_inputs_and_recovers_lost_update_response(self):
+        client = self.client(); calls = []
+        old_hash, new_hash = 'old-template', 'new-template'
+        old_fingerprint = hashlib.sha256((old_hash + json.dumps(self.value, sort_keys=True)).encode()).hexdigest()
+        saved = {'stack': 'stack', 'fingerprint': old_fingerprint}
+        stack = {'id': 'stack', 'compartment-id': self.value['compartment_ocid'], 'variables': self.value, 'lifecycle-state': 'ACTIVE',
+                 'freeform-tags': {'commerce-deployment': 'commerce-test', 'commerce-template-sha256': old_hash}}
+        def call(*parts):
+            calls.append(parts)
+            if parts[:3] == ('resource-manager', 'job', 'list'): return []
+            if parts[:3] == ('resource-manager', 'stack', 'update'):
+                stack['freeform-tags']['commerce-template-sha256'] = new_hash
+                raise TimeoutError('lost response')
+            return stack
+        client.call = call
+        with self.assertRaises(TimeoutError): client.update_template(saved, new_hash, self.root / 'new.zip')
+        client.update_template(saved, new_hash, self.root / 'new.zip')
+        self.assertEqual(len([c for c in calls if c[2] == 'update']), 1)
+        self.assertEqual(stack['variables'], self.value)
+
+    def test_template_upgrade_refuses_foreign_stack(self):
+        client = self.client(); calls = []
+        def call(*parts):
+            calls.append(parts)
+            return {'compartment-id': self.value['compartment_ocid'], 'variables': self.value, 'freeform-tags': {'commerce-deployment': 'foreign'}}
+        client.call = call
+        with self.assertRaises(ValueError): client.update_template({'stack': 'stack', 'fingerprint': 'old'}, 'new', self.root / 'new.zip')
+        self.assertFalse(any(c[2] == 'update' for c in calls))
+
+    def test_template_upgrade_waits_for_in_progress_job(self):
+        client = self.client(); old_hash = 'old'
+        saved = {'stack': 'stack', 'fingerprint': hashlib.sha256((old_hash + json.dumps(self.value, sort_keys=True)).encode()).hexdigest()}
+        stack = {'compartment-id': self.value['compartment_ocid'], 'variables': self.value, 'freeform-tags': {'commerce-deployment': 'commerce-test', 'commerce-template-sha256': old_hash}}
+        client.call = lambda *parts: [{'lifecycle-state': 'IN_PROGRESS'}] if parts[1] == 'job' else stack
+        with self.assertRaisesRegex(ValueError, 'Wait'): client.update_template(saved, 'new', self.root / 'new.zip')
+        self.assertFalse((self.root / 'template-upgrade.intent.json').exists())
 
 
 if __name__ == '__main__': unittest.main()

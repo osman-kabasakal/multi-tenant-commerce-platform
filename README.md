@@ -102,7 +102,7 @@ python3 scripts/smoke_onboarding.py
 
 ## Linux + Docker Compose kurulumu
 
-[Kendi Oracle hesabına GitHub Actions kullanmadan kurulum ve dağıtım](docs/ORACLE_DEPLOYMENT.md): altyapı Resource Manager ile, uygulama Mac veya mevcut CI üzerinden aynı dağıtım aracıyla hazırlanır. Canlı Oracle planı geçti; Frankfurt A1 kapasitesi olmadığı için sunucu oluşturma ve HTTPS kabulü bekliyor.
+[Kendi Oracle hesabına GitHub Actions kullanmadan kurulum ve dağıtım](docs/ORACLE_DEPLOYMENT.md): altyapı Resource Manager ile, uygulama Mac veya mevcut CI üzerinden aynı dağıtım aracıyla hazırlanır. Ücretsiz ARM planı geçti; A1 kapasitesi yoksa açıkça seçilebilen 1 OCPU/8 GB AMD64 kredi test profili ve en fazla altı saatlik durdurma zamanlayıcısı bulunur. Canlı uygulama/HTTPS kabulü ayrıca takip edilir.
 
 Yerel demodan farklı olarak bu yol, boş veritabanlarıyla Production ortamını ve gerçek uygulama konteynerlerini kurar. Linux üzerinde root olmayan, Docker erişimi olan bir hesap; Git, Python 3.10+, OpenSSL, Docker/Compose ve derleme için en az 20 GiB boş alan gerekir. .NET/Node SDK’ları imajın içinde kullanılır; sunucuya ayrıca kurulmaz.
 

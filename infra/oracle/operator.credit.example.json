@@ -1,0 +1,11 @@
+{
+  "deployment_id": "commerce-credit-test",
+  "region": "eu-frankfurt-1",
+  "compartment_ocid": "ocid1.compartment.oc1..replace_with_your_compartment",
+  "availability_domain": "REPLACE:EU-FRANKFURT-1-AD-1",
+  "image_ocid": "ocid1.image.oc1.eu-frankfurt-1.replace_with_official_ubuntu_2404_amd64_image",
+  "ssh_public_key": "ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY",
+  "ssh_source_cidr": "192.0.2.10/32",
+  "compute_profile": "credit-minimal-amd64",
+  "stop_at_utc": "REPLACE_WITH_FUTURE_UTC_WITHIN_6_HOURS"
+}

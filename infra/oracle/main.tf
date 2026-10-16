@@ -13,7 +13,7 @@ variable "compartment_ocid" { type = string }
 variable "availability_domain" { type = string }
 variable "image_ocid" {
   type        = string
-  description = "Pinned official Always Free eligible Canonical Ubuntu 24.04 ARM64 image in this home region."
+  description = "Pinned official Canonical Ubuntu 24.04 image matching the chosen profile architecture in this home region."
 }
 variable "deployment_id" {
   type = string
@@ -42,7 +42,7 @@ locals {
 }
 
 resource "oci_core_vcn" "platform" {
-  compartment_id = var.compartment_ocid
+  compartment_id = local.target_compartment
   cidr_blocks    = ["10.42.0.0/16"]
   display_name   = var.deployment_id
   dns_label      = "commerce"
@@ -50,14 +50,14 @@ resource "oci_core_vcn" "platform" {
   lifecycle { prevent_destroy = true }
 }
 resource "oci_core_internet_gateway" "platform" {
-  compartment_id = var.compartment_ocid
+  compartment_id = local.target_compartment
   vcn_id         = oci_core_vcn.platform.id
   enabled        = true
   freeform_tags  = local.tags
   lifecycle { prevent_destroy = true }
 }
 resource "oci_core_route_table" "platform" {
-  compartment_id = var.compartment_ocid
+  compartment_id = local.target_compartment
   vcn_id         = oci_core_vcn.platform.id
   freeform_tags  = local.tags
   route_rules {
@@ -67,7 +67,7 @@ resource "oci_core_route_table" "platform" {
   lifecycle { prevent_destroy = true }
 }
 resource "oci_core_security_list" "platform" {
-  compartment_id = var.compartment_ocid
+  compartment_id = local.target_compartment
   vcn_id         = oci_core_vcn.platform.id
   freeform_tags  = local.tags
   egress_security_rules {
@@ -105,7 +105,7 @@ resource "oci_core_security_list" "platform" {
   lifecycle { prevent_destroy = true }
 }
 resource "oci_core_subnet" "platform" {
-  compartment_id    = var.compartment_ocid
+  compartment_id    = local.target_compartment
   vcn_id            = oci_core_vcn.platform.id
   cidr_block        = "10.42.1.0/24"
   dns_label         = "platform"
@@ -115,13 +115,13 @@ resource "oci_core_subnet" "platform" {
   lifecycle { prevent_destroy = true }
 }
 resource "oci_core_instance" "platform" {
-  compartment_id      = var.compartment_ocid
+  compartment_id      = local.target_compartment
   availability_domain = var.availability_domain
   display_name        = var.deployment_id
-  shape               = "VM.Standard.A1.Flex"
+  shape               = local.compute.shape
   shape_config {
-    ocpus         = 2
-    memory_in_gbs = 12
+    ocpus         = local.compute.ocpus
+    memory_in_gbs = local.compute.memory
   }
   source_details {
     source_type             = "image"
@@ -140,7 +140,13 @@ resource "oci_core_instance" "platform" {
   }
   preserve_boot_volume = true
   freeform_tags        = local.tags
-  lifecycle { prevent_destroy = true }
+  lifecycle {
+    prevent_destroy = true
+    precondition {
+      condition     = local.credit_test ? try(timecmp(var.stop_at_utc, timestamp()) == 1 && timecmp(var.stop_at_utc, timeadd(timestamp(), "6h")) <= 0, false) : var.stop_at_utc == ""
+      error_message = "Credit tests require a future stop deadline; the free profile requires an empty deadline."
+    }
+  }
 }
 
 output "instance_id" { value = oci_core_instance.platform.id }
