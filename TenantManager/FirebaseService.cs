@@ -308,7 +308,7 @@ public class FirebaseService : IFirebaseService
                 // iOS uygulaması ekle
                 var iosConfig =
                     await firebaseSetupManager.AddIosAppAsync(appConfig.PackageNameIos, appConfig.AppTitle,
-                        "DCJPZMRVK8");
+                        Environment.GetEnvironmentVariable("APPLE_DEVELOPER_TEAM_ID") ?? throw new InvalidOperationException("Configure APPLE_DEVELOPER_TEAM_ID for legacy Apple automation."));
                 if (iosConfig != null)
                 {
                     // GoogleService-Info.plist dosyasını kaydet
@@ -317,31 +317,7 @@ public class FirebaseService : IFirebaseService
                     Console.WriteLine("\niOS uygulaması başarıyla eklendi:");
                     Console.WriteLine($"App ID: {iosConfig.AppId}");
 
-                    // APNs Authentication Key ekle
-                    // bool apnsKeyAdded = await firebaseSetupManager.AddApnsKeyToIosAppAsync(
-                    //     iosConfig.AppId, 
-                    //     Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"Assets/AuthKey_43LP96GHXP.p8"), 
-                    //     "43LP96GHXP", 
-                    //     "DCJPZMRVK8");
-                    //
-                    // if (apnsKeyAdded)
-                    // {
-                    //     Console.WriteLine("APNs Authentication Key başarıyla eklendi!");
-                    //     
-                    //     // APNs yapılandırma durumunu kontrol et
-                    //     var apnsStatus = await firebaseSetupManager.GetApnsConfigStatusAsync(iosConfig.AppId);
-                    //     if (apnsStatus != null)
-                    //     {
-                    //         Console.WriteLine($"APNs Yapılandırma Durumu:");
-                    //         Console.WriteLine($"- Authentication Key: {(apnsStatus.HasApnsKey ? "Ekli" : "Eksik")}");
-                    //         Console.WriteLine($"- Key ID: {apnsStatus.ApnsKeyId}");
-                    //         Console.WriteLine($"- Team ID: {apnsStatus.TeamId}");
-                    //     }
-                    // }
-                    // else
-                    // {
-                    //     Console.WriteLine("APNs Authentication Key eklenemedi.");
-                    // }
+
                 }
                 else
                 {

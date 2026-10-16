@@ -20,8 +20,8 @@ jobs:
         run: python3 scripts/check_public_source.py
       - name: Verify cloud-free tenant Android build boundaries
         run: python3 -m unittest discover -s scripts -p test_mobile_android.py -v
-      - name: Verify Mac iOS preflight gates without Apple tools or credentials
-        run: python3 -m unittest discover -s scripts -p test_mobile_ios_preflight.py -v
+      - name: Verify iOS tenant and Mac preflight gates without Apple credentials
+        run: python3 -m unittest discover -s scripts -p 'test_mobile_ios*.py' -v
       - name: Verify generated Production configuration and identity ownership fences
         run: python3 -m unittest discover -s scripts -p 'test_production_*.py' -v
       - name: Install pinned Gitleaks with checksum verification
@@ -219,5 +219,27 @@ jobs:
         with:
           name: mobile-worker-diagnostics
           path: .local/android-release-integration-*/fixture.log
+          include-hidden-files: true
+          retention-days: 3
+
+
+  ios-project:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - name: Install the pinned Xcode project editor
+        run: gem install xcodeproj --version 1.27.0 --no-document
+      - name: Verify actual tenant Xcode target graph with synthetic SDK configuration
+        run: python3 scripts/smoke_mobile_ios.py
+      - name: Preserve synthetic iOS project diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-project-diagnostics
+          path: .local/ios-probe-*/prepare.log
           include-hidden-files: true
           retention-days: 3

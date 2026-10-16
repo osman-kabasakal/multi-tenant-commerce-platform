@@ -46,7 +46,7 @@ The localhost alias selects Demo Coffee. Do not embed a Keycloak confidential cl
 
 Validation on 2026-10-14: debug bundle and ARM64 APK compilation passed. On an API 36 ARM64 emulator, the app loaded the local catalog, opened Demo Espresso, added one item to the cart and displayed the $10.00 total. The web service's smoke checks also exercise guest tokens, catalogs and carts for both tenants. Static analysis reported no errors and 2,587 inherited warnings/information messages.
 
-The demo uses `/TenantTokenWeb` for customer tokens, matching the server's tenant-specific signing keys. Notification polling and the optional slider plugin are skipped in the local profile. Product images use neutral placeholders. Full checkout, account registration, long-running token refresh, iOS, physical devices and release distribution remain unverified; see [VALIDATION.md](VALIDATION.md).
+The demo uses `/TenantTokenWeb` for customer tokens, matching the server's tenant-specific signing keys. Notification polling and the optional slider plugin are skipped in the local profile. Product images use neutral placeholders. Full checkout, account registration, long-running token refresh, signed iOS releases, physical devices and release distribution remain unverified; see [VALIDATION.md](VALIDATION.md).
 
 Compatibility references used for the dependency repair: [Skeletonizer changelog](https://pub.dev/packages/skeletonizer/changelog), [Google Fonts changelog](https://pub.dev/packages/google_fonts/changelog), [Android Gradle Plugin 8.9 compatibility](https://developer.android.com/build/releases/agp-8-9-0-release-notes). Dependencies are resolved in `pubspec.lock`.
 
@@ -177,7 +177,7 @@ APK signing/verification tools are pinned to Android build-tools 35.0.0. Install
 
 ## Prepare a Mac for tenant iOS releases
 
-Linux cannot compile or sign an iOS IPA. Keep a Mac with full Xcode available for the iOS build worker; the Linux deployment still hosts the shared tenant services. iOS is in scope, but the automatic Mac worker, tenant IPA build/signing and live distribution are not implemented or verified by the Android pipeline. The preparation command below only identifies local prerequisites and must not be interpreted as a completed mobile release.
+Linux cannot compile or sign an iOS IPA. Keep a Mac with full Xcode available for the iOS build worker; the Linux deployment still hosts the shared tenant services. The tenant Xcode preparation and unsigned compilation probe below are available. The automatic Mac worker, signed IPA build and live iOS distribution remain unfinished; the Android pipeline does not verify them. The preparation command below only identifies local prerequisites and must not be interpreted as a completed mobile release.
 
 Install the repository's pinned Flutter **3.44.6** SDK, CocoaPods and full Xcode. Open Xcode to finish its first-launch setup and accept the relevant terms yourself. In Xcode Settings > Accounts, add the Apple account with your Apple Developer Program membership. Find the Team ID in the membership details, and prepare a valid distribution signing identity for that team using Xcode's certificate management. An Apple ID or development certificate alone does not prove that an ad hoc distribution IPA can be signed. No certificate is created/imported/revoked by this repository's preparation check.
 
@@ -199,3 +199,36 @@ Cloud-free gate tests run on Linux without Apple executables, account access or 
 ```sh
 python3 -m unittest discover -s scripts -p test_mobile_ios_preflight.py -v
 ```
+
+
+## Tenant iOS native configuration and compilation probe
+
+`scripts/mobile_ios.py` prepares a fresh isolated Xcode workspace from tracked mobile/module sources and the tenant Firebase export. It validates the iOS bundle/project/sender/app identity against the published manifest and Android export before creating that workspace. Apple bundle identifiers must not contain underscores. Supply the ten-character **Developer Portal Team ID**; the numeric App Store Connect team identifier is not a signing Team ID. The tool uses Ruby with `xcodeproj` **1.27.0** (provided by compatible CocoaPods installations, or install that exact gem separately).
+
+Set `APPLE_DEVELOPER_TEAM_ID` to your actual team, then run:
+
+```sh
+python3 scripts/mobile_ios.py /absolute/private/mobile/TENANT_SLUG.json \
+  --firebase-directory /absolute/private/firebase/BUSINESS_GUID_N \
+  --team "$APPLE_DEVELOPER_TEAM_ID" --build-number 1
+```
+
+The generated `ios-tenant-build.json` binds the tenant, source fingerprint (including the iOS tools), native bundle/extension identifiers, Firebase app, version and signing team. `tenant.defines.json` contains matching public build identifiers. Only the isolated copy receives the Firebase plist as a Runner resource, the three `*-tenant` configurations, matching CocoaPods includes, the `tenant` scheme, and the embedded `NotificationServiceExtension` target. The production notification entitlement is written in that copy. That copy also selects CocoaPods for the pinned Flutter plugins so Firebase is not linked simultaneously through CocoaPods and Swift Package Manager. The project-scoped setting follows [Flutter’s documented override](https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-app-developers#turn-off-swiftpm-for-a-single-project); user-wide Flutter settings and the tracked pubspec are unchanged. Re-evaluate the native dependency graph before upgrading the pinned SDK/plugins, as CocoaPods is in maintenance mode. No Apple portal object, signing key, provisioning profile or Google resource is created. Original project files are not rewritten by the preparation command.
+
+To try a device compilation on a prepared Mac, append `--compile-unsigned --flutter /absolute/flutter/bin/flutter`. This restores the locked Dart dependencies, installs the native dependencies through Flutter, and compiles `--release --no-codesign --flavor tenant`. The resulting native bundle, build version, Firebase resources, extension entry point and ARM64 executable are checked before `ios-compile-result.json` can report `compiledIosApp=true`. It remains an **unsigned compilation check**: no usable signed IPA, distribution, symbol upload or device success is claimed. No application is launched and no Crashlytics upload phase is added. Logs stay in the private isolated workspace.
+
+The Apple notification delegates now remain with FlutterFire and the notification plugins, preserving their consent and callback routing. The local demo entitlement file contains no legacy business domain. The rich-notification extension uses Firebase Messaging's documented service helper and guards against delivering completion twice when its time limit expires. Real APNs delivery still needs tenant Apple app/profile capabilities, APNs configuration in Firebase and physical-device evidence; the native source/graph check cannot prove that delivery.
+
+A reproducible synthetic probe checks the actual Xcode graph on Linux or macOS using the pinned Ruby gem. The optional compilation requires a Mac, full Xcode, pinned Flutter/CocoaPods and at least 20 GiB free:
+
+```sh
+python3 -m unittest discover -s scripts -p 'test_mobile_ios*.py' -v
+python3 scripts/smoke_mobile_ios.py
+# Actual device compilation only, without signing or provider writes:
+python3 scripts/smoke_mobile_ios.py --compile-unsigned --flutter /absolute/flutter/bin/flutter
+```
+
+The probe uses a synthetic team and unused Firebase identifiers. It retains only private logs and public verification metadata, deleting its own source copy, build output and Xcode DerivedData identified by that exact probe workspace even after failure. Other Xcode project caches are preserved. The normal tenant preparation command retains its workspace for inspection. Neither mode replaces the remaining signed IPA, shared Mac worker, App Distribution tester-installation and Crashlytics symbol/report acceptance work. The native notification integration follows [Firebase's Flutter receive-message guide](https://firebase.google.com/docs/cloud-messaging/flutter/receive-messages).
+
+
+The retained legacy Fastlane example reads `PRODUCE_APP_IDENTIFIER`, `FASTLANE_USER`, `APPLE_DEVELOPER_TEAM_ID` and `APP_STORE_CONNECT_TEAM_ID` from the operator environment. Historical TenantManager Apple automation also requires `APP_STORE_CONNECT_KEY_FILE` (absolute owner-only local `.p8`), `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_CONTACT_PHONE`, `APP_STORE_CONNECT_CONTACT_FIRST_NAME` and `APP_STORE_CONNECT_CONTACT_LAST_NAME`. Operator account identifiers, contact information and key identifiers are not source defaults. These historical examples are not the Portable iOS worker or evidence of automatic iOS distribution; the current tenant iOS preparation/compilation path uses the commands above and does not execute Fastlane or read Apple private keys.

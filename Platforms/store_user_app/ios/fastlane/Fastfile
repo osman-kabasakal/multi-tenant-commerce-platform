@@ -59,8 +59,8 @@ platform :ios do
                   Regional shipping calculations integrated across multiple page templates",
       beta_app_review_info: {
         contact_email: "maintainer@example.invalid",
-        contact_first_name: "Osman",
-        contact_last_name: "Kabasakal",
+        contact_first_name: ENV.fetch("APP_STORE_CONNECT_CONTACT_FIRST_NAME"),
+        contact_last_name: ENV.fetch("APP_STORE_CONNECT_CONTACT_LAST_NAME"),
         contact_phone: ENV["CONTACT_PHONE"],
         demo_account_name: "apple@commerce.test",
         demo_account_password: "CHANGE_ME",

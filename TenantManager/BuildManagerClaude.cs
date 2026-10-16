@@ -528,9 +528,15 @@ flutter_native_splash:
             try
             {
                 var keyPath = Path.Combine(flutterAppPath, "flavors", appBuildsConfig.Flavor, "key.p8");
-                await DownloadIcon(
-                    "https://storage.example.invalid/service-accounts/AuthKey_SYXL99Y93Q.p8",
-                    keyPath);
+                var keySource = Environment.GetEnvironmentVariable("APP_STORE_CONNECT_KEY_FILE") ?? throw new InvalidOperationException("Configure APP_STORE_CONNECT_KEY_FILE for legacy Apple automation.");
+                var keyFile = new FileInfo(keySource);
+                if (!Path.IsPathFullyQualified(keySource) || !keyFile.Exists || keyFile.LinkTarget != null || keyFile.Length > 65536)
+                    throw new InvalidOperationException("Use an absolute regular private App Store Connect key file.");
+                if (!OperatingSystem.IsWindows() && (File.GetUnixFileMode(keySource) &
+                    (UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.GroupExecute |
+                     UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute)) != 0)
+                    throw new InvalidOperationException("App Store Connect key file must be accessible only to its owner.");
+                File.Copy(keySource, keyPath, overwrite: false);
 
                 var iosConfig = await firebaseSetupManager.GetIosConfig(appBuildsConfig.PackageNameIos);
 
@@ -559,15 +565,15 @@ flutter_native_splash:
                         workingDirectory: Path.Combine(flutterAppPath, "ios", "fastlane"),
                         environmentVariables: new Dictionary<string, string>
                         {
-                            { "KEY_ID", "SYXL99Y93Q" },
-                            { "ISSUER_ID", "f777bb1d-5b01-4011-a7ef-76e7aee74270" },
-                            { "PRODUCE_USERNAME", "osmankabasakal75@hotmail.com" },
+                            { "KEY_ID", Environment.GetEnvironmentVariable("APP_STORE_CONNECT_KEY_ID") ?? throw new InvalidOperationException("Configure APP_STORE_CONNECT_KEY_ID for legacy Apple automation.") },
+                            { "ISSUER_ID", Environment.GetEnvironmentVariable("APP_STORE_CONNECT_ISSUER_ID") ?? throw new InvalidOperationException("Configure APP_STORE_CONNECT_ISSUER_ID for legacy Apple automation.") },
+                            { "PRODUCE_USERNAME", Environment.GetEnvironmentVariable("FASTLANE_USER") ?? throw new InvalidOperationException("Configure FASTLANE_USER for legacy Apple automation.") },
                             { "PRODUCE_APP_IDENTIFIER", appBuildsConfig.PackageNameIos },
                             { "PRODUCE_APP_NAME", appBuildsConfig.AppTitle },
                             { "PRODUCE_SKU", appBuildsConfig.PackageNameIos },
                             { "PRODUCE_VERSION", appBuildsConfig.Version },
                             { "PRODUCE_PLATFORM", "ios" },
-                            { "PRODUCE_COMPANY_NAME", "osmankabasakal75@hotmail.com" },
+                            { "PRODUCE_COMPANY_NAME", Environment.GetEnvironmentVariable("FASTLANE_USER") ?? throw new InvalidOperationException("Configure FASTLANE_USER for legacy Apple automation.") },
                             { "PRODUCE_LANGUAGE", "tr" },
                             { "LC_ALL", "en_US.UTF-8" },
                             { "LANG", "en_US.UTF-8" }
@@ -580,15 +586,15 @@ flutter_native_splash:
                         workingDirectory: Path.Combine(flutterAppPath, "ios", "fastlane"),
                         environmentVariables: new Dictionary<string, string>
                         {
-                            { "KEY_ID", "SYXL99Y93Q" },
-                            { "ISSUER_ID", "f777bb1d-5b01-4011-a7ef-76e7aee74270" },
-                            { "PRODUCE_USERNAME", "osmankabasakal75@hotmail.com" },
+                            { "KEY_ID", Environment.GetEnvironmentVariable("APP_STORE_CONNECT_KEY_ID") ?? throw new InvalidOperationException("Configure APP_STORE_CONNECT_KEY_ID for legacy Apple automation.") },
+                            { "ISSUER_ID", Environment.GetEnvironmentVariable("APP_STORE_CONNECT_ISSUER_ID") ?? throw new InvalidOperationException("Configure APP_STORE_CONNECT_ISSUER_ID for legacy Apple automation.") },
+                            { "PRODUCE_USERNAME", Environment.GetEnvironmentVariable("FASTLANE_USER") ?? throw new InvalidOperationException("Configure FASTLANE_USER for legacy Apple automation.") },
                             { "PRODUCE_APP_IDENTIFIER", appBuildsConfig.PackageNameIos },
                             { "PRODUCE_APP_NAME", appBuildsConfig.AppTitle },
                             { "PRODUCE_SKU", appBuildsConfig.PackageNameIos },
                             { "PRODUCE_VERSION", appBuildsConfig.Version },
                             { "PRODUCE_PLATFORM", "ios" },
-                            { "PRODUCE_COMPANY_NAME", "osmankabasakal75@hotmail.com" },
+                            { "PRODUCE_COMPANY_NAME", Environment.GetEnvironmentVariable("FASTLANE_USER") ?? throw new InvalidOperationException("Configure FASTLANE_USER for legacy Apple automation.") },
                             { "PRODUCE_LANGUAGE", "tr" },
                             { "LC_ALL", "en_US.UTF-8" },
                             { "LANG", "en_US.UTF-8" }
@@ -601,15 +607,15 @@ flutter_native_splash:
                         workingDirectory: Path.Combine(flutterAppPath, "ios", "fastlane"),
                         environmentVariables: new Dictionary<string, string>
                         {
-                            { "KEY_ID", "SYXL99Y93Q" },
-                            { "ISSUER_ID", "f777bb1d-5b01-4011-a7ef-76e7aee74270" },
-                            { "PRODUCE_USERNAME", "osmankabasakal75@hotmail.com" },
+                            { "KEY_ID", Environment.GetEnvironmentVariable("APP_STORE_CONNECT_KEY_ID") ?? throw new InvalidOperationException("Configure APP_STORE_CONNECT_KEY_ID for legacy Apple automation.") },
+                            { "ISSUER_ID", Environment.GetEnvironmentVariable("APP_STORE_CONNECT_ISSUER_ID") ?? throw new InvalidOperationException("Configure APP_STORE_CONNECT_ISSUER_ID for legacy Apple automation.") },
+                            { "PRODUCE_USERNAME", Environment.GetEnvironmentVariable("FASTLANE_USER") ?? throw new InvalidOperationException("Configure FASTLANE_USER for legacy Apple automation.") },
                             { "PRODUCE_APP_IDENTIFIER", appBuildsConfig.PackageNameIos },
                             { "PRODUCE_APP_NAME", appBuildsConfig.AppTitle },
                             { "PRODUCE_SKU", appBuildsConfig.PackageNameIos },
                             { "PRODUCE_VERSION", appBuildsConfig.Version },
                             { "PRODUCE_PLATFORM", "ios" },
-                            { "PRODUCE_COMPANY_NAME", "osmankabasakal75@hotmail.com" },
+                            { "PRODUCE_COMPANY_NAME", Environment.GetEnvironmentVariable("FASTLANE_USER") ?? throw new InvalidOperationException("Configure FASTLANE_USER for legacy Apple automation.") },
                             { "PRODUCE_LANGUAGE", "tr" },
                             { "LC_ALL", "en_US.UTF-8" },
                             { "LANG", "en_US.UTF-8" }
@@ -646,9 +652,9 @@ flutter_native_splash:
                     workingDirectory: Path.Combine(flutterAppPath, "ios", "fastlane"),
                     environmentVariables: new Dictionary<string, string>
                     {
-                        { "KEY_ID", "SYXL99Y93Q" },
-                        { "ISSUER_ID", "f777bb1d-5b01-4011-a7ef-76e7aee74270" },
-                        { "CONTACT_PHONE", "+905416658660" },
+                        { "KEY_ID", Environment.GetEnvironmentVariable("APP_STORE_CONNECT_KEY_ID") ?? throw new InvalidOperationException("Configure APP_STORE_CONNECT_KEY_ID for legacy Apple automation.") },
+                        { "ISSUER_ID", Environment.GetEnvironmentVariable("APP_STORE_CONNECT_ISSUER_ID") ?? throw new InvalidOperationException("Configure APP_STORE_CONNECT_ISSUER_ID for legacy Apple automation.") },
+                        { "CONTACT_PHONE", Environment.GetEnvironmentVariable("APP_STORE_CONNECT_CONTACT_PHONE") ?? throw new InvalidOperationException("Configure APP_STORE_CONNECT_CONTACT_PHONE for legacy Apple automation.") },
                         { "TESTER_GROUP", "business_owner" }
                     },
                     null, null
@@ -1626,7 +1632,7 @@ storeFile={jksPath}
                     platform == BuildPlatform.Android ? (releaseSha256 ?? buildEnvConfig.AppSignatureSha256) : $"",
                     platform == BuildPlatform.Android ? (debugSha256 ?? "") : ""
                 },
-                IosAppId = $"DCJPZMRVK8.{buildEnvConfig.PackageNameIos}",
+                IosAppId = $"{(Environment.GetEnvironmentVariable("APPLE_DEVELOPER_TEAM_ID") ?? throw new InvalidOperationException("Configure APPLE_DEVELOPER_TEAM_ID for legacy Apple automation."))}.{buildEnvConfig.PackageNameIos}",
                 StoreGroupName = _appBuildsConfig.AuthClientId,
             };
 

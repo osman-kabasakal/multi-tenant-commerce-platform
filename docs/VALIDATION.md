@@ -42,7 +42,7 @@ Bu doğrulama sırasında düzeltilen başlıca sorunlar: HTTP demo oturum çere
 
 ## Doğrulanmayan kapsam
 
-- iOS, fiziksel cihaz dağıtımı, release imzası ve mağazalara yayın.
+- İmzalı iOS IPA, fiziksel cihaz dağıtımı ve mağazalara yayın. İmzasız iOS derleme kanıtı aşağıdaki 2026-10-16 kaydındadır.
 - Tam satın alma/ödeme, yeni işletme oluşturma, e-posta/bildirim teslimi ve buluta dağıtım.
 - Uzun süreli mobil oturum yenileme ve tüm hesap/kayıt akışları.
 - Üretim yükü, kapsamlı güvenlik denetimi ve bütün üçüncü taraf lisanslarının yayın izni.
@@ -411,3 +411,19 @@ The exact distributed-payment source `1fdc21767a8aaaee0cb8d1a4261118fb1467f4e8` 
 Exact source `1fdc21767a8aaaee0cb8d1a4261118fb1467f4e8` subsequently completed all four [general CI jobs](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/runs/38910317133) successfully: source, local-demo, mobile-worker and Android demo. Its [full Linux Production workflow](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/runs/38910317410), job `117004198469`, also succeeded. The actual Angular owner created the third tenant, all three administrator sessions survived restart, and cold restoration preserved the original encryption key and exact private-file bytes. All three administrator sessions and the existing Firefox owner/Angular ready screen also survived restoration. Runtime/database/context isolation gates remained enabled. The separate packaged signed-Android workflow is recorded independently when it finishes.
 
 The general job log separately confirms all eleven real PostgreSQL payment fixture assertions, including cross-process exclusion, other-business independence, encrypted receipt recovery, lock release after process termination and refusal after backend termination. No merchant API call was performed. These successful gates do not prove live Google project creation, external DNS, real mailbox/device delivery, actual merchant acceptance or iOS signing.
+
+
+## Tenant iOS native graph and actual unsigned compilation — 2026-10-16
+
+The Mac check passed full Xcode 26.6 first-launch setup, the iPhoneOS 26.5 SDK, pinned Flutter 3.44.6, CocoaPods and the 20 GiB free-space guard. The selected Developer Portal team is configured only in ignored private state; no usable local distribution identity was present when checked. The numeric App Store Connect team identifier is not accepted as a signing Team ID. Twelve preflight cases and ten tenant/compiled-app/cache-boundary cases passed (**22 Python tests**).
+
+The real `xcodeproj` 1.27.0 probe created all three tenant configurations, a matching archive/launch scheme, an embedded notification extension with an explicit product name, and the owned Firebase plist resource. It verifies extension embedding before Flutter's embed/thin phase to avoid an actual Xcode dependency cycle. The generated copy selects one CocoaPods Firebase graph; this fixed an observed duplicate Firebase module failure under Flutter's default hybrid dependency setup. The tracked pubspec and user-wide Flutter configuration were unchanged.
+
+`python3 scripts/smoke_mobile_ios.py --ruby /usr/bin/ruby --flutter /absolute/flutter/bin/flutter --compile-unsigned` then passed a real ARM64 iPhone release compilation on this Mac. Xcode produced a 45.2 MB application. Independent checks verified the native bundle/version, Firebase project/sender/iOS app, embedded notification extension version and Swift entry point, and the ARM64 executable and Flutter application framework. The synthetic fixture used version 1.0.0/build 7. Its result explicitly records `compiledIosApp=true`, `signedIpaBuilt=false`, `distributed=false`, and `symbolsUploaded=false`; the app was never launched.
+
+The probe removed its source/build copy and private synthetic SDK inputs. Its Xcode cache cleanup matches the exact owned workspace recorded in `info.plist`, preserving other projects, linked directories and foreign probe caches; the boundary test passed. Only small private diagnostics and public result metadata remain. No signing key/profile, Apple portal resource, Google project, provider release, crash report or device delivery was created.
+
+The preceding preflight source `5a146c8221ae4e82d47f0494158ca750b1d2a9a6` completed all four [general CI jobs](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/runs/38917045086) successfully. The earlier source `9e044ff76fad6f6c8ed297f9411f8e259bc233c6` also completed its [actual signed Android worker-image test](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/runs/38913024441). Those runs predate this native iOS change; updated CI must still run. Signed IPA/export verification, automatic shared Mac-worker scheduling, APNs setup, Crashlytics symbols/report delivery and real App Distribution tester installation remain unfinished. The full platform goal remains active.
+
+
+The final source review also removed retained operator Apple team/account/key/contact defaults from the Fastlane example, the vendored plugin example signing settings and the historical TenantManager helpers. Legacy key input now uses an explicitly selected regular, owner-only local file instead of a hardcoded key-download URL. TenantManager's .NET 9 Release build passed with zero errors (inherited warnings remain). The active tenant iOS preparation path does not execute those historical cloud/TestFlight helpers. The actual unsigned device compilation passed again after the account-identifier cleanup, with its own Xcode cache removed automatically. No configured-cloud execution of the historical helpers is claimed.
