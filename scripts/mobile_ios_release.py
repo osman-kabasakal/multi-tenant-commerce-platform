@@ -46,15 +46,15 @@ def read_bytes(path, private=False, limit=PROFILE_LIMIT):
 
 def policy(path, tenant):
     value = preflight.read_json(Path(path), private=True)
-    allowed = {"AllowSigning", "AllowFirebaseWrites", "DevelopmentTeam", "SigningCertificateSha1", "ApplicationProfile", "ExtensionProfile", "RequiredDeviceUdids"}
+    allowed = {"AllowSigning", "AllowFirebaseWrites", "AllowProfileInstallation", "DevelopmentTeam", "SigningCertificateSha1", "ApplicationProfile", "ExtensionProfile", "RequiredDeviceUdids"}
     if set(value) - allowed or value.get("AllowSigning") is not True:
         raise ValueError("Signing requires explicit AllowSigning and supported release settings.")
     if value.get("DevelopmentTeam") != tenant["developmentTeam"] or not re.fullmatch(r"[A-Z0-9]{10}", value.get("DevelopmentTeam", "")):
         raise ValueError("Signing policy belongs to another Apple team.")
     if not isinstance(value.get("SigningCertificateSha1"), str) or not re.fullmatch(r"[0-9A-Fa-f]{40}", value["SigningCertificateSha1"]):
         raise ValueError("Select the existing distribution certificate by its SHA-1 keychain selector.")
-    if type(value.get("AllowFirebaseWrites", False)) is not bool:
-        raise ValueError("AllowFirebaseWrites must be an explicit boolean.")
+    if any(type(value.get(name, False)) is not bool for name in ("AllowFirebaseWrites", "AllowProfileInstallation")):
+        raise ValueError("Firebase writes and profile installation must be explicit booleans.")
     value["RequiredDeviceUdids"] = devices(value.get("RequiredDeviceUdids"))
     value["SigningCertificateSha1"] = value["SigningCertificateSha1"].lower()
     for name in ["ApplicationProfile", "ExtensionProfile"]:
@@ -118,11 +118,33 @@ def profile_guard(value, bundle, settings, application, now=None):
     matches = [x for x in certificates if isinstance(x, bytes) and len(x) <= 65536 and hashlib.sha1(x).hexdigest() == settings["SigningCertificateSha1"]]
     if len(matches) != 1:
         raise ValueError("The selected signing certificate is not uniquely authorized by the profile.")
-    return {"uuid": value["UUID"], "entitlements": entitlements, "certificate": matches[0],
+    return {"uuid": profile_id.upper(), "entitlements": entitlements, "certificate": matches[0],
             "expiresAtUtc": expiry.replace(tzinfo=timezone.utc).isoformat(), "deviceCount": len(registered), "devices": registered, "application": application}
 
 
-def signing_plan(settings, tenant):
+def install_profile(profile, raw):
+    """Add only a new UUID-named profile; never replace another Xcode profile."""
+    directory = Path.home() / "Library/Developer/Xcode/UserData/Provisioning Profiles"
+    for parent in (directory, *directory.parents):
+        if parent.is_symlink():
+            raise ValueError("Profile installation cannot follow symbolic links.")
+    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    target = directory / (str(uuid.UUID(profile["uuid"])).upper() + ".mobileprovision")
+    temporary = directory / (".platform-profile-" + uuid.uuid4().hex)
+    try:
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as output:
+            output.write(raw); output.flush(); os.fsync(output.fileno())
+        try:
+            os.link(temporary, target, follow_symlinks=False)
+        except FileExistsError:
+            if read_bytes(target, private=True) != raw:
+                raise ValueError("An existing Xcode profile with this UUID has different bytes; it was preserved.") from None
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def signing_plan(settings, tenant, expected_certificate_sha256=None):
     if platform.system() != "Darwin":
         raise ValueError("Signed IPA production requires macOS and Xcode.")
     identity = apple(["/usr/bin/security", "find-identity", "-v", "-p", "codesigning"]).decode(errors="replace")
@@ -134,9 +156,6 @@ def signing_plan(settings, tenant):
         raw = read_bytes(settings[field], private=True)
         decoded = plistlib.loads(apple(["/usr/bin/security", "cms", "-D", "-i", settings[field]]))
         value = profile_guard(decoded, bundle, settings, kind == "application")
-        installed = [Path.home() / "Library/MobileDevice/Provisioning Profiles", Path.home() / "Library/Developer/Xcode/UserData/Provisioning Profiles"]
-        if not any((directory / (value["uuid"] + ".mobileprovision")).is_file() and read_bytes(directory / (value["uuid"] + ".mobileprovision")) == raw for directory in installed):
-            raise ValueError("Install the exact selected profiles in Xcode before this manual-signing build.")
         value.update(raw=raw, sha256=hashlib.sha256(raw).hexdigest(), bundle=bundle)
         result[kind] = value
     if result["application"]["certificate"] != result["extension"]["certificate"]:
@@ -144,6 +163,16 @@ def signing_plan(settings, tenant):
     if not set(result["application"]["devices"]).issubset(result["extension"]["devices"]):
         raise ValueError("The extension profile does not cover every application-profile device.")
     result["certificateSha256"] = hashlib.sha256(result["application"]["certificate"]).hexdigest()
+    if expected_certificate_sha256 is not None and result["certificateSha256"] != expected_certificate_sha256:
+        raise ValueError("The native signing certificate differs from the immutable iOS release plan.")
+    for value in result.values():
+        if not isinstance(value, dict):
+            continue
+        if settings.get("AllowProfileInstallation") is True:
+            install_profile(value, value["raw"])
+        installed = [Path.home() / "Library/MobileDevice/Provisioning Profiles", Path.home() / "Library/Developer/Xcode/UserData/Provisioning Profiles"]
+        if not any((directory / (value["uuid"] + ".mobileprovision")).is_file() and read_bytes(directory / (value["uuid"] + ".mobileprovision")) == value["raw"] for directory in installed):
+            raise ValueError("Install the exact selected profiles in Xcode before this manual-signing build.")
     return result
 
 
@@ -248,9 +277,9 @@ def verify_ipa(binary, tenant, settings, plan, verify_native, archive):
                 symbolUuids=symbols, symbolDwarfSha256=symbol_hashes, symbolsVerified=True, symbolsUploaded=False, distributed=False)
 
 
-def build(workspace, tenant, signing_file, ruby, flutter, log, compile_native, verify_native):
+def build(workspace, tenant, signing_file, ruby, flutter, log, compile_native, verify_native, expected_certificate_sha256=None):
     settings = policy(signing_file, tenant)
-    plan = signing_plan(settings, tenant)
+    plan = signing_plan(settings, tenant, expected_certificate_sha256) if expected_certificate_sha256 is not None else signing_plan(settings, tenant)
     compile_native(workspace, tenant, flutter, log)
     app = workspace / "Platforms/store_user_app"
     private = workspace / "ios-release"; private.mkdir(mode=0o700)

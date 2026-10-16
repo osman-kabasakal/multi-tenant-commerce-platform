@@ -1,0 +1,43 @@
+{
+  "LocalDemo": { "Enabled": false },
+  "PlatformSecurity": {
+    "Provider": "AesGcm",
+    "InitializeSchema": false,
+    "ReadOnly": false,
+    "ConnectionString": "",
+    "AesGcm": { "MasterKeyFile": "/absolute/private/shared-master-key.txt" }
+  },
+  "Provisioning": {
+    "Profile": "Portable",
+    "InitializeSchema": false,
+    "ConnectionString": "",
+    "Google": {
+      "Provider": "Google",
+      "AllowCloudWrites": false,
+      "DeploymentId": "my-deployment",
+      "ProjectIdPrefix": "commerce",
+      "Parent": "",
+      "SenderServiceAccount": ""
+    },
+    "Mobile": {
+      "Ios": {
+        "Worker": {
+          "AllowSigning": false,
+          "AllowProfileInstallation": false,
+          "SharedArtifactsConfirmed": false,
+          "DeploymentId": "my-deployment",
+          "DevelopmentTeam": "",
+          "SigningCertificateSha256": "",
+          "ExpectedSourceHash": "",
+          "SourceDirectory": "/absolute/path/multi-tenant-commerce-platform",
+          "ArtifactDirectory": "/absolute/private/ios-artifacts",
+          "PythonPath": "/absolute/path/python3",
+          "FlutterPath": "/absolute/path/flutter/bin/flutter",
+          "RubyPath": "/absolute/path/ruby",
+          "AppleConfigFile": "/absolute/private/apple.json",
+          "BuildTimeoutSeconds": 7200
+        }
+      }
+    }
+  }
+}

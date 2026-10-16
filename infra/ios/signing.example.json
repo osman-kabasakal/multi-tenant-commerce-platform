@@ -1,6 +1,7 @@
 {
   "AllowSigning": false,
   "AllowFirebaseWrites": false,
+  "AllowProfileInstallation": false,
   "DevelopmentTeam": "",
   "SigningCertificateSha1": "",
   "ApplicationProfile": "/absolute/private/application.mobileprovision",

@@ -83,6 +83,11 @@ public sealed class FirebaseAppDistribution(GoogleRestClient api, GoogleCloudOpt
             new { groupAliases = new[] { tenant.DistributionGroupAlias } }, ct);
         return name;
     }
+    public Task VerifyTargetAsync(TenantFirebaseConfiguration tenant, string platform, CancellationToken ct = default)
+    {
+        _ = TargetApp(tenant, platform);
+        return VerifyProjectAsync(tenant, ct);
+    }
     private string TargetApp(TenantFirebaseConfiguration tenant,string platform)
     {
         options.Validate();FirebaseConfigValidator.Validate(tenant);

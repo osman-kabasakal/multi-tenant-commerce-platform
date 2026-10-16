@@ -17,7 +17,7 @@ import mobile_ios_preflight as preflight
 import mobile_ios_release as release
 
 ROOT = Path(__file__).resolve().parents[1]
-TOOLS = ("scripts/mobile_ios.py", "scripts/mobile_ios_project.rb", "scripts/mobile_ios_preflight.py", "scripts/mobile_ios_release.py", "scripts/mobile_ios_signing.rb")
+TOOLS = ("scripts/mobile_ios.py", "scripts/mobile_ios_project.rb", "scripts/mobile_ios_preflight.py", "scripts/mobile_ios_release.py", "scripts/mobile_ios_signing.rb", "scripts/mobile_ios_worker.py")
 
 
 def read_plist(path):

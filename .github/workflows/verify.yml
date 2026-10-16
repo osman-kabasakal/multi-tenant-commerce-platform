@@ -63,8 +63,10 @@ jobs:
         run: dotnet test tests/Storefront.Binding.Tests/Storefront.Binding.Tests.csproj -c Release --nologo
       - name: Verify tenant notification routing and consent
         run: dotnet test tests/Notifications.Tests/Notifications.Tests.csproj -c Release --nologo
-      - name: Build the Firebase export and distribution tool
-        run: dotnet build tools/Platform.Cloud/Platform.Cloud.csproj -c Release --nologo
+      - name: Build the cloud and Mac release tools without cloud credentials
+        run: |
+          dotnet build tools/Platform.Cloud/Platform.Cloud.csproj -c Release --nologo
+          dotnet build tools/Platform.Ios.Worker/Platform.Ios.Worker.csproj -c Release --nologo
       - name: Verify gateway tenant isolation, proxy trust and real YARP transports
         run: dotnet test tests/Gateway.Tests/Gateway.Tests.csproj -c Release --nologo
       - name: Verify portable card and file providers with owner isolation

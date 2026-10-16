@@ -71,6 +71,96 @@ internal static class IosReleaseQueueFixture
             "The deferred parent resumes after its dependency becomes ready");
     }
 
+    private sealed class Executor(Func<IosReleasePlan, CancellationToken, Task<IosReleaseReceipt>> execute) : IIosReleaseExecutor
+    {
+        public int Calls;
+        public bool Canceled;
+        public readonly TaskCompletionSource Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task<IosReleaseReceipt> ExecuteAsync(IosReleasePlan plan, CancellationToken ct)
+        {
+            Interlocked.Increment(ref Calls); Started.TrySetResult();
+            try { return await execute(plan, ct); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { Canceled = true; throw; }
+        }
+    }
+    private static async Task VerifyConsumerAsync(PostgresProvisioningQueue parents, PostgresIosReleaseQueue queue,
+        string connection, TenantProvisioningRequest parent, IosReleasePlan template)
+    {
+        var identity = new IosWorkerIdentity(template.DeploymentId, template.DevelopmentTeam, template.SigningCertificateSha256, template.SourceHash);
+        var options = new IosReleaseWorkerOptions { Identity = identity, LeaseDuration = TimeSpan.FromSeconds(6), PollInterval = TimeSpan.FromMilliseconds(100), MaxAttempts = 1 };
+        IosReleaseWorker Worker(Executor executor, IosReleaseWorkerOptions? settings = null) => new(queue, executor, settings ?? options, NullLogger<IosReleaseWorker>.Instance);
+        async Task<IosReleasePlan> Schedule()
+        {
+            var tenant = Guid.NewGuid().ToString("N");
+            await parents.EnqueueAsync(parent with { TenantId = tenant, Slug = "mac-worker-" + tenant[..10] });
+            var plan = template with { TenantId = tenant, IosBundleId = "dev.commerce.t" + tenant };
+            await queue.EnqueueAsync(plan); return plan;
+        }
+        async Task Expire(string tenant)
+        {
+            await using var db = new NpgsqlConnection(connection); await db.OpenAsync();
+            await using var update = new NpgsqlCommand("UPDATE platform_provisioning.ios_release_jobs SET lease_until=now()-interval '1 second' WHERE tenant_id=$1 AND state='Running'", db);
+            update.Parameters.AddWithValue(tenant); await update.ExecuteNonQueryAsync();
+        }
+        await using var other = new PostgresIosReleaseQueue(connection);
+        var longPlan = await Schedule();
+        var longBuild = new Executor(async (plan, ct) => { await Task.Delay(TimeSpan.FromSeconds(8), ct); return Receipt(plan); });
+        using (var worker = Worker(longBuild))
+        {
+            await worker.StartAsync(default); await longBuild.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var unrelated = new Executor((plan, ct) => Task.FromResult(Receipt(plan)));
+            using var wrong = Worker(unrelated, new() { Identity = identity with { DevelopmentTeam = "ZZZZZ99999" } });
+            await Reject<InvalidOperationException>(async () => await wrong.RunAsync(new((await queue.GetAsync(longPlan.TenantId))!, Guid.NewGuid()), default),
+                "A direct Mac worker invocation cannot substitute another signing team");
+            Check(unrelated.Calls == 0, "A mismatched Mac identity performs no provider or build work");
+            await Task.Delay(TimeSpan.FromMilliseconds(6500));
+            Check(await other.ClaimAsync(identity, TimeSpan.FromSeconds(6)) == null && (await queue.GetAsync(longPlan.TenantId))?.State == "Running",
+                "The actual hosted Mac consumer renews its lease beyond the initial build interval");
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            while ((await queue.GetAsync(longPlan.TenantId, deadline.Token))?.State != "Succeeded") await Task.Delay(100, deadline.Token);
+            await worker.StopAsync(deadline.Token);
+            Check((await queue.GetAsync(longPlan.TenantId))?.Receipt == Receipt(longPlan) && longBuild.Calls == 1,
+                "The actual hosted Mac consumer commits a matching receipt after its independent build executor completes");
+        }
+        var invalidPlan = await Schedule(); var invalidLease = (await queue.ClaimAsync(identity, options.LeaseDuration))!;
+        var invalid = new Executor((plan, ct) => Task.FromResult(Receipt(plan) with { BuildNumber = plan.BuildNumber + 1 }));
+        using (var worker = Worker(invalid))
+        {
+            await worker.RunAsync(invalidLease, default);
+            var job = (await queue.GetAsync(invalidPlan.TenantId))!;
+            Check(job.State == "Failed" && job.Receipt == null && job.ErrorCode == "ios-release:ArgumentException",
+                "An incompatible native receipt never reports success and persists only a safe error code");
+            await worker.RunAsync(invalidLease, default);
+            Check(invalid.Calls == 1, "A finished stale claim is rejected before the build executor runs again");
+        }
+        var interruptedPlan = await Schedule(); var interruptedLease = (await queue.ClaimAsync(identity, options.LeaseDuration))!;
+        var interrupted = new Executor(async (plan, ct) => { await Task.Delay(Timeout.Infinite, ct); return Receipt(plan); });
+        using (var worker = Worker(interrupted))
+        using (var shutdown = new CancellationTokenSource())
+        {
+            var running = worker.RunAsync(interruptedLease, shutdown.Token);
+            await interrupted.Started.Task.WaitAsync(TimeSpan.FromSeconds(10)); shutdown.Cancel();
+            await running.WaitAsync(TimeSpan.FromSeconds(10));
+            Check(interrupted.Canceled && (await queue.GetAsync(interruptedPlan.TenantId)) is { State: "Running", Attempts: 1, Receipt: null, ErrorCode: null },
+                "Mac shutdown cancels its own executor and leaves the durable claim recoverable without a fabricated failure");
+            await Expire(interruptedPlan.TenantId);
+            var recovered = (await other.ClaimAsync(identity, options.LeaseDuration))!;
+            await other.CompleteAsync(recovered, Receipt(interruptedPlan));
+            Check((await queue.GetAsync(interruptedPlan.TenantId))?.State == "Succeeded", "Another connection resumes the exact plan after shutdown and lease expiry");
+        }
+        var lostPlan = await Schedule(); var lostLease = (await queue.ClaimAsync(identity, options.LeaseDuration))!;
+        var lost = new Executor(async (plan, ct) => { await Task.Delay(Timeout.Infinite, ct); return Receipt(plan); });
+        using (var worker = Worker(lost))
+        {
+            var running = worker.RunAsync(lostLease, default); await lost.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await Expire(lostPlan.TenantId); var winner = (await other.ClaimAsync(identity, options.LeaseDuration))!;
+            await running.WaitAsync(TimeSpan.FromSeconds(10));
+            Check(lost.Canceled && winner.Token != lostLease.Token && (await queue.GetAsync(lostPlan.TenantId)) is { State: "Running", Receipt: null },
+                "Loss of the real PostgreSQL claim cancels the old Mac executor without overwriting the new owner");
+            await other.CompleteAsync(winner, Receipt(lostPlan));
+        }
+    }
+
     internal static async Task RunAsync(PostgresProvisioningQueue parents, string connection, string childConfig, TenantProvisioningRequest parent)
     {
         await VerifyParentWaitAsync(parents, connection, parent);
@@ -131,5 +221,6 @@ internal static class IosReleaseQueueFixture
         using var process = Process.Start(start)!;
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30)); await process.WaitForExitAsync(deadline.Token);
         Check(process.ExitCode == 0, "An independent process recovers the persisted iOS completion receipt");
+        await VerifyConsumerAsync(parents, queue, connection, parent, plan);
     }
 }
