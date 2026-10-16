@@ -2,7 +2,7 @@
 
 The generated single-host Linux deployment has a cold data snapshot tool. It stops only that owned Compose project, captures private state and all three database volumes, verifies the archives, then restarts the services that were previously running. It uses the same deployment lock as startup. The original installation ID, credentials and master key are retained.
 
-**Current evidence:** ten archive/ownership/service-resume tests pass locally. The complete cold database restoration gate has been added to clean Linux CI and is pending its own result. The separately verified full registration/restart baseline is recorded in [VALIDATION.md](VALIDATION.md#verified-real-registration-and-linux-restart-2026-10-16). Do not treat archive validation alone as a successful database restoration.
+**Current evidence:** the complete [Linux cold-restore CI run 38897760606](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/runs/38897760606) passed at exact source `670f8e611bdc354518b1c7e98990c4ad4d9af728`. It verified actual stopped PostgreSQL/MongoDB/Redis volumes, private state/key/file bytes, restoration into the emptied fixture destination, all three administrator sessions and the original Firefox owner success screen without another login request. Ten archive/ownership/service-resume tests also pass locally. See [VALIDATION.md](VALIDATION.md#verified-cold-database-restoration-2026-10-16) for the evidence boundary.
 
 ## Snapshot a running installation
 
@@ -49,4 +49,4 @@ python3 scripts/smoke_production_compose.py \
   --image commerce-platform:local --browser --backup-restore
 ```
 
-Only this fixture removes its own disposable project/volumes and private state to simulate an empty destination. It then runs the actual restore and ordinary startup commands, verifies original key/private-file bytes, real tenant data, SaaS/admin sessions and the original Firefox success screen. No live cloud account, external email recipient or unrelated Docker data is used. CI selects this gate; its result must pass before cold restoration is recorded as verified.
+Only this fixture removes its own disposable project/volumes and private state to simulate an empty destination. It then runs the actual restore and ordinary startup commands, verifies original key/private-file bytes, real tenant data, SaaS/admin sessions and the original Firefox success screen. No live cloud account, external email recipient or unrelated Docker data is used. CI selects this gate, and its complete real Linux run passed at the source recorded above. This remains a single-host, exact-image/source restoration; different hosts, UIDs or production datasets have not been exercised.

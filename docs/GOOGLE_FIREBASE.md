@@ -1,6 +1,6 @@
 # Per-tenant Google and Firebase
 
-The durable onboarding worker has an **opt-in Google provider**. The default local demo keeps `Provisioning:Google:Provider=Disabled` and creates no cloud resources. The Google provider plugs into both the Local and Portable orchestration profiles. You can exercise Google setup while keeping the database, Keycloak and storefront local, or explicitly configure it in a Portable deployment. Opt-in automatic Android release orchestration, encrypted tenant signing and durable artifact replay are implemented. The complete signed Android Flutter release passed clean Linux CI with synthetic Firebase identity. The cloud-free Linux Compose baseline passed its own complete rollout/restart checks. The actual owner-registration/email/browser restart gate also passed clean Linux CI. iOS, live notification/crash/distribution delivery and cold backup restoration remain acceptance gates; see [PROVISIONING.md](PROVISIONING.md).
+The durable onboarding worker has an **opt-in Google provider**. The default local demo keeps `Provisioning:Google:Provider=Disabled` and creates no cloud resources. The Google provider plugs into both the Local and Portable orchestration profiles. You can exercise Google setup while keeping the database, Keycloak and storefront local, or explicitly configure it in a Portable deployment. Opt-in automatic Android release orchestration, encrypted tenant signing and durable artifact replay are implemented. The complete signed Android Flutter release passed clean Linux CI with synthetic Firebase identity. The cloud-free Linux Compose baseline passed its own complete rollout/restart checks. The actual owner-registration/email/browser restart gate also passed clean Linux CI. Cold database/private-state restoration also passed its complete Linux gate. iOS and live notification/crash/distribution delivery remain acceptance gates; see [PROVISIONING.md](PROVISIONING.md).
 
 ## Resources and ownership
 
@@ -32,6 +32,28 @@ The provisioning identity needs these capabilities on the configured parent/new 
 - When a billing account is supplied, project billing assignment and permission to associate that account.
 
 The runtime sender is a separate, narrower identity. Configure it as `SenderServiceAccount`; enable the Firebase Cloud Messaging API in its sender project too. Run the eventual commerce sender using that identity's ADC credentials. It needs the per-target FCM role above, not project creation, IAM administration or service-account key creation. Commerce now uses this shared tenant sender. Select `Notifications:Provider=Fcm` on the commerce/admin hosts; runtime delivery uses the sender identity and does not require provisioning write options. See [NOTIFICATIONS.md](NOTIFICATIONS.md) for local capture, consent and verification limits.
+
+## Check a specific service account without cloud writes
+
+Before selecting a provisioning target, run the management tool with an explicit service-account file. This command does not use the Firebase CLI login or fall back to another ADC identity. It reads the credential project, Firebase identity, API states, paginated Android/iOS app counts and App Distribution group count. It tests the selected permissions with Resource Manager `testIamPermissions`; those POST requests do not change policy.
+
+```sh
+dotnet run --project tools/Platform.Cloud -c Release -- check-access \
+  --credentials /absolute/private/provisioning-service-account.json
+
+# Supply only the parent you actually intend to use for new tenant projects:
+dotnet run --project tools/Platform.Cloud -c Release -- check-access \
+  --credentials /absolute/private/provisioning-service-account.json \
+  --parent folders/123456789
+```
+
+The credential project's own parent is informational and is never selected as the tenant target. Without `--parent`, its creation-permission check remains `not-configured`. An inaccessible group/app list remains `unavailable` with its HTTP status; a 404 is not converted into a successful empty list. Disabled APIs are reported without enabling them. The JSON output contains project metadata, selected permission names and counts; it excludes keys, tokens, SDK files, IAM members and provider error bodies. Keep any saved report private and outside Git.
+
+Exit code 0 means all requested diagnostic checks passed; 2 means at least one is disabled, missing, unconfigured or unavailable; 1 means the command could not complete. Even a complete diagnostic does not prove new-project quota, organization policy, accepted terms, billing permissions, runtime sender isolation or device delivery. A live owned-tenant provisioning and delivery check is still required. The caller supplies a separate runtime sender identity as described above.
+
+The operator-provided account has now been exercised against live Google/Firebase read APIs. Authentication, the existing project's Resource Manager/Firebase identity, Android/iOS listing and selected project permissions passed. Its Crashlytics API was disabled, the App Distribution group request returned 404 and there was no organization/folder on the credential project or organization visible to that account. The original TenantManager supplied a legacy organization target; explicitly testing that target returned no `resourcemanager.projects.create` permission. An organization administrator must grant an approved project-creation role on the intended parent before live new-tenant provisioning can run. No new tenant project, tester invitation, billing change or device delivery is claimed. Account identifiers and credential paths are retained only in private local verification data.
+
+Official diagnostic contracts: [project permissions](https://docs.cloud.google.com/resource-manager/reference/rest/v3/projects/testIamPermissions), [folder permissions](https://docs.cloud.google.com/resource-manager/reference/rest/v3/folders/testIamPermissions), [organization permissions](https://docs.cloud.google.com/resource-manager/reference/rest/v3/organizations/testIamPermissions), [App Distribution groups](https://firebase.google.com/docs/reference/app-distribution/rest/v1/projects.groups/list).
 
 ## Enable Google for a local test
 

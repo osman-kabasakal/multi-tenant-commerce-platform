@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
+using Google.Apis.Auth.OAuth2;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Platform.Google;
@@ -6,6 +8,7 @@ using Platform.Security;
 
 if (args.Length == 0 || args[0] is "--help" or "help")
 {
+    Console.WriteLine("check-access --credentials <service-account-file> [--parent organizations/ID|folders/ID]");
     Console.WriteLine("export-mobile --config <file> --tenant <business-guid-N> --output <directory>");
     Console.WriteLine("distribute --config <file> --tenant <business-guid-N> --platform <android|ios> --binary <apk|ipa>");
     return 0;
@@ -13,6 +16,20 @@ if (args.Length == 0 || args[0] is "--help" or "help")
 try
 {
     var command = args[0];
+    if (command == "check-access")
+    {
+        if (args.Length is not (3 or 5) || args[1] != "--credentials" ||
+            (args.Length == 5 && args[3] != "--parent")) throw new ArgumentException();
+        using var input = File.OpenRead(Path.GetFullPath(args[2]));
+        // Explicit service-account parsing prevents fallback to another logged-in identity or ADC.
+        var account = ServiceAccountCredential.FromServiceAccountData(input);
+        using var http = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(45) };
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+        var report = await new GoogleAccessVerifier(new GoogleRestClient(http,
+            new ExplicitServiceAccountTokens(account))).CheckAsync(account.ProjectId, args.Length == 5 ? args[4] : null, timeout.Token);
+        Console.WriteLine(JsonSerializer.Serialize(report, new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true }));
+        return report.Checks.All(check => check.Status == "passed") ? 0 : 2;
+    }
     if (command is not ("export-mobile" or "distribute") || args.Length % 2 != 1) throw new ArgumentException();
     var flags = new Dictionary<string,string>();
     for (var i = 1; i < args.Length; i += 2)
@@ -53,4 +70,12 @@ catch (Exception error)
     // Do not print secret values, credential paths, database exceptions or provider response bodies.
     Console.Error.WriteLine("Cloud operation failed (" + error.GetType().Name + "). Check configuration and provider permissions.");
     return 1;
+}
+
+internal sealed class ExplicitServiceAccountTokens(ServiceAccountCredential account) : IGoogleAccessTokenSource
+{
+    private readonly GoogleCredential credential = GoogleCredential.FromServiceAccountCredential(account);
+    private readonly ConcurrentDictionary<string, GoogleCredential> scoped = new();
+    public Task<string> GetAsync(string scope, CancellationToken ct) =>
+        ((ITokenAccess)scoped.GetOrAdd(scope, value => credential.CreateScoped(value))).GetAccessTokenForRequestAsync(cancellationToken: ct);
 }
