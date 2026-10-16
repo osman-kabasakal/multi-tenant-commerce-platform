@@ -93,8 +93,9 @@ async function main() {
     await page.locator('#lastName').fill('Owner');
     await page.locator('#email').fill(config.account.email);
     await page.locator('#username').fill(config.account.username);
-    await page.locator('#password').fill(config.account.password);
-    await page.locator('#password-confirm').fill(config.account.password);
+    // Keycloak 26.8 with verifyEmail requires password creation after mailbox ownership is proved.
+    check(await page.locator('#kc-register-form input[type="password"]').count() === 0,
+      'The public registration form defers password creation until after email verification');
     await page.locator('#kc-register-form input[type="submit"], #kc-register-form button[type="submit"]').click();
     stage = 'Keycloak verification email';
     const mailDeadline = Date.now() + 60000;
@@ -115,7 +116,14 @@ async function main() {
       const continueLink = page.locator('#kc-info-message a[href]');
       if (await continueLink.count() === 1) await continueLink.click();
     }
-    check(true, 'The browser follows the actual Keycloak SMTP verification link');
+    stage = 'Keycloak password after email verification';
+    const passwordForm = page.locator('#kc-passwd-update-form');
+    await passwordForm.waitFor();
+    check(new URL(page.url()).origin === config.identity && await page.getByRole('heading', {name: 'İşletmenizi oluşturun', exact: true}).count() === 0,
+      'The actual SMTP verification link reaches required password creation before business enrollment');
+    await passwordForm.locator('#password-new').fill(config.account.password);
+    await passwordForm.locator('#password-confirm').fill(config.account.password);
+    await passwordForm.locator('input[type="submit"][name="login"]').click();
   } else {
     stage = 'Keycloak username';
     await page.locator('input[name="username"]').fill(config.account.username);
