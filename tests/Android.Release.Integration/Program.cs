@@ -147,7 +147,31 @@ internal sealed class NativeFixtureBuilder(AndroidReleaseOptions options) : IAnd
 {
     private readonly AndroidReleaseBuilder actual=new(options);public int Builds;public bool RefuseBuild,HoldBuild;
     public Task<string> SourceHashAsync(CancellationToken ct)=>actual.SourceHashAsync(ct);
-    public Task<AndroidReleaseReceipt> VerifyAsync(string path,AndroidReleaseReceipt expected,CancellationToken ct)=>actual.VerifyAsync(path,expected,ct);
+    public async Task<AndroidReleaseReceipt> VerifyAsync(string path,AndroidReleaseReceipt expected,CancellationToken ct)
+    {
+        try
+        {
+            var receipt=await actual.VerifyAsync(path,expected,ct);
+            if(receipt!=expected)Console.WriteLine("Native verifier metadata differences: "+string.Join(",",typeof(AndroidReleaseReceipt).GetProperties().Where(p=>!Equals(p.GetValue(receipt),p.GetValue(expected))).Select(p=>p.Name)));
+            return receipt;
+        }
+        catch(Exception error)when(!ct.IsCancellationRequested)
+        {
+            Console.WriteLine("Native verifier failed: "+error.GetType().Name);
+            var tools=Directory.GetDirectories(Path.Combine(options.AndroidSdkDirectory,"build-tools")).OrderByDescending(p=>p,StringComparer.Ordinal).ToArray();
+            Console.WriteLine("Installed native build-tools versions: "+string.Join(",",tools.Select(Path.GetFileName)));
+            foreach(var item in new[]{("apksigner",new[]{"verify","--verbose","--print-certs",path}),("aapt2",new[]{"dump","badging",path})})
+            {
+                var start=new ProcessStartInfo(Path.Combine(tools[0],item.Item1)){UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true};
+                foreach(var argument in item.Item2)start.ArgumentList.Add(argument);
+                using var process=Process.Start(start)!;var output=process.StandardOutput.ReadToEndAsync();var errors=process.StandardError.ReadToEndAsync();
+                await process.WaitForExitAsync(ct);var text=(await output)+"\n"+(await errors);
+                Console.WriteLine($"Public APK inspection: tool={item.Item1}; exit={process.ExitCode}");
+                foreach(var line in text.Split('\n').Where(line=>new[]{"package: ","application-debuggable","Signer #","Verifies","DOES NOT VERIFY","ERROR:"}.Any(prefix=>line.StartsWith(prefix,StringComparison.Ordinal))))Console.WriteLine(line[..Math.Min(1024,line.Length)]);
+            }
+            throw;
+        }
+    }
     public async Task<AndroidBuiltArtifact> BuildAsync(TenantProvisioningRequest request,TenantFirebaseConfiguration firebase,AndroidSigningKey key,AndroidReleasePlan plan,CancellationToken ct)
     {
         Builds++;if(RefuseBuild)throw new InvalidOperationException("A restarted worker attempted to rebuild an immutable APK.");
