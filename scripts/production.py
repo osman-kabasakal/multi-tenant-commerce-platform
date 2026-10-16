@@ -16,6 +16,7 @@ import ssl
 
 import production_config as config
 import production_image
+import production_android
 
 ROOT = config.ROOT
 ROLES = ('owner', 'saas', 'worker', 'reader', 'keycloak_db')
@@ -178,6 +179,15 @@ user(a,'tenant_provisioner',s.worker,[{role:'readWriteAnyDatabase',db:'admin'},{
         metadata = json.loads(found.stdout)[0]['Config']
         if metadata['User'] != str(os.getuid()) + ':' + str(os.getgid()) or metadata.get('Labels', {}).get('org.opencontainers.image.revision') != expected:
             raise ValueError('Build the committed source image for the current deployment account before startup.')
+        worker_image = self.definition['services']['worker']['image']
+        if worker_image != image:
+            if platform.machine() not in ('x86_64', 'AMD64'):
+                raise ValueError('The packaged Android build worker currently requires Linux amd64; run it on a dedicated compatible host.')
+            mobile_image = subprocess.run(['docker', 'image', 'inspect', worker_image], capture_output=True)
+            if mobile_image.returncode:
+                if no_build: raise ValueError('The explicitly selected Android provisioning image is missing.')
+                production_android.build(worker_image, image, self.plan['Providers']['Mobile']['AcceptAndroidSdkLicenses'])
+            production_android.require_image(worker_image, True)
         keycloak = subprocess.run(['docker', 'image', 'inspect', 'commerce-keycloak:26.8.0'], capture_output=True)
         if keycloak.returncode:
             definition = subprocess.check_output(['git', 'show', expected + ':infra/production/Keycloak.Dockerfile'], cwd=ROOT)

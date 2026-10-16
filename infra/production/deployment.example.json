@@ -26,6 +26,7 @@
     "Domains": {"Provider": "Wildcard", "WildcardConfigured": false},
     "Google": {"Provider": "Disabled"},
     "ReadinessEmail": {"Provider": "Disabled"},
-    "Notifications": {"Provider": "Disabled"}
+    "Notifications": {"Provider": "Disabled"},
+    "Mobile": {"Provider": "Disabled"}
   }
 }

@@ -58,6 +58,15 @@ def validate(plan):
         raise ValueError('Explicitly select Disabled or Smtp readiness delivery.')
     if providers.get('Notifications', {}).get('Provider') not in ('Disabled', 'Fcm'):
         raise ValueError('Explicitly select Disabled or Fcm notifications.')
+    mobile = providers.get('Mobile', {'Provider': 'Disabled'})
+    if mobile.get('Provider') not in ('Disabled', 'AndroidAppDistribution'):
+        raise ValueError('Explicitly select Disabled or AndroidAppDistribution mobile provisioning.')
+    if mobile['Provider'] == 'AndroidAppDistribution':
+        android = mobile.get('Android', {})
+        if providers['Google'].get('Provider') != 'Google' or providers['Google'].get('AllowCloudWrites') is not True or mobile.get('AcceptAndroidSdkLicenses') is not True or android.get('AllowSigningKeyCreation') is not True or android.get('SharedArtifactsConfirmed') is not True:
+            raise ValueError('Android publication requires explicit Google writes, SDK license acceptance, signing creation and shared artifact backup confirmation.')
+        if type(android.get('BuildNumber', 1)) is not int or not 1 <= android.get('BuildNumber', 1) <= 2100000000 or type(android.get('BuildTimeoutSeconds', 7200)) is not int or not 300 <= android.get('BuildTimeoutSeconds', 7200) <= 14400:
+            raise ValueError('Use a valid Android initial build number and timeout.')
     trial = plan['TrialPlan']
     if uuid.UUID(trial['Id']).int == 0: raise ValueError('Select the stable public trial plan GUID.')
     # The owner CLI performs the complete policy/schema validation before hosts start.
@@ -110,6 +119,13 @@ def prepare(plan, state, image):
         if path.is_symlink(): raise ValueError('Private deployment directories cannot be symbolic links.')
         if record.get('Rendered') and not path.is_dir(): raise ValueError('An original private deployment directory is missing; restore a consistent backup.')
         path.mkdir(exist_ok=True, mode=0o700)
+    if plan['Providers'].get('Mobile', {}).get('Provider') == 'AndroidAppDistribution' or record.get('MobilePrepared'):
+        for directory in ('mobile-work', 'mobile-artifacts', 'mobile-cache'):
+            path = state / directory
+            if path.is_symlink() or record.get('MobilePrepared') and not path.is_dir():
+                raise ValueError('An original mobile directory is missing or linked; restore the consistent signing/artifact backup.')
+            path.mkdir(exist_ok=True, mode=0o700)
+        record['MobilePrepared'] = True
     c = record['Credentials']
     for path in (state / 'config').iterdir():
         if path.is_symlink(): raise ValueError('Private generated configuration cannot be a symbolic link.')
@@ -137,6 +153,7 @@ def prepare(plan, state, image):
 
 
 def render(p, state, record, image):
+    mobile = p['Providers'].get('Mobile', {'Provider': 'Disabled'})
     c = record['Credentials']; ident = p['DeploymentId']; port = '' if p['HttpsPort'] == 443 else ':' + str(p['HttpsPort'])
     origin = lambda host: 'https://' + host + port
     portal = origin(p['PortalHost']); identity = origin(p['IdentityHost']); store = origin(p['StoreParentDomain']); admin = origin(p['AdminParentDomain'])
@@ -181,7 +198,7 @@ def render(p, state, record, image):
         AuthConfiguration={'IdentityProviderUrl': identity + '/realms/commerce', 'Audience': 'saas-manager', 'ClientId': 'saas-manager',
                            'ClientSecret': c['saas_client'], 'Scopes': ['openid', 'profile', 'email', 'roles']},
         ConnectionStrings={'SaasManagerDb': connection('platform_saas', 'saas')}, DatabaseBootstrap={'Mode': 'External'},
-        Provisioning={'Enabled': True, 'InitializeSchema': False, 'Profile': 'Portable', 'DeploymentId': ident, 'Mobile': {'Provider': 'Disabled'}},
+        Provisioning={'Enabled': True, 'InitializeSchema': False, 'Profile': 'Portable', 'DeploymentId': ident, 'Mobile': {'Provider': mobile['Provider']}},
         TenantOnboarding={'Trial': {'Enabled': True, 'PlanId': p['TrialPlan']['Id']}}, CardProtection={'Provider': 'Disabled'},
         FileStorage={'Provider': 'FileSystem', 'FileSystem': {'RootDirectory': '/var/lib/commerce/saas-files'}},
         Web={'AllowedOrigins': [portal], 'DataProtectionKeyDirectory': '/var/lib/commerce/saas-cookie-keys', 'DataProtectionApplicationName': ident},
@@ -191,13 +208,19 @@ def render(p, state, record, image):
     worker = copy.deepcopy(base)
     worker.update(PlatformSecurity=security('worker'), Provisioning={'Enabled': True, 'InitializeSchema': False, 'Profile': 'Portable',
         'Google': p['Providers']['Google'], 'Domains': p['Providers']['Domains'], 'ReadinessEmail': p['Providers']['ReadinessEmail'],
-        'Mobile': {'Provider': 'Disabled'}, 'Worker': {'MaxAttempts': 5, 'PollInterval': '00:00:02'},
+        'Mobile': {'Provider': mobile['Provider']}, 'Worker': {'MaxAttempts': 5, 'PollInterval': '00:00:02'},
         'Portable': {'DeploymentId': ident, 'MongoAdminConnection': 'mongodb://tenant_provisioner:' + c['mongo_worker'] + '@mongo:27017/admin?authSource=admin',
             'InstallerPath': '/app/installer/Grand.Installer.Cli.dll', 'CommerceConfigPath': '/run/secrets/installer.json',
             'WorkingDirectory': '/var/lib/commerce/onboarding', 'TenantDirectory': '/var/lib/commerce/tenants',
             'RouteDirectory': '/var/lib/commerce/routes', 'NotificationDirectory': '/var/lib/commerce/readiness-outbox', 'MobileDirectory': '/var/lib/commerce/mobile',
             'StoreBaseUrl': store, 'AdminBaseUrl': admin, 'KeycloakAuthority': identity, 'KeycloakRealm': 'commerce',
             'KeycloakAdminRealm': 'commerce', 'KeycloakAdminClientId': 'tenant-provisioner', 'KeycloakAdminClientSecret': c['provisioner']}})
+    if mobile['Provider'] == 'AndroidAppDistribution':
+        android = mobile['Android']
+        worker['Provisioning']['Mobile']['Android'] = dict(android,
+            SourceDirectory='/app/mobile-source', WorkingDirectory='/var/lib/commerce/mobile-work',
+            ArtifactDirectory='/var/lib/commerce/mobile-artifacts', PythonPath='/usr/bin/python3',
+            FlutterPath='/opt/flutter/bin/flutter', KeytoolPath='/usr/lib/jvm/java-17-openjdk-amd64/bin/keytool', AndroidSdkDirectory='/opt/android-sdk')
     if ca: worker['Provisioning']['Portable'].update(IdentityRootCertificateFile=ca, IngressRootCertificateFile=ca)
     bootstrap = copy.deepcopy(base)
     bootstrap.update(PlatformSecurity=security('owner'), ConnectionStrings={'SaasManagerDb': connection('platform_saas', 'owner')},
@@ -287,7 +310,11 @@ def compose(p, state, record, image, ip, identity):
             for directory, target in (('media-images', 'images'), ('media-files', 'files')):
                 mounts.append(bind(directory, '/app/' + role + '/wwwroot/assets/' + target + '/uploaded', False))
         if role == 'worker': mounts.append(bind('config/installer.json', '/run/secrets/installer.json'))
-        settings = service(role, number, image=image, command=[role], environment=environment, volumes=mounts,
+        mobile_worker = role == 'worker' and p['Providers'].get('Mobile', {}).get('Provider') == 'AndroidAppDistribution'
+        if mobile_worker:
+            for directory in ('mobile-work', 'mobile-artifacts', 'mobile-cache'):
+                mounts.append(bind(directory, '/var/lib/commerce/' + directory, False))
+        settings = service(role, number, image=image + '-android' if mobile_worker else image, command=[role], environment=environment, volumes=mounts,
                            security_opt=['no-new-privileges:true'], cap_drop=['ALL'])
         if role == 'bootstrap': settings.update(profiles=['initialize'], restart='no', command=['bootstrap', 'initialize', '--config', '/run/secrets/config.json'])
     return {'name': 'commerce-prod-' + p['DeploymentId'], 'services': services,

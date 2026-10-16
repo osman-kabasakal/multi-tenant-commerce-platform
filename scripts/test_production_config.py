@@ -1,0 +1,102 @@
+"""Verify actual generated Production settings, opt-in Android consent and persisted key/artifact boundaries."""
+import copy
+import json
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+
+import production_config as config
+import production_android
+
+
+class ProductionConfigTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        (config.ROOT / '.local').mkdir(exist_ok=True)
+        cls.temporary = tempfile.TemporaryDirectory(prefix='production-settings-', dir=config.ROOT / '.local')
+        cls.root = Path(cls.temporary.name)
+        cls.certificate = cls.root / 'certificate.pem'; cls.key = cls.root / 'private.key'
+        subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=portal.example.test',
+            '-addext', 'subjectAltName=DNS:portal.example.test,DNS:identity.example.test,DNS:*.shops.example.test,DNS:*.manage.example.test',
+            '-keyout', str(cls.key), '-out', str(cls.certificate)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cls.plan = json.loads((config.ROOT / 'infra/production/deployment.example.json').read_text())
+        cls.plan.update(PortalHost='portal.example.test', IdentityHost='identity.example.test', StoreParentDomain='shops.example.test', AdminParentDomain='manage.example.test')
+        cls.plan['Tls'] = {'CertificateFile': str(cls.certificate), 'PrivateKeyFile': str(cls.key)}
+        cls.plan['Providers']['Domains']['WildcardConfigured'] = True
+        cls.mobile = json.loads((config.ROOT / 'infra/production/android.example.json').read_text())['Providers']['Mobile']
+        cls.mobile['AcceptAndroidSdkLicenses'] = True
+        cls.mobile['Android'].update(AllowSigningKeyCreation=True, SharedArtifactsConfirmed=True)
+        cls.google = json.loads((config.ROOT / 'infra/google/provisioning.example.json').read_text())['Provisioning']['Google']
+        cls.google.update(AllowCloudWrites=True, DeploymentId=cls.plan['DeploymentId'])
+
+    @classmethod
+    def tearDownClass(cls): cls.temporary.cleanup()
+
+    def android_plan(self):
+        plan = copy.deepcopy(self.plan)
+        plan['Providers'].update(Mobile=copy.deepcopy(self.mobile), Google=copy.deepcopy(self.google))
+        return plan
+
+    def test_android_is_opt_in_and_all_required_consents_are_enforced(self):
+        for section, field in [('Mobile', 'AcceptAndroidSdkLicenses'), ('Android', 'AllowSigningKeyCreation'), ('Android', 'SharedArtifactsConfirmed'), ('Google', 'AllowCloudWrites')]:
+            with self.subTest(field=field):
+                plan = self.android_plan()
+                target = plan['Providers']['Mobile']['Android'] if section == 'Android' else plan['Providers'][section]
+                target[field] = False
+                with self.assertRaises(ValueError): config.validate(plan)
+        self.assertEqual(config.validate(copy.deepcopy(self.plan))['Providers']['Mobile']['Provider'], 'Disabled')
+
+    def test_enabling_android_preserves_original_credentials_and_wires_both_hosts(self):
+        state = self.root / 'enabled-state'
+        original = config.prepare(self.plan, state, 'commerce-platform:fixture')
+        enabled = config.prepare(self.android_plan(), state, 'commerce-platform:fixture')
+        self.assertEqual(enabled['MasterKey'], original['MasterKey'])
+        self.assertEqual(enabled['Credentials'], original['Credentials'])
+        replay = config.prepare(self.android_plan(), state, 'commerce-platform:fixture')
+        self.assertEqual(enabled, replay)
+        compose = json.loads((state / 'compose.json').read_text())
+        self.assertEqual(compose['services']['worker']['image'], 'commerce-platform:fixture-android')
+        self.assertTrue(all(item['image'] == 'commerce-platform:fixture' for name, item in compose['services'].items() if name in ('saas', 'gateway', 'commerce', 'admin', 'bootstrap')))
+        for role in ('saas', 'worker'):
+            settings = json.loads((state / 'config' / (role + '.json')).read_text())
+            self.assertEqual(settings['Provisioning']['Mobile']['Provider'], 'AndroidAppDistribution')
+        worker = json.loads((state / 'config/worker.json').read_text())['Provisioning']['Mobile']['Android']
+        mounts = {item['target'] for item in compose['services']['worker']['volumes']}
+        self.assertIn(worker['WorkingDirectory'], mounts); self.assertIn(worker['ArtifactDirectory'], mounts)
+        self.assertIn('/var/lib/commerce/mobile-cache', mounts)
+        self.assertEqual(worker['SourceDirectory'], '/app/mobile-source')
+        (state / 'mobile-artifacts').rmdir()
+        with self.assertRaises(ValueError): config.prepare(self.android_plan(), state, 'commerce-platform:fixture')
+        self.assertEqual((state / 'secrets/platform-master-key').read_text(), original['MasterKey'])
+
+    def test_google_administration_and_notification_credentials_have_separate_mounts(self):
+        plan = copy.deepcopy(self.plan)
+        for option in ('GoogleCredentialsFile', 'NotificationCredentialsFile'):
+            path = self.root / (option + '.json'); path.write_text('{"fixture":"synthetic-private-adc"}')
+            plan[option] = str(path)
+        state = self.root / 'credential-state'; config.prepare(plan, state, 'commerce-platform:fixture')
+        services = json.loads((state / 'compose.json').read_text())['services']
+        for role in ('worker', 'commerce', 'admin', 'saas', 'gateway', 'bootstrap'):
+            targets = {item['target'] for item in services[role]['volumes']}
+            self.assertEqual('/run/secrets/google-provisioning.json' in targets, role == 'worker')
+            self.assertEqual('/run/secrets/google-notifications.json' in targets, role in ('commerce', 'admin'))
+        for name in ('google-provisioning.json', 'google-notifications.json'):
+            self.assertEqual((state / 'secrets' / name).stat().st_mode & 0o777, 0o600)
+
+
+    def test_container_probe_cleanup_removes_ephemeral_keys_without_following_links(self):
+        private = self.root / 'container-probe'; private.mkdir()
+        probe = private / 'flutter-release-synthetic'; probe.mkdir()
+        outside = self.root / 'keep-outside'; outside.mkdir(); (outside / 'keep').write_text('keep')
+        (probe / 'fixture.p12').write_bytes(b'synthetic-key')
+        (probe / 'signing.properties').write_text('synthetic-private-signing')
+        (probe / 'workspace').mkdir(); (probe / 'workspace/key').write_text('synthetic-key')
+        (probe / 'linked-directory').symlink_to(outside, target_is_directory=True)
+        (probe / 'fixture.log').write_text('synthetic diagnostics')
+        production_android.cleanup_probe(private)
+        self.assertEqual({path.name for path in probe.iterdir()}, {'fixture.log'})
+        self.assertEqual((outside / 'keep').read_text(), 'keep')
+
+
+if __name__ == '__main__': unittest.main()

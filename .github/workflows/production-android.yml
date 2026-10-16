@@ -1,0 +1,80 @@
+name: Verify packaged Android provisioning worker
+on:
+  pull_request:
+    paths:
+      - 'Ecommerce/**'
+      - 'SaasManager/**'
+      - 'TenantManager/**'
+      - 'Shared/**'
+      - 'Platforms/**'
+      - 'tools/Platform.Bootstrap/**'
+      - 'tools/Platform.Gateway/**'
+      - 'infra/production/**'
+      - 'scripts/production*.py'
+      - 'scripts/mobile_android.py'
+      - 'scripts/test_mobile_android.py'
+      - 'scripts/test_production_config.py'
+      - 'scripts/smoke_flutter_release.py'
+      - '.github/workflows/production-android.yml'
+  push:
+    branches: [main, master, 'codex/**']
+    paths:
+      - 'Ecommerce/**'
+      - 'SaasManager/**'
+      - 'TenantManager/**'
+      - 'Shared/**'
+      - 'Platforms/**'
+      - 'tools/Platform.Bootstrap/**'
+      - 'tools/Platform.Gateway/**'
+      - 'infra/production/**'
+      - 'scripts/production*.py'
+      - 'scripts/mobile_android.py'
+      - 'scripts/test_mobile_android.py'
+      - 'scripts/test_production_config.py'
+      - 'scripts/smoke_flutter_release.py'
+      - '.github/workflows/production-android.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: production-android-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reserve disk on this disposable Android image builder
+        run: |
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          sudo rm -rf /usr/share/dotnet /usr/local/.ghcup /usr/local/lib/android /opt/hostedtoolcache/CodeQL
+      - name: Verify opt-in settings and persisted signing/artifact boundaries
+        run: python3 -m unittest discover -s scripts -p test_production_config.py
+      - name: Build the committed server image without host SDKs
+        run: python3 scripts/production_image.py build --image commerce-platform:android-ci
+      - name: Remove only the disposable builder's intermediate SDK cache
+        run: |
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          docker builder prune --all --force
+      - name: Build the pinned optional Android worker image
+        run: python3 scripts/production_android.py build --server-image commerce-platform:android-ci --image commerce-platform:android-ci-android --accept-android-sdk-licenses
+      - name: Verify actual non-root tools and immutable mobile sources offline
+        run: python3 scripts/production_android.py verify --image commerce-platform:android-ci-android
+      - name: Reclaim intermediate image layers on the disposable builder
+        run: |
+          test "$GITHUB_ACTIONS" = true
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          docker builder prune --all --force
+      - name: Build and verify a complete signed Flutter APK inside the real worker image
+        run: python3 scripts/production_android.py smoke --image commerce-platform:android-ci-android
+      - name: Preserve only synthetic Flutter diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: packaged-android-runtime-diagnostics
+          path: .local/android-runtime-*/flutter-release-*/fixture.log
+          include-hidden-files: true
+          retention-days: 3

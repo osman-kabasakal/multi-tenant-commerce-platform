@@ -1,0 +1,14 @@
+{
+  "Providers": {
+    "Mobile": {
+      "Provider": "AndroidAppDistribution",
+      "AcceptAndroidSdkLicenses": false,
+      "Android": {
+        "AllowSigningKeyCreation": false,
+        "SharedArtifactsConfirmed": false,
+        "BuildNumber": 1,
+        "BuildTimeoutSeconds": 7200
+      }
+    }
+  }
+}
