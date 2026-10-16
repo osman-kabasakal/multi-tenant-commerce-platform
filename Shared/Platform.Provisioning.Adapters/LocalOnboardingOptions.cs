@@ -49,6 +49,7 @@ public static class LocalOnboarding
         services.AddSingleton<OnboardingInfrastructureOptions>(options);
         services.AddHttpClient("onboarding-keycloak", client => client.Timeout = TimeSpan.FromSeconds(30))
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        services.AddScoped<IProvisioningGuard, LocalDeploymentGuard>();
         services.AddScoped<IProvisioningStep, TenantSecretsStep>();
         services.AddScoped<IProvisioningStep, MongoDatabaseStep>();
         services.AddScoped<IProvisioningStep, StoreInstallerStep>();
@@ -74,5 +75,14 @@ internal static class PrivateFiles
             File.Move(temporary,path,true);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
+}
+
+internal sealed class LocalDeploymentGuard : IProvisioningGuard
+{
+    public Task ValidateAsync(TenantProvisioningRequest request,IReadOnlyDictionary<string,ProvisioningStepResult> completed,CancellationToken ct)
+    {
+        if(request.DeploymentId!=null)throw new InvalidOperationException("A deployment-bound job cannot run through local demo adapters.");
+        return Task.CompletedTask;
     }
 }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -42,6 +43,24 @@ public sealed class PortableTests
         f.Values["Provisioning:Portable:KeycloakRealm"]="other-realm";
         await Assert.ThrowsExceptionAsync<InvalidOperationException>(()=>new PortableDeploymentGuard(f.Options(),f.Domains(),secrets).ValidateAsync(request,Fixture.Completed(request),default));
         Assert.AreEqual(stored,secrets.Values[(request.TenantId,PortableDeploymentGuard.SecretName)]);
+    }
+    [TestMethod]
+    public async Task AJobForAnotherDeploymentCannotReadOrCreateTenantSecrets()
+    {
+        using var f=new Fixture();var secrets=new MemorySecrets();var request=Fixture.Request() with{DeploymentId="foreign-deployment"};
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(()=>new PortableDeploymentGuard(f.Options(),f.Domains(),secrets).ValidateAsync(request,new Dictionary<string,ProvisioningStepResult>(),default));
+        Assert.AreEqual(0,secrets.Creates);Assert.AreEqual(0,secrets.Values.Count);
+    }
+    [TestMethod]
+    public async Task LocalDemoAdaptersRejectProductionBoundJobsBeforeAnyStepRuns()
+    {
+        using var f=new Fixture();var values=f.Values.ToDictionary(p=>p.Key.Replace("Provisioning:Portable:","Provisioning:Local:"),p=>p.Value);
+        values["LocalDemo:Enabled"]="true";values["Provisioning:Local:StoreBaseUrl"]="http://localhost:18090";values["Provisioning:Local:AdminBaseUrl"]="http://localhost:18083";
+        values["Provisioning:Local:KeycloakAuthority"]="http://localhost:18080";values["Provisioning:Local:KeycloakAdminPassword"]="contract-password";values["Provisioning:Local:SecretDirectory"]=Path.Combine(f.Root,"SecretDirectory");
+        var config=new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(values).Build();var services=new ServiceCollection();services.AddLocalOnboarding(config,"Development");
+        using var provider=services.BuildServiceProvider();var guard=provider.GetServices<IProvisioningGuard>().Single();
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(()=>guard.ValidateAsync(Fixture.Request() with{DeploymentId="production"},new Dictionary<string,ProvisioningStepResult>(),default));
+        await guard.ValidateAsync(Fixture.Request(),new Dictionary<string,ProvisioningStepResult>(),default);
     }
     [TestMethod]
     public void CanonicalBusinessIdsCannotCreateCaseVariantResourceNamespaces()

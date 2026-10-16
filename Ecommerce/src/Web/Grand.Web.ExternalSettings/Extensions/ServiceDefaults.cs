@@ -1,3 +1,4 @@
+using Platform.Hosting;
 using Platform.Security;
 using Azure.Extensions.AspNetCore.Configuration.Secrets;
 using Azure.Identity;
@@ -48,6 +49,7 @@ public static class ServiceDefaults
         
         //add configuration
         builder.Configuration.AddAppSettingsJsonFile([$"appsettings={builder.Environment.EnvironmentName}"]);
+        builder.Services.AddTrustedProxy(builder.Configuration);
         
         var configValues = new Dictionary<string, string>
         {

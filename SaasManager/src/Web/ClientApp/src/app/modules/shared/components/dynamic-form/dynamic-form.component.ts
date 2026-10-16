@@ -28,6 +28,8 @@ export class DynamicFormComponent implements OnInit, OnDestroy, OnChanges {
   @Input() error: string | null = null;
   @Input() timeoutSeconds = 0;
 
+  @Input() initialValues: {[key: string]: unknown} = {};
+
   @Input() serverError: { [key: string]: string[] } | null = null;
 
   @Output() formSubmit = new EventEmitter<any>();
@@ -52,7 +54,8 @@ export class DynamicFormComponent implements OnInit, OnDestroy, OnChanges {
       this.formSubmitted.set(false);
     }
 
-    if(changes["stateKey"]){
+    if (changes["serverError"] || changes["error"] || (changes["isSubmitting"] && !this.isSubmitting)) this.formSubmitted.set(false);
+    if(changes["stateKey"] || changes["initialValues"]){
       this.initializeForm();
       this.handledFields.set(this.fields);
     }
@@ -118,6 +121,7 @@ export class DynamicFormComponent implements OnInit, OnDestroy, OnChanges {
 
 
     this.form = this.fb.group(group);
+    this.form.patchValue(this.initialValues);
   }
 
   private startTimer() {

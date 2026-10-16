@@ -1,3 +1,4 @@
+using Grand.Api.Infrastructure;
 using Grand.Api.Commands.Models.Common;
 using Grand.Api.DTOs;
 using Grand.Api.Models.Common;
@@ -32,6 +33,8 @@ public class TenantTokenWebController : ControllerBase
     private readonly IRefreshTokenService _refreshTokenService;
     private readonly IStoreHelper _storeHelper;
     private readonly IUserFieldService _userFieldService;
+    private readonly ICustomerManagerService _customerManager;
+    private readonly CustomerSettings _customerSettings;
     private readonly IHttpContextAccessor _httpContextAccessor;
 
     public TenantTokenWebController(
@@ -42,9 +45,13 @@ public class TenantTokenWebController : ControllerBase
         IUserFieldService userFieldService,
         IAntiforgery antiforgery,
         FrontendAPIConfig apiConfig,
-        IHttpContextAccessor httpContextAccessor)
+        IHttpContextAccessor httpContextAccessor,
+        ICustomerManagerService customerManager,
+        CustomerSettings customerSettings)
     {
         _customerService = customerService;
+        _customerManager = customerManager;
+        _customerSettings = customerSettings;
         _mediator = mediator;
         _storeHelper = storeHelper;
         _refreshTokenService = refreshTokenService;
@@ -84,24 +91,20 @@ public class TenantTokenWebController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Login([FromBody] LoginWebModel model)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
+        if (!_apiConfig.Enabled) return BadRequest("API is disabled");
+        if (!ModelState.IsValid) return BadRequest(ModelState);
         try
         {
-            var customer = await _customerService.GetCustomerByEmail(model.Email);
-            var claims = new Dictionary<string, string> {
-                { "Email", model.Email }, {
-                    "Token",
-                    await _userFieldService.GetFieldsForEntity<string>(customer, SystemCustomerFieldNames.PasswordToken)
-                }
-            };
-            var tokenDto = await GetToken(claims, customer);
-            return Ok(tokenDto);
+            var customer = await CustomerTokenLogin.AuthenticateAsync(model, _customerService, _customerManager, _customerSettings);
+            if (customer == null) return Unauthorized("Invalid credentials.");
+            var passwordToken = await _userFieldService.GetFieldsForEntity<string>(customer, SystemCustomerFieldNames.PasswordToken);
+            if (string.IsNullOrEmpty(passwordToken)) return Unauthorized("Invalid credentials.");
+            var claims = new Dictionary<string, string> { ["Email"] = customer.Email, ["Token"] = passwordToken };
+            return Ok(await GetToken(claims, customer));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return BadRequest(ex.Message);
+            return Unauthorized("Invalid credentials.");
         }
     }
 

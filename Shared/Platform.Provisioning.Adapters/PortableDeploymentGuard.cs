@@ -8,6 +8,8 @@ public sealed class PortableDeploymentGuard(PortableOnboardingOptions options,Te
     public async Task ValidateAsync(TenantProvisioningRequest request,IReadOnlyDictionary<string,ProvisioningStepResult> completed,CancellationToken ct)
     {
         request.Validate();
+        if(request.DeploymentId!=null && request.DeploymentId!=options.DeploymentId)
+            throw new InvalidOperationException("This job targets a different deployment.");
         // Registration must already own this tenant and have persisted its initial password.
         await secrets.GetAsync(request.TenantId,TenantSecretNames.InitialPassword,ct);
         var expected=options.TargetFingerprint()+":"+domains.TargetFingerprint();

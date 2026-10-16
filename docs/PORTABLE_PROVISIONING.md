@@ -2,7 +2,7 @@
 
 `TenantManager --provisioning-worker` now supports an explicit `Provisioning:Profile=Portable` alongside the unchanged Development-only Local profile. Portable runs the real GrandNode installer in the deployment environment, uses authenticated MongoDB and a scoped Keycloak service account, and supports configured Google/Firebase plus explicit domain providers. Azure encryption remains selectable through `PlatformSecurity`; a portable deployment does not require Azure credentials.
 
-This is an implemented provisioning foundation. It is **not yet a complete production deployment**: the bundled public token-injecting production gateway, full deployment configuration, production enrollment/paid flow and automatic signed mobile builds are still being completed. The worker deliberately fails its publication step until the public store and owned admin login actually work. Creating databases/clients alone never marks the SaaS business ready.
+This is an implemented provisioning foundation. It is **not yet a complete production deployment**: fresh infrastructure bootstrap/deployment orchestration, paid enrollment and automatic signed mobile builds are still being completed. The worker deliberately fails its publication step until the public store and owned admin login actually work. Creating databases/clients alone never marks the SaaS business ready.
 
 ## Configuration
 
@@ -13,6 +13,24 @@ Publish the installer to the configured path with its `wwwroot/logo.png` and App
 Configure absolute private directories for work, installation results, routes, mobile client files and readiness outbox events. Portable validation rejects symbolic-link directories and makes private roots owner-accessible only. Runtime nodes must mount the same route/mobile directories; the outbox needs a separately configured consumer for actual delivery. The worker does not claim that writing an outbox event sent an email or a device notification.
 
 A tenant is bound to its deployment id, database target, identity realm, domain configuration and publication paths before steps run. The guard checks this binding on every attempt, including attempts where every step already has a checkpoint. Changing a target is an explicit migration, not a silent resource move. Missing original bindings on a partially completed job are refused. Administrative credential values are excluded from this binding.
+
+## Configured Production trial enrollment
+
+The existing SaaS `/register` page can enroll verified identity owners with their actual company/contact information and chosen store-admin password. Enable `TenantOnboarding:Trial:Enabled` only in Production or Staging with `LocalDemo:Enabled=false`. Select an existing active, public subscription plan with positive `TrialDays` using `TenantOnboarding:Trial:PlanId`; the example leaves enrollment disabled until that plan is selected. No card/payment provider is invoked for this explicitly configured zero-amount trial. This path does not implement paid subscription activation.
+
+SaaS must select `Provisioning:Enabled=true`, `Provisioning:Profile=Portable`, a writable shared secret store and `Provisioning:DeploymentId` equal to the worker's `Provisioning:Portable:DeploymentId`. Run compatible versions of SaaS and workers together: new requests carry this deployment binding, and updated Portable/Local guards reject requests assigned to another deployment before resource writes. Legacy unbound queue requests remain compatible.
+
+`/api/TrialBusinesses/configuration` requires a verified owner and returns the selected plan, form, owned business state and an antiforgery token. POST `/api/TrialBusinesses` requires that token in `X-XSRF-TOKEN`. A stable registration GUID supports retry after queue failure without another business, app, trial extension or payment. Replays cannot change company details or adopt another owner's registration. Passwords are saved through the common encrypted tenant-secret path; job status never includes them. Only verified worker publication and reconciled database readiness complete the ordinary SaaS session.
+
+To exercise the actual Production hosts with two fresh owners and isolated PostgreSQL/Mongo/HTTPS identity resources:
+
+```sh
+python3 scripts/demo.py up
+python3 scripts/smoke_portable_deployment.py --saas-enrollment
+python3 scripts/demo.py stop
+```
+
+This probe covers real SaaS HTTP enrollment, worker resource creation, public HTTPS storefront/admin login, replay and cross-owner/tenant isolation. It uses synthetic DNS and private fixture certificates, and does not deploy external infrastructure. Angular production compilation and interceptor browser tests are separate checks; full `/register` browser form interaction is still pending.
 
 ## Keycloak service account
 
@@ -36,9 +54,9 @@ Routes can appear after database/identity/domain setup so that the ingress can s
 
 GrandNode's **Stores** settings define the store domain/SSL URL; the managed installer receives the explicit HTTPS tenant origin. Tenant-specific dependencies use the existing request context and DI, following GrandNode's [Stores](https://docs.grandnode.com/stores) and [Dependency injection](https://docs.grandnode.com/dependency-injection) guidance.
 
-## Gateway scaffold
+## Production gateway
 
-The optional gateway source is in `tools/Platform.Gateway`, with explicit proxy trust configuration in `Shared/Platform.Hosting`. It uses YARP to forward owned directory routes to fixed upstreams and obtains commerce tenant tokens on the server. Its Release build is checked by CI. This scaffold is not wired into the demo or the complete production deployment; public HTTPS forwarding, backend proxy trust integration and end-to-end tenant readiness still require implementation/verification. Do not treat a successful build as production readiness.
+The .NET/YARP gateway now serves owned Portable routes, obtains confidential tenant tokens on the server and preserves customer bearer authentication. Commerce, admin and SaaS share explicit proxy trust configuration instead of the old raw forwarded-scheme overrides. See [GATEWAY.md](GATEWAY.md) for private-hop/TLS boundaries, component examples, startup and the real Production-mode probe. Public synthetic HTTPS tenant runtime verification remains distinct from a real DNS/infrastructure rollout.
 
 ## Verification
 

@@ -1,29 +1,64 @@
 {
-  "PlatformConfiguration": { "Provider": "Environment" },
-  "LocalDemo": { "Enabled": false },
+  "PlatformConfiguration": {
+    "Provider": "Environment"
+  },
+  "LocalDemo": {
+    "Enabled": false
+  },
   "ApplicationUrl": "https://portal.example.test",
   "AllowedHosts": "portal.example.test",
   "AuthConfiguration": {
     "IdentityProviderUrl": "https://identity.example.test/realms/commerce",
     "Audience": "saas-manager",
     "ClientId": "saas-manager",
-    "Scopes": ["openid", "profile", "email", "roles"]
+    "Scopes": [
+      "openid",
+      "profile",
+      "email",
+      "roles"
+    ]
   },
   "PlatformSecurity": {
     "Provider": "AesGcm",
     "InitializeSchema": false,
-    "AesGcm": { "MasterKeyFile": "/run/secrets/platform-master-key" }
+    "AesGcm": {
+      "MasterKeyFile": "/run/secrets/platform-master-key"
+    }
   },
-  "Provisioning": { "Enabled": true, "InitializeSchema": false },
-  "CardProtection": { "Provider": "Disabled" },
+  "Provisioning": {
+    "Enabled": true,
+    "InitializeSchema": false,
+    "Profile": "Portable",
+    "DeploymentId": "commerce-production"
+  },
+  "CardProtection": {
+    "Provider": "Disabled"
+  },
   "FileStorage": {
     "Provider": "FileSystem",
-    "FileSystem": { "RootDirectory": "/var/lib/commerce/saas-files" }
+    "FileSystem": {
+      "RootDirectory": "/var/lib/commerce/saas-files"
+    }
   },
   "Web": {
-    "AllowedOrigins": ["https://portal.example.test"],
+    "AllowedOrigins": [
+      "https://portal.example.test"
+    ],
     "DataProtectionKeyDirectory": "/var/lib/commerce/saas-cookie-keys",
     "DataProtectionApplicationName": "commerce-saas-production"
   },
-  "Diagnostics": { "DatabaseQueries": { "Enabled": false } }
+  "Proxy": {
+    "Enabled": false
+  },
+  "Diagnostics": {
+    "DatabaseQueries": {
+      "Enabled": false
+    }
+  },
+  "TenantOnboarding": {
+    "Trial": {
+      "Enabled": false,
+      "PlanId": "00000000-0000-0000-0000-000000000000"
+    }
+  }
 }

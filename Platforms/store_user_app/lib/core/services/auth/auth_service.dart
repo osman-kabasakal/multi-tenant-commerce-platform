@@ -125,7 +125,7 @@ class AuthService implements IAuthService {
           },
           extra: {'noCredentials': true},
         ),
-        data: {'Email': email, 'Password': base64Encode(password.codeUnits)},
+        data: {'Email': email, 'Password': base64Encode(utf8.encode(password))},
       );
 
       //Sepete migrate işlemleri için

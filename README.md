@@ -116,7 +116,7 @@ Aktif uygulama `Platforms/store_user_app`, Flutter **3.44.6** ile ARM64 Android 
 | `scripts/` | Yerel kurulum, sunucu taraflı token ağ geçidi ve smoke kontrolü |
 | `docs/` | Mimari, güvenlik temizliği, doğrulama ve yayın aşamaları |
 
-[Portable tenant çalışanı ve domain sağlayıcıları](docs/PORTABLE_PROVISIONING.md) · [SaaS sağlayıcıları ve HTTPS Production doğrulaması](docs/SAAS_PROVIDERS.md) · [Tenant bildirimleri ve doğrulama](docs/NOTIFICATIONS.md) · [Tenant şifreleme ve dağıtık secret kurulumu](docs/TENANT_SECURITY.md) · [Architecture / English overview](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+[Üretim gateway ve HTTPS tenant yönlendirmesi](docs/GATEWAY.md) · [Portable tenant çalışanı ve domain sağlayıcıları](docs/PORTABLE_PROVISIONING.md) · [SaaS sağlayıcıları ve HTTPS Production doğrulaması](docs/SAAS_PROVIDERS.md) · [Tenant bildirimleri ve doğrulama](docs/NOTIFICATIONS.md) · [Tenant şifreleme ve dağıtık secret kurulumu](docs/TENANT_SECURITY.md) · [Architecture / English overview](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## CodeGraph
 

@@ -1,3 +1,4 @@
+using Platform.Hosting;
 using Platform.Security;
 using Platform.Provisioning;
 using System.Security.Authentication;
@@ -23,15 +24,6 @@ builder.Configuration.AddEnvironmentVariables();
 var isLocalDemo = builder.Configuration.GetValue<bool>("LocalDemo:Enabled");
 if (isLocalDemo && !builder.Environment.IsDevelopment())
     throw new InvalidOperationException("LocalDemo requires Development.");
-bool isAzureWebApp = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_HOSTNAME"));
-if (isAzureWebApp)
-{
-    builder.WebHost.UseKestrel(kestrelOpt =>
-    {
-        kestrelOpt.ListenAnyIP(5001);
-    });
-}
-
 // Add services to the container.
 builder.AddKeyVaultIfConfigured();
 builder.Services.AddPlatformSecurity(builder.Configuration, builder.Environment.EnvironmentName);
@@ -43,20 +35,10 @@ builder.AddApplicationServices();
 builder.AddInfrastructureServices();
 builder.AddWebServices();
 
-if (isAzureWebApp)
-{
-    builder.Services.Configure<ForwardedHeadersOptions>(options =>
-    {
-        options.ForwardedHeaders =
-            ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    });
-}
+builder.Services.AddTrustedProxy(builder.Configuration);
 
 var app = builder.Build();
-if (isAzureWebApp)
-{
-    app.UseForwardedHeaders();
-}
+app.UseTrustedProxy(app.Configuration);
 app.UseExceptionHandler(new ExceptionHandlerOptions {
     ExceptionHandler = context => Results.Problem(statusCode: StatusCodes.Status500InternalServerError,
         title: "The request could not be completed.").ExecuteAsync(context)
@@ -69,37 +51,6 @@ if (!app.Environment.IsDevelopment())
 // Security middleware'ler sıralı olmalı
 if (!isLocalDemo) app.UseHttpsRedirection();
 
-// TLS versiyonu kontrolü için custom middleware
-app.Use(async (context, next) =>
-{
-    if (isAzureWebApp)
-    {
-        var tlsVersion = context.Request.Headers["X-Forwarded-TlsVersion"].ToString();
-        if (!string.IsNullOrEmpty(tlsVersion) && Version.Parse(tlsVersion) < Version.Parse("1.2"))
-        {
-            context.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await context.Response.WriteAsync("TLS 1.2 or higher is required.");
-            return;
-        }
-        
-        if (context.Request.Headers.TryGetValue("X-Forwarded-Proto", out var forwardedProto))
-        {
-            context.Request.Scheme = forwardedProto.ToString();
-        }
-
-        if (context.Request.Scheme != "https")
-        {
-            context.Response.Redirect($"https://{context.Request.Host}{context.Request.PathBase}{context.Request.Path}{context.Request.QueryString}");
-            return;
-        }
-    }
-    else if(app.Environment.IsDevelopment() && !isLocalDemo)
-    {
-        context.Request.Scheme = "https";
-    }
-        
-    await next();
-});
 app.UseStaticFiles();
 if (isLocalDemo)
 {

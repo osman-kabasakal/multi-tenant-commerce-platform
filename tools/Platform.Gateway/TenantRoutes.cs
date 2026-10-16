@@ -19,7 +19,8 @@ public sealed class TenantRoutes(GatewayOptions options, ITenantSecrets secrets)
         if (!Regex.IsMatch(slug, "^[a-z][a-z0-9-]{1,38}[a-z0-9]$")) return null;
         var path = Path.Combine(options.RouteDirectory, slug + ".json");
         if (!File.Exists(path)) return null;
-        if (new FileInfo(path).LinkTarget != null) throw new InvalidOperationException("A route cannot be a symbolic link.");
+        var info = new FileInfo(path);
+        if (info.LinkTarget != null || info.Length > 65536) throw new InvalidOperationException("A route must be a bounded regular metadata file.");
         using var route = JsonDocument.Parse(await File.ReadAllTextAsync(path, ct)); var value = route.RootElement;
         var tenant = value.GetProperty("tenantId").GetString()!; var storeId = value.GetProperty("storeId").GetString()!;
         if (value.GetProperty("version").GetInt32() != 1 || value.GetProperty("profile").GetString() != "Portable" || value.GetProperty("slug").GetString() != slug ||

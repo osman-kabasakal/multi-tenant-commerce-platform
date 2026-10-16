@@ -105,7 +105,7 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
             await _provisioning.EnqueueAsync(new TenantProvisioningRequest(tenantId, request.StoreSubDomain,
                 request.StoreName, request.OwnerEmail, request.FirstName, request.Lastname,
                 request.CompanyAddress, request.CompanyPhoneNumber, request.CompanyEmail,
-                businessAppForProvisioning?.PackageName, businessAppForProvisioning?.PackageName), cancellationToken);
+                businessAppForProvisioning?.PackageName, businessAppForProvisioning?.PackageName, _configuration["Provisioning:DeploymentId"]), cancellationToken);
             return ServiceResponse<TenantStatusMessage>.Success(new TenantStatusMessage {
                 TenantId = tenantId, StatusEventType = TenantStatusEvent.Registered,
                 StoreName = request.StoreName, StoreSubDomain = request.StoreSubDomain,

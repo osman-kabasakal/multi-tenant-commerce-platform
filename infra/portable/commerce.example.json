@@ -1,0 +1,41 @@
+{
+  "LocalDemo": {
+    "Enabled": false
+  },
+  "PlatformConfiguration": {
+    "Provider": "Environment"
+  },
+  "PlatformSecurity": {
+    "Provider": "AesGcm",
+    "ReadOnly": true,
+    "InitializeSchema": false,
+    "AesGcm": {
+      "MasterKeyFile": "/run/secrets/platform-master-key"
+    }
+  },
+  "AuthConfiguration": {
+    "IdentityProviderUrl": "https://identity.example.test/realms/commerce"
+  },
+  "AllowedHosts": "*.shops.example.test",
+  "Application": {
+    "DisableHostedService": true,
+    "DisplayFullErrorStack": false
+  },
+  "Provisioning": {
+    "ReadinessEndpoint": true
+  },
+  "Proxy": {
+    "Enabled": true,
+    "KnownProxies": [
+      "127.0.0.1",
+      "::1"
+    ],
+    "ForwardLimit": 1
+  },
+  "FrontendAPI": {
+    "Enabled": true
+  },
+  "Notifications": {
+    "Provider": "Disabled"
+  }
+}

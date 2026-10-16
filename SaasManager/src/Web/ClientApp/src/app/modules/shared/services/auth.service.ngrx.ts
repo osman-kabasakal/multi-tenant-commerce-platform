@@ -22,12 +22,7 @@ export class AuthService {
     return this.http.get<IServiceResponse<AuthState>>('/api/Auth/sessionInfo', {
       withCredentials: true
     }).pipe(
-      tap(response => console.log('HTTP Response:', response)), // Başarılı yanıtı logla
-      tap({
-        error: error => console.log('HTTP Error:', error) // Hatayı logla
-      }),
       catchError(error => {
-        console.error('HTTP Error:', error);
         return of(null); // HTTP hatasını yakala ve null dön
       }),
       map(response => response?.data), // response null ise undefined dönecek
@@ -46,7 +41,6 @@ export class AuthService {
         return false;
       }),
       catchError(error => {
-        console.error('Processing Error:', error);
         return of(false);
       })
     );

@@ -10,6 +10,12 @@ using SaasManager.Domain.Enums;
 using SaasManager.Infrastructure.Data;
 using SaasManager.Infrastructure.FileStorage;
 
+if(args.Length==3 && args[0]=="--enrollment-database")
+{
+    await EnrollmentDatabaseFixture.RunAsync(args[1],args[2]);
+    return;
+}
+
 if (args.Length == 3 && args[0] == "--identity-tls")
 {
     if (!Uri.TryCreate(args[2], UriKind.Absolute, out var target) || target.Scheme != "https" ||

@@ -48,14 +48,16 @@ jobs:
         run: dotnet test tests/Portable.Provisioning.Tests/Portable.Provisioning.Tests.csproj -c Release --nologo
       - name: Verify Google provisioning contracts without cloud credentials
         run: dotnet test tests/Google.Provisioning.Tests/Google.Provisioning.Tests.csproj -c Release --nologo
+      - name: Verify customer token password and account checks
+        run: dotnet test tests/Customer.Token.Tests/Customer.Token.Tests.csproj -c Release --nologo
       - name: Verify storefront form and JSON model binding
         run: dotnet test tests/Storefront.Binding.Tests/Storefront.Binding.Tests.csproj -c Release --nologo
       - name: Verify tenant notification routing and consent
         run: dotnet test tests/Notifications.Tests/Notifications.Tests.csproj -c Release --nologo
       - name: Build the Firebase export and distribution tool
         run: dotnet build tools/Platform.Cloud/Platform.Cloud.csproj -c Release --nologo
-      - name: Build the portable gateway scaffold
-        run: dotnet build tools/Platform.Gateway/Platform.Gateway.csproj -c Release --nologo
+      - name: Verify gateway tenant isolation, proxy trust and real YARP transports
+        run: dotnet test tests/Gateway.Tests/Gateway.Tests.csproj -c Release --nologo
       - name: Verify portable card and file providers with owner isolation
         working-directory: SaasManager
         run: dotnet test ../tests/Portable.Services.Tests/Portable.Services.Tests.csproj -c Release --nologo
@@ -73,6 +75,8 @@ jobs:
         run: dotnet build TenantManager.csproj -c Release --nologo
       - name: Verify real Production installer resources and ingress readiness gate
         run: python3 scripts/smoke_portable_worker.py
+      - name: Verify Production SaaS enrollment and public HTTPS tenant runtime
+        run: python3 scripts/smoke_portable_deployment.py --saas-enrollment
       - name: Verify public tenant readiness and database routing
         run: python3 scripts/smoke_readiness.py
       - name: Provision two new trial businesses through real OIDC

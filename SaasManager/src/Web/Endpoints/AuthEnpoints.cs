@@ -88,16 +88,14 @@ public class AuthEnpoints : EndpointGroupBase
         var user = contextAccessor.HttpContext!.User;
         var config=contextAccessor.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
         var localTrial=config.GetValue<bool>("LocalDemo:Enabled") && config.GetValue<bool>("LocalDemo:SelfService");
-        // Local trials use the explicit enrollment flow, without invoking the paid registration pipeline.
-        var registrationStep = localTrial
-            ? ServiceResponse<RegistrationStepResponse>.Success(new RegistrationStepResponse {
-                IsCompleted=workContext.GuestRegistration?.ConvertedBusinessId.HasValue==true,
-                ValidationUrl="/local-onboarding.html"
-            })
+        var configuredTrial=config.GetValue<bool>("TenantOnboarding:Trial:Enabled");
+        var business=await dbContext.Businesses.FirstOrDefaultAsync(x=>x.Id==workContext.GuestRegistration!.ConvertedBusinessId);
+        var ready=business!=null && (business.Status==BusinessStatus.Active || business.Status==BusinessStatus.Trial) &&
+            await dbContext.DatabaseConfigs.AnyAsync(d=>d.BusinessId==business.Id && d.IsMigrated);
+        // Explicit trial enrollment does not invoke the paid setup pipeline during ordinary session refresh.
+        var registrationStep=localTrial || configuredTrial
+            ? ServiceResponse<RegistrationStepResponse>.Success(new RegistrationStepResponse{IsCompleted=ready,ValidationUrl=localTrial?"/local-onboarding.html":"/register"})
             : await sender.Send(new RegistrationCommand());
-        var business =
-            await dbContext.Businesses.FirstOrDefaultAsync(x =>
-                x.Id == workContext.GuestRegistration!.ConvertedBusinessId);
         return await Task.FromResult<Results<Ok<ServiceResponse<SessionInfoResponseModel>>, UnauthorizedHttpResult>>(
             TypedResults.Ok(ServiceResponse<SessionInfoResponseModel>.Success(new SessionInfoResponseModel
             {

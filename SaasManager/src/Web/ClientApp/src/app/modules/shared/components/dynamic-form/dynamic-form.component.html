@@ -33,7 +33,7 @@
           </label>
 
           <!-- Text/Email/Tel Input -->
-          <ng-container *ngIf="['text', 'email', 'tel','number'].includes(field.value.type!)">
+          <ng-container *ngIf="['text', 'email', 'tel','number', 'password'].includes(field.value.type!)">
             <input
               [type]="field.value.type"
               [id]="field.key"

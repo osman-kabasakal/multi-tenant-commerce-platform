@@ -38,7 +38,12 @@ public static class TrustedProxy
 
     public static IApplicationBuilder UseTrustedProxy(this IApplicationBuilder app, IConfiguration config)
     {
-        if (config.GetValue<bool>("Proxy:Enabled")) app.UseForwardedHeaders();
+        const string applied = "Platform.Hosting.TrustedProxy.Applied";
+        if (config.GetValue<bool>("Proxy:Enabled") && !app.Properties.ContainsKey(applied))
+        {
+            app.Properties[applied] = true;
+            app.UseForwardedHeaders();
+        }
         return app;
     }
 }

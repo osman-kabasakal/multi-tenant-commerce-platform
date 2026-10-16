@@ -1,0 +1,36 @@
+{
+  "LocalDemo": {
+    "Enabled": false
+  },
+  "PlatformSecurity": {
+    "Provider": "AesGcm",
+    "ReadOnly": true,
+    "InitializeSchema": false,
+    "AesGcm": {
+      "MasterKeyFile": "/run/secrets/platform-master-key"
+    }
+  },
+  "Gateway": {
+    "Provider": "Directory",
+    "RouteDirectory": "/var/lib/commerce/routes",
+    "StoreBaseUrl": "https://shops.example.test",
+    "AdminBaseUrl": "https://manage.example.test",
+    "CommerceUpstream": "http://127.0.0.1:18182",
+    "AdminUpstream": "http://127.0.0.1:18183",
+    "AllowHttpUpstreams": true,
+    "IdentityAuthority": "https://identity.example.test",
+    "IdentityRealm": "commerce",
+    "TokenCacheSeconds": 60,
+    "TokenCacheEntries": 1000
+  },
+  "AllowedHosts": "*.shops.example.test;*.manage.example.test",
+  "Proxy": {
+    "Enabled": false
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Warning",
+      "Microsoft.Hosting.Lifetime": "Information"
+    }
+  }
+}

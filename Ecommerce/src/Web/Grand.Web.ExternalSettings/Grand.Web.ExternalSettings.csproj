@@ -2,6 +2,7 @@
   </PropertyGroup>
     <Import Project="..\..\Build\Grand.Common.props" />
     <ItemGroup>
+        <ProjectReference Include="../../../../Shared/Platform.Hosting/Platform.Hosting.csproj" />
         <ProjectReference Include="..\..\Business\Grand.Business.Core\Grand.Business.Core.csproj" />
         <ProjectReference Include="..\..\Core\Grand.Domain\Grand.Domain.csproj" />
         <ProjectReference Include="..\..\Core\Grand.Infrastructure\Grand.Infrastructure.csproj" />

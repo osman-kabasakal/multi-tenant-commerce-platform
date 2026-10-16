@@ -3,7 +3,7 @@ import contextlib, json, secrets, ssl, subprocess, time, urllib.request, uuid
 import demo
 
 @contextlib.contextmanager
-def https_identity(directory,provisioning=False):
+def https_identity(directory,provisioning=False,owner_count=1,portal_url="https://localhost:18084"):
     authority_root=directory/'identity-ca.crt';authority_key=directory/'identity-ca.key'
     certificate=directory/'identity.crt';key=directory/'identity.key';csr=directory/'identity.csr';extensions=directory/'identity-extensions.cnf'
     commands=[['openssl','req','-x509','-newkey','rsa:2048','-sha256','-nodes','-days','1','-keyout',str(authority_key),'-out',str(authority_root),
@@ -15,13 +15,15 @@ def https_identity(directory,provisioning=False):
     key.chmod(0o600);authority_key.chmod(0o600);certificate.chmod(0o600);authority_root.chmod(0o600)
     suffix=uuid.uuid4().hex[:10];name='commerce-portable-identity-'+suffix;volume=name+'-data'
     account={'username':'portable-'+suffix,'email':'portable-'+suffix+'@example.test','password':secrets.token_urlsafe(28)}
+    if owner_count not in (1,2):raise ValueError('Require one or two synthetic identity owners.')
+    accounts=[account]+[{'username':'portable-second-'+suffix,'email':'portable-second-'+suffix+'@example.test','password':secrets.token_urlsafe(28)} for _ in range(owner_count-1)]
     realm=json.loads((demo.LOCAL/'realm/commerce-demo-realm.json').read_text());realm['sslRequired']='all'
-    realm['users']=[{'username':account['username'],'email':account['email'],'emailVerified':True,'enabled':True,
+    realm['users']=[{'username':owner['username'],'email':owner['email'],'emailVerified':True,'enabled':True,
         'firstName':'Portable','lastName':'Probe','realmRoles':['business_owner','admin'],
-        'credentials':[{'type':'password','value':account['password'],'temporary':False}]}]
+        'credentials':[{'type':'password','value':owner['password'],'temporary':False}]} for owner in accounts]
     for client in realm['clients']:
         if client['clientId']=='centraladminapp':
-            client['redirectUris']=['https://localhost:18084/*'];client['webOrigins']=['https://localhost:18084']
+            client['redirectUris']=[portal_url+'/*'];client['webOrigins']=[portal_url]
     provisioner_secret=secrets.token_urlsafe(32)
     if provisioning:
         realm['clients'].append({'clientId':'tenant-provisioner','enabled':True,'publicClient':False,'secret':provisioner_secret,
@@ -50,7 +52,7 @@ def https_identity(directory,provisioning=False):
                 if metadata['issuer']==authority and metadata['token_endpoint'].startswith(authority):break
             except (OSError,ValueError):time.sleep(1)
         else:raise RuntimeError('The isolated HTTPS identity server did not become ready.')
-        yield {'authority':authority,'root':authority_root,'account':account,'provisioningClientId':'tenant-provisioner','provisioningClientSecret':provisioner_secret}
+        yield {'authority':authority,'root':authority_root,'account':account,'accounts':accounts,'provisioningClientId':'tenant-provisioner','provisioningClientSecret':provisioner_secret}
     finally:
         if started:
             logs=subprocess.run(['docker','logs',name],text=True,capture_output=True)

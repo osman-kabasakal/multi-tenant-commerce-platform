@@ -1,3 +1,4 @@
+using SaasManager.Application.Stores.Provisioning;
 using Microsoft.AspNetCore.Http;
 using SaasManager.Application.Common.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
@@ -16,6 +17,7 @@ public class CustomExceptionHandler : IExceptionHandler
         _exceptionHandlers = new()
             {
                 { typeof(ValidationException), HandleValidationException },
+                { typeof(EnrollmentConflictException), HandleEnrollmentConflictException },
                 { typeof(BadHttpRequestException), HandleBadHttpRequestException },
                 { typeof(NotFoundException), HandleNotFoundException },
                 { typeof(UnauthorizedAccessException), HandleUnauthorizedAccessException },
@@ -34,6 +36,12 @@ public class CustomExceptionHandler : IExceptionHandler
         }
 
         return false;
+    }
+
+    private static async Task HandleEnrollmentConflictException(HttpContext context,Exception error)
+    {
+        context.Response.StatusCode=StatusCodes.Status409Conflict;
+        await context.Response.WriteAsJsonAsync(new {title="Enrollment cannot proceed with the current business/subscription.",code=((EnrollmentConflictException)error).Code,status=409});
     }
 
     private static async Task HandleBadHttpRequestException(HttpContext httpContext, Exception ex)

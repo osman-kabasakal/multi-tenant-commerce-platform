@@ -1,3 +1,5 @@
+using Platform.Hosting;
+using Microsoft.Extensions.Configuration;
 using Grand.Data;
 using Grand.Infrastructure.Configuration;
 using Grand.Infrastructure.Endpoints;
@@ -205,9 +207,7 @@ public static class ApplicationBuilderExtensions
     /// <param name="application">Builder for configuring an application's request pipeline</param>
     public static void UseGrandForwardedHeaders(this IApplicationBuilder application)
     {
-        application.UseForwardedHeaders(new ForwardedHeadersOptions {
-            ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-        });
+        application.UseTrustedProxy(application.ApplicationServices.GetRequiredService<IConfiguration>());
     }
 
     /// <summary>
