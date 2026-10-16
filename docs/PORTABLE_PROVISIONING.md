@@ -69,3 +69,14 @@ python3 scripts/demo.py stop
 ```
 
 The resource probe uses real local PostgreSQL/MongoDB, the published Production installer and an isolated HTTPS Keycloak with a scoped service account. It verifies actual resource creation, identity replay, no demo products, database isolation, deployment fencing and refusal to mark ready without a public ingress. Its unique PostgreSQL/Mongo namespaces are removed; ordinary demo data and identity volumes are preserved. Contract tests cover Cloudflare ownership/idempotence and positive/negative readiness responses through HTTP test transports; no real Cloudflare account or public deployment has been exercised. See [VALIDATION.md](VALIDATION.md) for the recorded results and [PROVISIONING.md](PROVISIONING.md) for the full remaining target.
+
+
+## Start a deployment before its first tenant exists
+
+The Directory admin host starts with no published tenant routes. Only TenantManager's explicit installer may create a new store and its chosen owner account. Administration startup does not create an example store or a fixed administrator. A standalone non-demo admin host must instead point at a database already prepared by the explicit installer.
+
+The inherited commerce engine still requires a configured `Database:ConnectionString` during service registration. For the shared runtime hosts, provision a separate **unseeded MongoDB namespace with a user having only the `read` role on that namespace**, and supply that private connection as the startup context. It needs no GrandNode installation, store, products or administrator account. Keep its credentials separate from the worker's Mongo provisioning account. Select `Application:DisableHostedService=true` and `Application:SkipMigrationProcess=true` on commerce/admin, as the examples do; per-tenant installation and migration belong to the explicit worker workflow.
+
+The gateway requires an owned published route and the commerce host verifies its tenant token. The Directory admin middleware resolves the owned route before selecting the tenant connection from the shared secret store. These boundaries remain required. Requests for unknown hosts are refused. The runtime context provides no tenant fallback, and new business data is written only into its provisioned tenant database.
+
+`smoke_portable_deployment.py --saas-enrollment` now starts the real Production hosts against a unique empty read-only context, checks emptiness before the worker is allowed to provision, creates two tenants through ordinary SaaS enrollment, verifies their actual storefront/admin login, and checks that the context remains empty afterwards. The synthetic fixture owns and removes that context's user/namespace; it does not grant the runtime a Mongo administrator account. This strengthens the no-existing-tenant startup evidence but does not provision a public DNS zone or the rest of a real hosting environment.

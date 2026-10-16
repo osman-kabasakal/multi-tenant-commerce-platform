@@ -19,7 +19,8 @@
   "AllowedHosts": "*.shops.example.test",
   "Application": {
     "DisableHostedService": true,
-    "DisplayFullErrorStack": false
+    "DisplayFullErrorStack": false,
+    "SkipMigrationProcess": true
   },
   "Provisioning": {
     "ReadinessEndpoint": true

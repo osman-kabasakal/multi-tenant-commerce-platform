@@ -56,6 +56,21 @@ def stop(process):
         try:process.wait(timeout=15)
         except subprocess.TimeoutExpired:os.killpg(process.pid,signal.SIGKILL);process.wait(timeout=5)
 
+def empty_runtime_database(tenant,credentials,password,action,log_path):
+    name='portable_empty_'+tenant
+    script='const a=db.getSiblingDB("admin");a.auth("commerce_demo_root",'+json.dumps(credentials['mongo_root'])+');const d=db.getSiblingDB('+json.dumps(name)+');const u=d.getUser('+json.dumps(name)+');'
+    owned='if(u.customData?.fixture!=='+json.dumps(tenant)+')throw Error("Foreign runtime context");'
+    if action=='create':
+        script+='if(u||d.getCollectionNames().length)throw Error("Runtime namespace already exists");d.createUser({user:'+json.dumps(name)+',pwd:'+json.dumps(password)+',roles:[{role:"read",db:'+json.dumps(name)+'}],customData:{fixture:'+json.dumps(tenant)+'}});'
+    elif action=='verify':
+        script+='if(!u)throw Error("Missing owned runtime context");'+owned+'if(u.roles.length!==1||u.roles[0].role!=="read"||u.roles[0].db!=='+json.dumps(name)+'||d.getCollectionNames().length)throw Error("Runtime context is not empty and read-only");'
+    elif action=='drop':
+        script+='if(u){'+owned+'d.dropUser(u.user);d.dropDatabase();}'
+    else:raise ValueError('Unknown runtime fixture action')
+    with log_path.open('a') as output:
+        demo.compose('exec','-T','mongo','mongosh','--quiet','--file','/dev/stdin',input=script,text=True,stdout=output,stderr=output)
+    return 'mongodb://'+name+':'+password+'@127.0.0.1:27028/'+name+'?authSource='+name
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument("--saas-enrollment",action="store_true");args=parser.parse_args()
     os.umask(0o077);demo.prepare()
@@ -68,6 +83,7 @@ def main():
     with (demo.LOCAL/'logs/build-portable-deployment-fixture.log').open('w') as log:subprocess.run(['dotnet','build',str(project),'-c','Release','--nologo'],cwd=demo.ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
     with (demo.LOCAL/'logs/build-portable-gateway.log').open('w') as log:subprocess.run(['dotnet','publish','tools/Platform.Gateway/Platform.Gateway.csproj','-c','Release','--nologo','-o',str(demo.LOCAL/'runtime/portable-gateway'),'-p:UseAppHost=false','--verbosity','quiet'],cwd=demo.ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
     children=[];native=None;created=False;saas_created=False;portal="https://portal.example.test:18084";saas_database="portable_saas_test_"+tenant;second_tenant=uuid.uuid4().hex;trial_plan=uuid.uuid4().hex
+    runtime_context_created=False;runtime_context_password=secrets.token_hex(32);runtime_context_log=root/'runtime-context.log'
     saas_runtime=root/'saas-runtime'
     if args.saas_enrollment:
         for label,command,cwd in [
@@ -76,6 +92,9 @@ def main():
         ]:
             with (demo.LOCAL/"logs"/("build-enrollment-"+label+".log")).open("w") as output:subprocess.run(command,cwd=cwd,stdout=output,stderr=subprocess.STDOUT,check=True)
     try:
+        runtime_context_created=True
+        runtime_connection=empty_runtime_database(tenant,credentials,runtime_context_password,'create',runtime_context_log)
+        security.setdefault('BootstrapSecrets',{})['applicationdb']=runtime_connection
         with https_identity(root,provisioning=True,owner_count=2 if args.saas_enrollment else 1,portal_url=portal if args.saas_enrollment else "https://localhost:18084") as identity, synthetic_dns(18444,portal=args.saas_enrollment) as proxy:
             cert=root/'ingress.crt';key=root/'ingress.key';csr=root/'ingress.csr';extensions=root/'ingress-extensions.cnf';pfx=root/'ingress.pfx';password=root/'ingress-password'
             password.write_text(secrets.token_urlsafe(32));extensions.write_text('basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:localhost,DNS:portal.example.test,DNS:*.shops.example.test,DNS:*.manage.example.test\n')
@@ -93,6 +112,8 @@ def main():
             commerce=copy.deepcopy(json.loads((demo.LOCAL/'commerce.json').read_text()))
             commerce.update(PlatformSecurity=security,LocalDemo={'Enabled':False},PlatformConfiguration={'Provider':'Environment'},Notifications={'Provider':'Disabled'},AllowedHosts='localhost;127.0.0.1;*.shops.example.test;*.manage.example.test',
                 Proxy={'Enabled':True,'KnownProxies':['127.0.0.1','::1'],'ForwardLimit':1},Provisioning={'ReadinessEndpoint':True})
+            commerce['Database']['ConnectionString']=runtime_connection
+            commerce['Application'].update(DisableHostedService=True,SkipMigrationProcess=True)
             commerce['AuthConfiguration'].update(IdentityProviderUrl=identity['authority'],AuthorityRootCertificateFile=str(identity['root']))
             commerce.setdefault('Logging',{}).setdefault('LogLevel',{})['Microsoft.Hosting.Lifetime']='Information'
             installer_config=root/'installer.json';demo.write_json(installer_config,commerce);settings['CommerceConfigPath']=str(installer_config)
@@ -139,6 +160,8 @@ def main():
                 with log.open('w') as output:process=subprocess.Popen(['dotnet',str(directory/dll)],cwd=directory,env=child_env,stdout=output,stderr=subprocess.STDOUT,start_new_session=True)
                 children.append(process);wait_process(process,lambda path=log:production_started(path),name+' Production host')
                 check('Hosting environment: Production' in log.read_text(),name+' confirms Production with LocalDemo disabled')
+            empty_runtime_database(tenant,credentials,runtime_context_password,'verify',runtime_context_log)
+            check(True,'Production commerce/admin start before any tenant is installed, using only an empty read-only default context')
             native.stdin.write('provision\n');native.stdin.flush()
             if args.saas_enrollment:
                 wait_process(native,lambda:(root/'worker-started.json').exists(),'Actual Production enrollment worker')
@@ -207,6 +230,8 @@ def main():
             native.stdin.write('done\n');native.stdin.flush();native.wait(timeout=30);fixture_log.close()
             print((root/'fixture.log').read_text(),end='',flush=True)
             check(native.returncode==0,'Actual worker and resource fixture finish cleanly')
+            empty_runtime_database(tenant,credentials,runtime_context_password,'verify',runtime_context_log)
+            check(True,'Actual tenant installation and login leave the unseeded runtime context empty and read-only')
             print('Portable public Production deployment checks passed.',flush=True)
     finally:
         if native and native.poll() is None:
@@ -223,6 +248,8 @@ def main():
                 cleanup='const a=db.getSiblingDB("admin");a.auth("commerce_demo_root",'+json.dumps(credentials['mongo_root'])+');const d=db.getSiblingDB('+json.dumps('tenant_'+owned_tenant)+');const u=d.getUser('+json.dumps('tenant_'+owned_tenant)+');if(u){if(!u.customData||u.customData.platformTenantId!=='+json.dumps(owned_tenant)+')throw Error("Foreign fixture ownership");d.dropUser(u.user);d.dropDatabase();}'
                 demo.compose('exec','-T','mongo','mongosh','--quiet','--file','/dev/stdin',input=cleanup,text=True,stdout=subprocess.DEVNULL)
             demo.compose('exec','-T','postgres','psql','-U','commerce_demo','-d','postgres','-v','ON_ERROR_STOP=1','-c','DROP DATABASE IF EXISTS '+database+' WITH (FORCE)',stdout=subprocess.DEVNULL)
+        if runtime_context_created:
+            empty_runtime_database(tenant,credentials,runtime_context_password,'drop',runtime_context_log)
         if args.saas_enrollment:
             runtime_role='portable_saas_runtime_'+tenant
             cleanup_role="DO $owned$ BEGIN IF EXISTS(SELECT 1 FROM pg_catalog.pg_roles r WHERE r.rolname='"+runtime_role+"' AND pg_catalog.shobj_description(r.oid,'pg_authid')='portable-saas-fixture:"+tenant+"') THEN EXECUTE 'DROP ROLE "+runtime_role+"'; END IF; END $owned$;"

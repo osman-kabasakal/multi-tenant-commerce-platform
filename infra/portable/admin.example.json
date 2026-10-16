@@ -19,7 +19,8 @@
   "AllowedHosts": "*.manage.example.test",
   "Application": {
     "DisableHostedService": true,
-    "DisplayFullErrorStack": false
+    "DisplayFullErrorStack": false,
+    "SkipMigrationProcess": true
   },
   "Proxy": {
     "Enabled": true,

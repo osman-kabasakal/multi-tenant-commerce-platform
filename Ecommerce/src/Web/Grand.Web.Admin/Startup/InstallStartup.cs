@@ -1,5 +1,3 @@
-using Platform.Security;
-using Azure.Security.KeyVault.Secrets;
 using Grand.Business.Core.Commands.System.Security;
 using Grand.Business.Core.Interfaces.Common.Security;
 using Grand.Business.Core.Interfaces.System.Installation;
@@ -46,31 +44,16 @@ public class InstallStartup: IStartupApplication
             if (!DatabaseExist(connection).GetAwaiter().GetResult()) throw new InvalidOperationException("Seed the local tenant before starting its admin host.");
             return;
         }
-        Install(new InstallModel {
-            UserFields = null,
-            SelectedLanguage = "tr-TR",
-            AdminEmail = "admin@store.com",
-            AdminPassword = "CHANGE_ME",
-            ConfirmPassword = "CHANGE_ME",
-            DatabaseConnectionString = ServiceProvider.GetRequiredService<ISecretStore>().GetAsync("system", "applicationdb").GetAwaiter().GetResult(),
-            DataProvider = DbProvider.MongoDB,
-            ConnectionInfo = true,
-            MongoDBServerName = null,
-            MongoDBDatabaseName = null,
-            MongoDBUsername = null,
-            MongoDBPassword = null,
-            DisableSampleDataOption = false,
-            InstallSampleData = true,
-            Installed = false,
-            Collation = "tr",
-            AvailableLanguages = null,
-            AvailableCollation = null,
-            AvailableProviders = null,
-            CompanyName = "Contoso",
-            CompanyAddress = "İzmir",
-            CompanyPhoneNumber = "0000000000",
-            CompanyEmail = "info@contoso.com"
-        }).Wait();
+        if (configuration["TenantRouting:Provider"] == "Directory")
+        {
+            // Owned tenant routes select an installed database per request. This host
+            // may start before the first tenant exists; startup must never seed one.
+            return;
+        }
+        var existingConnection = configuration["Database:ConnectionString"];
+        if (string.IsNullOrWhiteSpace(existingConnection) || !DatabaseExist(existingConnection).GetAwaiter().GetResult())
+            throw new InvalidOperationException("Initialize the store through the explicit installer before starting its standalone administration host.");
+
     }
     
     
