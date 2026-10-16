@@ -8,4 +8,9 @@
       <EmbeddedResource Remove="@(_PrivateTenantRuntimeFiles)" />
     </ItemGroup>
   </Target>
+  <!-- Git archives omit empty directories; fresh hosts require this before plugin discovery. -->
+  <Target Name="CreatePublishedPluginDirectory" AfterTargets="Publish"
+          Condition="'$(MSBuildProjectName)' == 'Grand.Web' Or '$(MSBuildProjectName)' == 'Grand.Web.MultiTenant' Or '$(MSBuildProjectName)' == 'Grand.Web.OnlyAdmin' Or '$(MSBuildProjectName)' == 'Grand.Installer.Cli'">
+    <MakeDir Directories="$(PublishDir)/Plugins" />
+  </Target>
 </Project>

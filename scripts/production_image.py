@@ -45,6 +45,7 @@ dotnet --list-runtimes | grep -E '^Microsoft.AspNetCore.App 9\.'
 for file in commerce/Grand.Web.MultiTenant.dll admin/Grand.Web.OnlyAdmin.dll gateway/Platform.Gateway.dll saas/SaasManager.Web.dll worker/TenantManager.dll bootstrap/Platform.Bootstrap.dll installer/Grand.Installer.Cli.dll saas/wwwroot/index.html installer/wwwroot/logo.png installer/App_Data/Resources/Installation/installation.en.xml installer/App_Data/Resources/Installation/installation.pl.xml installer/App_Data/Resources/supportedcollation.xml; do
   test -s "/app/$file"
 done
+for directory in commerce/Plugins admin/Plugins installer/Plugins; do test -d "/app/$directory"; done
 test -z "$(find /app -name Settings.cfg -o -name DataProtectionKeys -o -name service-account.json -o -name google-services.json -o -name appsettings.Production.json)"
 /usr/local/bin/platform bootstrap --help
 '''

@@ -29,6 +29,8 @@ def main():
             with (logs / ('build-publish-boundary-' + name + '.log')).open('w') as log:
                 subprocess.run(['dotnet', 'publish', project, '-c', 'Release', '--nologo', '-o', output,
                                 '-p:UseAppHost=false', '--verbosity', 'quiet'], cwd=ROOT / 'Ecommerce', stdout=log, stderr=subprocess.STDOUT, check=True)
+            if not (Path(output) / 'Plugins').is_dir():
+                raise RuntimeError(name + ' publish omitted its required plugin directory.')
             target = Path(output) / 'App_Data' / probe.name
             if any((target / path).exists() for path in private):
                 raise RuntimeError(name + ' copied runtime configuration or a private key into its artifact.')
@@ -37,7 +39,7 @@ def main():
             for path in Path(output).rglob('*'):
                 if path.is_file() and marker in path.read_bytes():
                     raise RuntimeError(name + ' retained synthetic private content elsewhere in its artifact.')
-            print('PASS: ' + name + ' publish excludes settings, environment configuration and nested keys while retaining public resources.', flush=True)
+            print('PASS: ' + name + ' publish excludes settings, environment configuration and nested keys while retaining public resources and the required plugin directory.', flush=True)
             if name == 'installer':
                 expected = {
                     'wwwroot/logo.png': ROOT / 'Ecommerce/src/Installer/Grand.Installer.Cli/wwwroot/logo.png',

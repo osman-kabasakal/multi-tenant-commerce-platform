@@ -1,6 +1,6 @@
 # Per-tenant Google and Firebase
 
-The durable onboarding worker has an **opt-in Google provider**. The default local demo keeps `Provisioning:Google:Provider=Disabled` and creates no cloud resources. The Google provider plugs into both the Local and Portable orchestration profiles. You can exercise Google setup while keeping the database, Keycloak and storefront local, or explicitly configure it in a Portable deployment. Opt-in automatic Android release orchestration, encrypted tenant signing and durable artifact replay are implemented. Full tenant Flutter release execution, iOS, live mobile notification/crash delivery and complete deployment verification remain unfinished; see [PROVISIONING.md](PROVISIONING.md).
+The durable onboarding worker has an **opt-in Google provider**. The default local demo keeps `Provisioning:Google:Provider=Disabled` and creates no cloud resources. The Google provider plugs into both the Local and Portable orchestration profiles. You can exercise Google setup while keeping the database, Keycloak and storefront local, or explicitly configure it in a Portable deployment. Opt-in automatic Android release orchestration, encrypted tenant signing and durable artifact replay are implemented. The complete signed Android Flutter release passed clean Linux CI with synthetic Firebase identity. iOS, live notification/crash/distribution delivery and complete deployment verification remain acceptance gates; see [PROVISIONING.md](PROVISIONING.md).
 
 ## Resources and ownership
 
@@ -47,6 +47,25 @@ The merged file must retain the generated local database, Keycloak, installer an
 
 Create a new local trial through the SaaS onboarding page. The new job has a `google-firebase` checkpoint before publication. SDK files appear under `.local/mobile/<slug>/`; the manifest has `firebase.enabled=true`. `scripts/mobile_tenant.py` deliberately accepts only the Firebase-disabled debug profile. The separate isolated Android runner in [MOBILE.md](MOBILE.md#prepare-a-firebase-enabled-tenant-android-release) requires a Portable publication manifest with `localDemo=false` and the verified HTTPS store origin; a Local-profile Google probe does not turn a demo manifest into a release deployment. API activation alone does not establish Crashlytics SDK initialization, symbols or delivery.
 
+## Enable Google in Linux Compose
+
+Start from the private deployment input in [LINUX_PRODUCTION.md](LINUX_PRODUCTION.md). The generated Compose profile reads `Providers:Google`, while the standalone worker example wraps the same options in `Provisioning:Google`. Copy only that inner Google object into `Providers:Google`. Keep its stable `DeploymentId` equal to the deployment input’s `DeploymentId`; replace the parent, project prefix and sender service account deliberately. Set `AllowCloudWrites=true` only for the Google targets you intend new tenant jobs to create.
+
+The private deployment input accepts two separate absolute credential paths:
+
+```json
+{
+  "GoogleCredentialsFile": "/absolute/private/provisioning-adc.json",
+  "NotificationCredentialsFile": "/absolute/private/notification-sender-adc.json"
+}
+```
+
+This is a fragment of the existing deployment input. The first identity is mounted only in the provisioning worker; the second is mounted only in commerce/admin. The runtime identity must correspond to `Providers:Google:SenderServiceAccount`, whose per-tenant FCM permission the worker grants. Select `Providers:Notifications:Provider=Fcm` for real sending. Both files stay outside Git and are copied into private 0600 deployment state. An external-account ADC configuration that refers to a separate local token file also needs an explicit private Compose mount at its referenced container path; the launcher does not copy arbitrary credential dependencies. Never reuse the project/IAM administrator credential as the runtime notification sender.
+
+Run the ordinary `production.py up` with that private input. Existing completed tenants keep their original Google checkpoint; enable this before enrolling the new businesses that should receive projects. A Google failure remains a failed/retryable setup job and never proves successful tenant publication. Start with one explicitly configured tenant and verify its owned project, SDK identity and permission boundaries before broader enrollment. This configuration path is implemented; live Google accounts and device delivery have not been exercised by the cloud-free CI.
+
+The baseline server Compose image does not contain Flutter/Android tools. Automatic App Distribution additionally requires the dedicated mobile worker configuration and toolchain in [MOBILE.md](MOBILE.md#automatic-android-publication-from-a-saas-subscription), with the provider selected in both SaaS and worker. Merely selecting Google in this server profile does not build or distribute an app.
+
 ## Export public SDK files and distribute an existing build
 
 The server-side management tool reads the same encrypted tenant store, with schema initialization disabled and read-only database access. Its configuration must contain the actual `PlatformSecurity` provider/key/connection. For a local security provider, explicitly set `DOTNET_ENVIRONMENT=Development` and retain `LocalDemo:Enabled=true`. For production use the portable or optional Azure provider from [TENANT_SECURITY.md](TENANT_SECURITY.md).
@@ -63,7 +82,7 @@ dotnet run --project tools/Platform.Cloud -- distribute \
 
 `export-mobile` performs no Google API call and does not require Google write permission. It exports only `google-services.json`, `GoogleService-Info.plist` and a public client manifest, with owner-only file permissions on Unix. `distribute` requires the configured Google provider and `AllowCloudWrites`, rechecks cloud project ownership, uploads the APK (or signed IPA with `--platform ios`), waits for the release and distributes only to that tenant's configured group. It rejects a release resource belonging to another app. A repeated identical binary can reuse the release according to the provider's upload contract.
 
-These commands do not sign an app or claim an existing APK has Crashlytics integrated. An explicit isolated Android build/sign/verify/distribute runner is now available in [MOBILE.md](MOBILE.md#prepare-a-firebase-enabled-tenant-android-release). Automatic onboarding-to-release scheduling, per-tenant signing provisioning, iOS signing and live crash verification remain required before a complete automatic mobile release is ready.
+These commands do not sign an app or claim an existing APK has Crashlytics integrated. An explicit isolated Android build/sign/verify/distribute runner is now available in [MOBILE.md](MOBILE.md#prepare-a-firebase-enabled-tenant-android-release). Automatic onboarding-to-release scheduling, encrypted per-tenant signing and durable artifact replay are implemented in the explicit Android provider. The real signed Flutter build passed [Linux CI run 38859826592](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/runs/38859826592); that synthetic run disabled cloud uploads and did not install a device app. The complete Compose mobile worker, iOS signing and live crash/distribution verification remain required before a complete automatic mobile deployment is proven.
 
 ## Verify without a cloud account
 
