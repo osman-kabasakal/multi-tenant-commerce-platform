@@ -1,0 +1,38 @@
+{
+  "sourceCommit": "d731fa9deb1587dac00fe55bf035eac6ab2f8dc3",
+  "verifiedOn": "2026-10-16",
+  "execution": "Linux ARM64 containers on Docker Desktop for macOS",
+  "applicationImage": {
+    "architecture": "arm64",
+    "os": "linux",
+    "id": "sha256:41aecf34101b49a43481b39e5041a75b374df645b3eb03f49a9738b7ae5c1c8c",
+    "runtimeUserIsNonRoot": true
+  },
+  "checks": {
+    "offlineReadOnlyPackage": "passed",
+    "freshPostgresBootstrapAndReplay": "passed",
+    "differentMasterKeyRejected": "passed",
+    "composePassCount": 117,
+    "realFirefoxRegistrationAndEmailVerification": "passed",
+    "distinctTenantCount": 3,
+    "storefrontAndOwnerAdministration": "passed",
+    "preservedRestart": "passed",
+    "coldBackupAndRestore": "passed",
+    "ownerSessionsSurviveColdRestore": "passed",
+    "restrictedRuntimeDatabaseRoles": "passed",
+    "ownedFixtureContainersRemoved": "passed"
+  },
+  "scope": {
+    "dns": "isolated synthetic names and a private CA; no public DNS change",
+    "email": "private synthetic SMTP receiver; no external inbox delivery",
+    "providers": "Google, payments and mobile publication disabled in this baseline",
+    "githubActions": "not executed; account billing/spending limit prevents job startup",
+    "notProven": [
+      "live Google project creation",
+      "real FCM/APNs device delivery",
+      "signed iOS distribution",
+      "device Crashlytics reports",
+      "live payment acceptance"
+    ]
+  }
+}

@@ -509,3 +509,26 @@ The composite `FcmApns` provider now keeps Android delivery on FCM and sends new
 **Still unproven:** a usable Apple Distribution identity/positive signed IPA, live Google project creation under an authorized parent and separate FCM sender, actual App Distribution installation, readable device Crashlytics reports, and device APNs/FCM notification/tap/image behavior. `signedIpaBuilt=false`, `distributed=false` and `symbolsUploaded=false` remain the unsigned probe's explicit results. The previous GitHub Actions runs were prevented from starting by the account billing/spending-limit condition; local success is not a clean remote CI result. Public DNS/mail/payment acceptance, remaining asset provenance and the commerce mapping dependency also remain in the full platform backlog.
 
 The final staged-source snapshot was independently exported without the operator's unrelated commerce project/solution edits. Its **29 notification**, **118 Portable provisioning**, **30 Google provisioning** and **108 SaaS registration security** tests passed, and the actual Mac worker compiled. The unchanged license inventory (164 inputs), tracked-source guard (13,020 paths), explicit operator-ID exclusions and Gitleaks (no findings) passed against that exact staged snapshot. The temporary source copy was removed. This does not resolve the previously recorded asset provenance or commerce dependency backlog.
+
+
+## Exact-source Linux ARM64 deployment acceptance — 2026-10-16
+
+Commit `d731fa9deb1587dac00fe55bf035eac6ab2f8dc3` was built from `git archive HEAD` as a native Linux ARM64 server image. Its OCI revision matches that commit. The unrelated working-tree commerce project/solution edits and all ignored private state were excluded. The [machine-readable result](validation/linux-arm64-d731fa9.json) records the image identity and scope.
+
+- The real image passed offline execution as a non-root user with a read-only root filesystem, both .NET 8/9 runtimes, all actual server/installer artifacts and the private runtime mutex directory.
+- Independent real containers initialized/replayed fresh PostgreSQL security, queue and SaaS schemas using owner-only key/config mounts and a nonsuperuser schema owner. A different encryption master key was rejected.
+- The complete Compose acceptance script passed **117 top-level checks** inside a separate Linux ARM64 validation container. Two authenticated owners and a third owner registered through actual Firefox/Angular created distinct stores. The third owner verified email through the fixture's real private SMTP message. Actual HTTPS storefronts, administrator passwords, ownership/tenant isolation, CSRF and restricted database roles were checked.
+- Full restart retained the original encryption key and SaaS/store administrator sessions. The tool then stopped and cold-snapshotted all three database volumes plus private state, removed only its disposable installation, restored into the empty destination and reran startup. All three store/admin sessions and the actual Firefox owner session remained usable. The test's containers, volumes, network, private credentials and browser profiles were removed.
+
+This is actual local **Linux ARM64 Docker** evidence on the Mac, not a successful GitHub Actions run or a new Linux amd64/mobile acceptance result. The browser helper used the pinned Playwright/Firefox 1.58.2; the server build used its Dockerfile's Node 22 stage. Synthetic DNS/private CA and private SMTP were used; no public DNS, real inbox, payment, Google resource or device send was involved. Existing commerce dependency advisories (including AutoMapper, MailKit and OpenTelemetry) remain visible build warnings and are not fixed/suppressed by deployment success.
+
+The existing entry points were exercised; the last command runs in Linux with the documented Node/browser/certificate prerequisites:
+
+```sh
+python3 scripts/production_image.py build --image commerce-platform:validation --platform linux/arm64
+python3 scripts/production_image.py verify --image commerce-platform:validation
+python3 scripts/smoke_production_image.py --image commerce-platform:validation
+python3 scripts/smoke_production_compose.py --image commerce-platform:validation --browser --backup-restore
+```
+
+Google setup is intentionally waiting for the operator's organization decision. No alternative user OAuth flow was added and no Google configuration/resource was changed during this validation.

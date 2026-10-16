@@ -45,6 +45,12 @@ An eligible new Google Cloud Free Trial account may receive a standalone organiz
 
 References: [service-account project creation](https://docs.cloud.google.com/resource-manager/docs/creating-managing-projects), [organization setup](https://docs.cloud.google.com/resource-manager/docs/creating-managing-organization), [Cloud Identity editions](https://docs.cloud.google.com/identity/docs/editions), [standalone organization eligibility](https://docs.cloud.google.com/resource-manager/docs/standalone-organization-overview).
 
+## Is an organization mandatory for everyone?
+
+No. Google permits eligible user accounts to create projects with no organization; omitting a parent can also select a parent from the account's domain. The organization/folder requirement here applies to the service-account automation used by this platform. Its current provider intentionally requires an explicit parent and verifies that exact parent when reconciling owned projects. A user OAuth/no-organization provisioning mode is not implemented; an existing personal CLI login is not adopted as a fallback. See [Google project creation rules](https://docs.cloud.google.com/resource-manager/docs/creating-managing-projects).
+
+A paid Workspace subscription is not required for the organization path. [Cloud Identity Free](https://docs.cloud.google.com/identity/docs/editions), associated with a verified owned domain, can provide an organization as described in [Google's setup guide](https://docs.cloud.google.com/resource-manager/docs/creating-managing-organization). This does not make Google/Firebase resource usage free. Configure the new-tenant parent and grant the provisioning identity its required roles there; merely moving an existing credential project is not the complete provisioning setup.
+
 ## Create the separate runtime FCM sender
 
 In the Google Cloud console, select the intended central sender project and open IAM & Admin → Service Accounts → Create service account. Use a dedicated ID such as `tenant-fcm-sender`. The resulting address is `tenant-fcm-sender@YOUR_SENDER_PROJECT.iam.gserviceaccount.com`. The optional project-role and service-account-user grants can remain empty: the worker grants this principal `roles/firebasecloudmessaging.admin` on each owned target tenant project. It does not need organization access, Project Creator, Owner or general Firebase administration to send those messages. Enable the Firebase Cloud Messaging API in the central sender project.
