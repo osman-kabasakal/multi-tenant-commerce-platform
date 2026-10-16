@@ -46,7 +46,7 @@ dotnet --list-runtimes | grep -E '^Microsoft.NETCore.App 8\.'
 dotnet --list-runtimes | grep -E '^Microsoft.NETCore.App 9\.'
 dotnet --list-runtimes | grep -E '^Microsoft.AspNetCore.App 8\.'
 dotnet --list-runtimes | grep -E '^Microsoft.AspNetCore.App 9\.'
-for file in commerce/Grand.Web.MultiTenant.dll admin/Grand.Web.OnlyAdmin.dll gateway/Platform.Gateway.dll saas/SaasManager.Web.dll worker/TenantManager.dll bootstrap/Platform.Bootstrap.dll installer/Grand.Installer.Cli.dll saas/wwwroot/index.html installer/wwwroot/logo.png installer/App_Data/Resources/Installation/installation.en.xml installer/App_Data/Resources/Installation/installation.pl.xml installer/App_Data/Resources/supportedcollation.xml; do
+for file in commerce/Grand.Web.MultiTenant.dll admin/Grand.Web.OnlyAdmin.dll gateway/Platform.Gateway.dll saas/SaasManager.Web.dll worker/TenantManager.dll bootstrap/Platform.Bootstrap.dll cloud/Platform.Cloud.dll installer/Grand.Installer.Cli.dll saas/wwwroot/index.html installer/wwwroot/logo.png installer/App_Data/Resources/Installation/installation.en.xml installer/App_Data/Resources/Installation/installation.pl.xml installer/App_Data/Resources/supportedcollation.xml; do
   test -s "/app/$file"
 done
 for directory in commerce/Plugins admin/Plugins installer/Plugins; do test -d "/app/$directory"; done
@@ -54,6 +54,8 @@ test -z "$(find /app -name Settings.cfg -o -name DataProtectionKeys -o -name ser
 dotnet /app/runtime-probe8/Platform.RuntimeProbe.dll
 dotnet /app/runtime-probe9/Platform.RuntimeProbe.dll
 /usr/local/bin/platform bootstrap --help
+cloud_help=$(/usr/local/bin/platform cloud --help)
+printf '%s\n' "$cloud_help" | grep -F "check-access --credentials"
 '''
     subprocess.run(['docker', 'run', '--rm', '--network', 'none', '--read-only', '--cap-drop', 'ALL',
                     '--security-opt', 'no-new-privileges:true', '--tmpfs', '/tmp:rw,noexec,nosuid,size=16m', '--tmpfs', runtime,
@@ -61,7 +63,7 @@ dotnet /app/runtime-probe9/Platform.RuntimeProbe.dll
     invalid = subprocess.run(['docker', 'run', '--rm', '--network', 'none', image, 'unknown-role'], capture_output=True)
     if invalid.returncode != 64 or b'Unknown platform role.' not in invalid.stderr:
         raise RuntimeError('The runtime accepted an unrecognized application role.')
-    print('PASS: real offline non-root container contains every server/installer artifact and both .NET runtimes; bootstrap executes.', flush=True)
+    print('PASS: real offline non-root container contains every server/installer artifact and both .NET runtimes; bootstrap and cloud diagnostics execute.', flush=True)
 
 
 def main():

@@ -47,6 +47,18 @@ dotnet run --project tools/Platform.Cloud -c Release -- check-access \
   --parent folders/123456789
 ```
 
+The Linux server image also includes this tool as the `cloud` role; no host .NET SDK is required. After building the current committed image for your deployment UID/GID, mount only the intended credential for this non-mutating check:
+
+```sh
+docker run --rm --read-only --cap-drop ALL --security-opt no-new-privileges:true \
+  --tmpfs /tmp:rw,noexec,nosuid,size=16m \
+  --mount type=bind,source=/absolute/private/provisioning-service-account.json,target=/run/google-access.json,readonly \
+  commerce-platform:local cloud check-access \
+  --credentials /run/google-access.json --parent folders/123456789
+```
+
+Use the actual image tag selected during the build or deployment. The bind-mounted credential stays read-only, is not copied into the image and must be readable by its configured non-root UID. This one-off command needs outbound HTTPS, starts no application/dependency services and mounts no database, signing key or deployment-state volume. The image's offline CI gate separately executes `cloud --help` with networking disabled; help execution proves packaging only, while the live credential check above is an operator action. Only this role's `check-access` command is non-mutating; `distribute` retains its explicit Google write/ownership requirements.
+
 The credential project's own parent is informational and is never selected as the tenant target. Without `--parent`, its creation-permission check remains `not-configured`. An inaccessible group/app list remains `unavailable` with its HTTP status; a 404 is not converted into a successful empty list. Disabled APIs are reported without enabling them. The JSON output contains project metadata, selected permission names and counts; it excludes keys, tokens, SDK files, IAM members and provider error bodies. Keep any saved report private and outside Git.
 
 Exit code 0 means all requested diagnostic checks passed; 2 means at least one is disabled, missing, unconfigured or unavailable; 1 means the command could not complete. Even a complete diagnostic does not prove new-project quota, organization policy, accepted terms, billing permissions, runtime sender isolation or device delivery. A live owned-tenant provisioning and delivery check is still required. The caller supplies a separate runtime sender identity as described above.
