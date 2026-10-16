@@ -123,7 +123,7 @@ async function main() {
       'The actual SMTP verification link reaches required password creation before business enrollment');
     await passwordForm.locator('#password-new').fill(config.account.password);
     await passwordForm.locator('#password-confirm').fill(config.account.password);
-    await passwordForm.locator('input[type="submit"][name="login"]').click();
+    await passwordForm.locator('[type="submit"][name="login"]').click();
   } else {
     stage = 'Keycloak username';
     await page.locator('input[name="username"]').fill(config.account.username);
@@ -196,7 +196,7 @@ main().catch(async error => {
   console.error('Real browser acceptance failed at: ' + stage);
   try {
     const frame = String(error.stack || '').split('\n').find(line => /^\s+at /.test(line) && line.includes('/trial.cjs:')) || '';
-    const controls = page ? await page.locator('input, button, textarea').evaluateAll(nodes => nodes.map(node => ({id: node.id, name: node.getAttribute('name'), type: node.getAttribute('type')}))) : [];
+    const controls = page ? await page.locator('input, button, textarea').evaluateAll(nodes => nodes.map(node => ({tag: node.tagName.toLowerCase(), id: node.id, name: node.getAttribute('name'), type: node.getAttribute('type')}))) : [];
     if (config) privateJson(path.join(path.dirname(config.result), 'browser-diagnostics.json'),
       {stage, errorType: error.name, sourceFrame: frame, location: page ? location(page.url()) : null, controls, responses});
   } catch { /* Failure diagnostics must not expose raw errors or credentials. */ }
