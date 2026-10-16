@@ -64,6 +64,7 @@ public sealed class PostgresProvisioningQueue : IProvisioningQueue, IAsyncDispos
                 FOR EACH ROW EXECUTE FUNCTION platform_provisioning.enforce_job_requirements_v1();
             """, connection, transaction);
         await cmd.ExecuteNonQueryAsync(ct);
+        await ReadinessDeliverySchema.InitializeAsync(connection,transaction,ct);
         await transaction.CommitAsync(ct);
     }
 

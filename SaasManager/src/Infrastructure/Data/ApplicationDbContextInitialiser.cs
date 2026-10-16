@@ -1,15 +1,11 @@
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
-using Core.Models.Configs;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using SaasManager.Application.Common.Interfaces.PaymentProviders;
 using SaasManager.Application.Common.Interfaces.Security;
 using SaasManager.Domain.Entities.Billing;
-using SaasManager.Domain.Entities.Financial;
 
 namespace SaasManager.Infrastructure.Data;
 
@@ -32,29 +28,30 @@ public class ApplicationDbContextInitialiser
     private readonly ILogger<ApplicationDbContextInitialiser> _logger;
     private readonly ApplicationDbContext _context;
     private readonly IDateTime _dateTime;
-    private readonly IyzicoConfiguration _iyzicoConf;
-    private readonly IDictionary<string, IPaymentProvider> _providers;
+    private readonly IConfiguration _configuration;
+    private readonly string _mode;
     private readonly bool _localDemo;
 
     public ApplicationDbContextInitialiser(ILogger<ApplicationDbContextInitialiser> logger, 
         ApplicationDbContext context,
-        IDateTime dateTime,
-        IOptions<IyzicoConfiguration> defaultPaymentProviderOptions,
-        IEnumerable<IPaymentProvider> providers, IConfiguration configuration)
+        IDateTime dateTime,IConfiguration configuration)
     {
         _logger = logger;
         _localDemo = configuration.GetValue<bool>("LocalDemo:Enabled");
         _context = context;
         _dateTime = dateTime;
-        _iyzicoConf = defaultPaymentProviderOptions.Value;
-        _providers = providers.ToDictionary(p => p.Code, p => p);
+        _configuration=configuration;
+        _mode=configuration["DatabaseBootstrap:Mode"]??(_localDemo?"LocalDemo":"Existing");
+        if(_localDemo && _mode!="LocalDemo" || !_localDemo && _mode is not ("Existing" or "External"))
+            throw new InvalidOperationException("Use LocalDemo initialization only for the explicit demo, or Existing/External runtime verification.");
     }
 
     public async Task InitialiseAsync()
     {
         try
         {
-            await _context.Database.MigrateAsync();
+            if(_localDemo)await _context.Database.MigrateAsync();
+            else await PortableDatabaseBootstrap.VerifyRuntimeAsync(_context,_configuration,_mode=="External");
         }
         catch (Exception ex)
         {
@@ -78,6 +75,7 @@ public class ApplicationDbContextInitialiser
 
     public async Task TrySeedAsync()
     {
+        if (!_localDemo)return;
         if (_context.SubscriptionPlans.Any())
             return;
         var defaultPlans = new List<SubscriptionPlan>
@@ -181,26 +179,6 @@ public class ApplicationDbContextInitialiser
         _logger.LogInformation("Created {Count} default subscription plans", defaultPlans.Count);
         
         
-        if (_localDemo) return;
-        _logger.LogError("No default payment provider configured");
-        var defaultP=_providers.First();
-        var paymentProvider = new PaymentProvider(
-            defaultP.Value.Name,
-            defaultP.Key,
-            defaultP.Value.Type,
-            JsonDocument.Parse(JsonSerializer.Serialize(_iyzicoConf)),
-            apiKey: _iyzicoConf.ApiKey,
-            apiSecret: _iyzicoConf.SecretKey,
-            baseUrl: "https://api.iyzipay.com",
-            isSandbox: true,
-            0m,
-            0m,
-            ["TRY", "USD"],
-            30
-        );
-        paymentProvider.UpdateHealthStatus(true);
-        _context.PaymentProviders.Add(paymentProvider);
-        _context.SaveChangesAsync(default).ConfigureAwait(true).GetAwaiter().GetResult();
     }
     
     private static JsonDocument CreateFeaturesDocument(string[] features)

@@ -106,13 +106,18 @@ def main():
             config={'PlatformSecurity':security,'LocalDemo':{'Enabled':False},'Provisioning':{'Enabled':True,'InitializeSchema':True,'Profile':'Portable','Portable':settings,'Google':{'Provider':'Disabled'},'Domains':{'Provider':'Wildcard','WildcardConfigured':True},'Worker':{'MaxAttempts':1,'PollInterval':'00:00:01'}},
                 'Fixture':{'TenantId':tenant,'Slug':slug,'AdminPassword':'Şifre-İstanbul-🔐-'+secrets.token_urlsafe(20),'WorkerDll':str(demo.LOCAL/'runtime/worker/TenantManager.dll'),'ExpectPublicReady':True,'BootstrapSecrets':security.get('BootstrapSecrets',{})}}
             if args.saas_enrollment:
-                config['Fixture'].update(ExternalEnrollment=True,SecondTenantId=second_tenant,TrialPlanId=trial_plan,EnrollmentTenants=[tenant,second_tenant])
+                config['Fixture'].update(ExternalEnrollment=True,SecondTenantId=second_tenant,TrialPlanId=trial_plan,EnrollmentTenants=[tenant,second_tenant],SaasRuntimePassword=secrets.token_hex(32))
+                config['Bootstrap']={'DeploymentId':settings['DeploymentId'],'AllowSchemaChanges':True,'TrialPlan':{'Id':trial_plan,'Name':'Portable enrollment trial','Code':'PORTABLE_FIXTURE','Price':299,'TrialDays':14,'MaxProducts':100,'MaxUsers':3,'MaxMonthlyOrders':1000,'Features':['Catalog']}}
+                config['TenantOnboarding']={'Trial':{'Enabled':True,'PlanId':trial_plan}}
                 config['ConnectionStrings']={'SaasManagerDb':f'Host=127.0.0.1;Port=15439;Database={saas_database};Username=commerce_demo;Password={credentials["postgres"]}'}
                 saas=copy.deepcopy(json.loads((demo.LOCAL/'saas.json').read_text()));saas['PlatformSecurity']=copy.deepcopy(security);saas['PlatformSecurity'].update(InitializeSchema=False,ReadOnly=False)
-                saas.update(LocalDemo={'Enabled':False},PlatformConfiguration={'Provider':'Environment'},ApplicationUrl=portal,AllowedHosts='portal.example.test',ConnectionStrings=config['ConnectionStrings'],CardProtection={'Provider':'Disabled'},
+                saas.update(LocalDemo={'Enabled':False},DatabaseBootstrap={'Mode':'External'},PlatformConfiguration={'Provider':'Environment'},ApplicationUrl=portal,AllowedHosts='portal.example.test',ConnectionStrings=config['ConnectionStrings'],CardProtection={'Provider':'Disabled'},
                     Provisioning={'Enabled':True,'InitializeSchema':False,'Profile':'Portable','DeploymentId':settings['DeploymentId']},TenantOnboarding={'Trial':{'Enabled':True,'PlanId':trial_plan}},
                     FileStorage={'Provider':'FileSystem','FileSystem':{'RootDirectory':str(root/'SaasFiles')}},Web={'AllowedOrigins':[portal],'DataProtectionKeyDirectory':str(root/'SaasCookieKeys'),'DataProtectionApplicationName':'portable-enrollment-'+tenant},
                     Kestrel={'Certificates':{'Default':{'Path':str(pfx),'Password':password.read_text()}}},Diagnostics={'DatabaseQueries':{'Enabled':False}},Logging={'LogLevel':{'Default':'Warning','Microsoft.Hosting.Lifetime':'Information'}})
+                runtime_identity='Username=portable_saas_runtime_'+tenant+';Password='+config['Fixture']['SaasRuntimePassword']
+                saas['ConnectionStrings']={'SaasManagerDb':f'Host=127.0.0.1;Port=15439;Database={saas_database};'+runtime_identity}
+                saas['PlatformSecurity']['ConnectionString']=f'Host=127.0.0.1;Port=15439;Database={database};'+runtime_identity
                 saas['AuthConfiguration'].update(IdentityProviderUrl=identity['authority'],AuthorityRootCertificateFile=str(identity['root']),ClientSecret=saas.pop('ClientSecret-centraladminapp'),Scopes=['openid','profile','email','roles'])
                 saas['GuestAuth'].update(Issuer=portal,Audience=portal);saas_path=root/'saas.json';demo.write_json(saas_path,saas)
             config_path=root/'worker.json';demo.write_json(config_path,config)
@@ -216,6 +221,10 @@ def main():
                 cleanup='const a=db.getSiblingDB("admin");a.auth("commerce_demo_root",'+json.dumps(credentials['mongo_root'])+');const d=db.getSiblingDB('+json.dumps('tenant_'+owned_tenant)+');const u=d.getUser('+json.dumps('tenant_'+owned_tenant)+');if(u){if(!u.customData||u.customData.platformTenantId!=='+json.dumps(owned_tenant)+')throw Error("Foreign fixture ownership");d.dropUser(u.user);d.dropDatabase();}'
                 demo.compose('exec','-T','mongo','mongosh','--quiet','--file','/dev/stdin',input=cleanup,text=True,stdout=subprocess.DEVNULL)
             demo.compose('exec','-T','postgres','psql','-U','commerce_demo','-d','postgres','-v','ON_ERROR_STOP=1','-c','DROP DATABASE IF EXISTS '+database+' WITH (FORCE)',stdout=subprocess.DEVNULL)
+        if args.saas_enrollment:
+            runtime_role='portable_saas_runtime_'+tenant
+            cleanup_role="DO $owned$ BEGIN IF EXISTS(SELECT 1 FROM pg_catalog.pg_roles r WHERE r.rolname='"+runtime_role+"' AND pg_catalog.shobj_description(r.oid,'pg_authid')='portable-saas-fixture:"+tenant+"') THEN EXECUTE 'DROP ROLE "+runtime_role+"'; END IF; END $owned$;"
+            demo.compose('exec','-T','postgres','psql','-U','commerce_demo','-d','postgres','-v','ON_ERROR_STOP=1','-c',cleanup_role,stdout=subprocess.DEVNULL)
 
 if __name__=='__main__':
     signal.signal(signal.SIGTERM,lambda *_:sys.exit(143))

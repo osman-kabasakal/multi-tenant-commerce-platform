@@ -804,6 +804,12 @@ public class Program
 
     public static async Task Main(string[] args)
     {
+        if(args.Contains("--readiness-email-worker"))
+        {
+            if(args.Contains("--provisioning-worker"))throw new ArgumentException("Choose one worker mode.");
+            await TenantManager.Provisioning.ReadinessEmailHost.RunAsync(args.Where(x=>x!="--readiness-email-worker").ToArray());
+            return;
+        }
         if (args.Contains("--provisioning-worker"))
         {
             await TenantManager.Provisioning.WorkerHost.RunAsync(args.Where(x=>x!="--provisioning-worker").ToArray());

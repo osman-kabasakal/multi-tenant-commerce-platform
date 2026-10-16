@@ -1,0 +1,40 @@
+{
+  "LocalDemo": {
+    "Enabled": false
+  },
+  "PlatformSecurity": {
+    "Provider": "AesGcm",
+    "InitializeSchema": false,
+    "AesGcm": {
+      "MasterKeyFile": "/run/secrets/platform-master-key"
+    }
+  },
+  "Bootstrap": {
+    "DeploymentId": "commerce-production",
+    "AllowSchemaChanges": false,
+    "TrialPlan": {
+      "Id": "11111111-1111-1111-1111-111111111111",
+      "Name": "Starter trial",
+      "Code": "STARTER_TRIAL",
+      "Price": 299,
+      "TrialDays": 14,
+      "MaxProducts": 100,
+      "MaxUsers": 3,
+      "MaxMonthlyOrders": 1000,
+      "Features": [
+        "Catalog",
+        "Tenant notifications"
+      ]
+    }
+  },
+  "Provisioning": {
+    "DeploymentId": "commerce-production",
+    "InitializeSchema": false
+  },
+  "TenantOnboarding": {
+    "Trial": {
+      "Enabled": false,
+      "PlanId": "11111111-1111-1111-1111-111111111111"
+    }
+  }
+}

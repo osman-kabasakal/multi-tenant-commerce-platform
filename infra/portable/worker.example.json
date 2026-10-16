@@ -43,6 +43,9 @@
     },
     "Mobile": {
       "Provider": "Disabled"
+    },
+    "ReadinessEmail": {
+      "Provider": "Disabled"
     }
   }
 }

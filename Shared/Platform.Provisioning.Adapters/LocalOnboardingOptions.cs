@@ -58,6 +58,7 @@ public static class LocalOnboarding
         services.AddScoped<IProvisioningStep, KeycloakTenantStep>();
         if (google == "Google") services.AddScoped<IProvisioningStep, GoogleTenantStep>();
         services.AddScoped<IProvisioningStep, LocalTenantPublicationStep>();
+        services.AddReadinessEmail(config,environment,options);
         return services;
     }
 }

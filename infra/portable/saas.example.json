@@ -63,5 +63,8 @@
       "Enabled": false,
       "PlanId": "00000000-0000-0000-0000-000000000000"
     }
+  },
+  "DatabaseBootstrap": {
+    "Mode": "External"
   }
 }

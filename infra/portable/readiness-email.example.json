@@ -1,0 +1,36 @@
+{
+  "LocalDemo": {
+    "Enabled": false
+  },
+  "PlatformSecurity": {
+    "Provider": "AesGcm",
+    "InitializeSchema": false,
+    "ReadOnly": false,
+    "AesGcm": {
+      "MasterKeyFile": "/run/secrets/platform-master-key"
+    }
+  },
+  "Provisioning": {
+    "Enabled": true,
+    "InitializeSchema": false,
+    "Profile": "Portable",
+    "Portable": {
+      "DeploymentId": "commerce-production",
+      "StoreBaseUrl": "https://shops.example.test",
+      "AdminBaseUrl": "https://manage.example.test"
+    },
+    "ReadinessEmail": {
+      "Provider": "Disabled",
+      "Smtp": {
+        "Host": "smtp.example.test",
+        "Port": 587,
+        "FromAddress": "platform@example.test",
+        "EnableStartTls": true,
+        "LeaseDuration": "00:02:00",
+        "PollInterval": "00:00:02",
+        "Timeout": "00:00:30",
+        "MaxAttempts": 5
+      }
+    }
+  }
+}

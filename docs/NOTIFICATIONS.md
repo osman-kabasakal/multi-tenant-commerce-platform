@@ -57,3 +57,5 @@ dotnet test tests/Storefront.Binding.Tests/Storefront.Binding.Tests.csproj -c Re
 ```
 
 Remaining platform/deployment gates are tracked in [PROVISIONING.md](PROVISIONING.md). Live FCM delivery, APNs configuration, Firebase-enabled signed mobile builds, Crashlytics reports and cloud deployment have not yet been verified.
+
+Readiness email after completed tenant setup is handled by the separate [durable SMTP sender](READINESS_EMAIL.md). It is independent of device push and can run with only its shared database/key and relay configuration.

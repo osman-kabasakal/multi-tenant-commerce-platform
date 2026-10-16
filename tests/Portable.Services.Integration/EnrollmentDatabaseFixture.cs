@@ -1,9 +1,10 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
 using Platform.Provisioning;
-using SaasManager.Domain.Entities.Billing;
+using Microsoft.Extensions.DependencyInjection;
+using Platform.Security;
 using SaasManager.Domain.Enums;
 using SaasManager.Infrastructure.Data;
 
@@ -21,10 +22,49 @@ internal static class EnrollmentDatabaseFixture
         var planId=Guid.Parse(config["Fixture:TrialPlanId"]!);
         if(mode=="init")
         {
-            await db.Database.MigrateAsync();
-            if(await db.Businesses.AnyAsync() || await db.GuestRegistrations.AnyAsync() || await db.SubscriptionPlans.AnyAsync())throw new InvalidOperationException("Refusing to reuse existing fixture data.");
-            db.SubscriptionPlans.Add(new SubscriptionPlan("Portable enrollment trial","PORTABLE_FIXTURE",299,100,3,1000,false,false,JsonDocument.Parse("{}"),14,"Synthetic configured trial",0,true,0,1,0){Id=planId});
-            await db.SaveChangesAsync();Console.WriteLine("PASS: A fresh isolated SaaS database uses actual migrations and an explicit public trial plan");return;
+            var options=PortableBootstrapOptions.Read(config,true);
+            var shared=new NpgsqlConnectionStringBuilder(options.SecurityConnection);
+            var role="portable_saas_runtime_"+id;var password=config["Fixture:SaasRuntimePassword"]??"";
+            if(shared.Database!="portable_worker_test_"+id || shared.Host is not ("127.0.0.1" or "localhost") || shared.Port!=15439 || !Regex.IsMatch(password,"^[a-f0-9]{64}$"))
+                throw new InvalidOperationException("Use only the current fixture's owned shared database and runtime identity.");
+            using var services=new ServiceCollection().AddPlatformSecurity(config,"Production").BuildServiceProvider();
+            var bootstrap=new PortableDatabaseBootstrap(options,services.GetRequiredService<ISecretStore>(),services.GetRequiredService<PostgresSecretStore>());
+            await bootstrap.InitializeAsync();await bootstrap.VerifyAsync();
+            if(await db.Businesses.AnyAsync() || await db.GuestRegistrations.AnyAsync() || await db.SubscriptionPlans.CountAsync()!=1)throw new InvalidOperationException("Refusing to reuse existing fixture data.");
+            await using(var owner=new NpgsqlConnection(connection.ConnectionString))
+            {
+                await owner.OpenAsync();
+                await using var permissions=new NpgsqlCommand($"""
+                    CREATE ROLE {role} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '{password}';
+                    COMMENT ON ROLE {role} IS 'portable-saas-fixture:{id}';
+                    REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+                    GRANT USAGE ON SCHEMA public,platform_bootstrap TO {role};
+                    GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA public TO {role};
+                    REVOKE INSERT,UPDATE,DELETE ON public."__EFMigrationsHistory" FROM {role};
+                    GRANT USAGE,SELECT ON ALL SEQUENCES IN SCHEMA public TO {role};
+                    GRANT SELECT ON platform_bootstrap.saas_state TO {role};
+                    """,owner);await permissions.ExecuteNonQueryAsync();
+            }
+            await using(var owner=new NpgsqlConnection(options.SecurityConnection))
+            {
+                await owner.OpenAsync();
+                await using var permissions=new NpgsqlCommand($"""
+                    REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+                    GRANT USAGE ON SCHEMA platform_security,platform_provisioning,platform_bootstrap TO {role};
+                    GRANT SELECT,INSERT,UPDATE ON platform_security.secrets,platform_security.tenants,platform_security.aliases TO {role};
+                    GRANT SELECT,INSERT,UPDATE ON platform_provisioning.jobs TO {role};
+                    GRANT USAGE ON SEQUENCE platform_provisioning.jobs_id_seq TO {role};
+                    GRANT SELECT ON platform_bootstrap.queue_state TO {role};
+                    """,owner);await permissions.ExecuteNonQueryAsync();
+            }
+            var runtimeConnection=new NpgsqlConnectionStringBuilder(connection.ConnectionString){Username=role,Password=password};
+            await using(var runtime=new NpgsqlConnection(runtimeConnection.ConnectionString))
+            {
+                await runtime.OpenAsync();await using var permissions=new NpgsqlCommand("SELECT NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole AND NOT has_database_privilege(current_user,current_database(),'CREATE') AND NOT has_schema_privilege(current_user,'public','CREATE') FROM pg_catalog.pg_roles WHERE rolname=current_user",runtime);
+                if(await permissions.ExecuteScalarAsync() is not true)throw new InvalidOperationException("Runtime must have no schema/admin privileges.");
+            }
+            Console.WriteLine("PASS: Fresh Production enrollment uses the real owned database bootstrap, migrations and explicit trial plan");
+            Console.WriteLine("PASS: The actual HTTPS SaaS host uses a distinct runtime login without schema or administrator privileges");return;
         }
         static void Check(bool condition,string message){Console.WriteLine((condition?"PASS: ":"FAIL: ")+message);if(!condition)throw new InvalidOperationException(message);}
         var tenants=config.GetSection("Fixture:EnrollmentTenants").Get<string[]>()??[];
@@ -40,6 +80,13 @@ internal static class EnrollmentDatabaseFixture
         Check(metadata.Count==2 && metadata.All(d=>d.IsMigrated && d.EncryptedPassword.StartsWith("tenant-secret:",StringComparison.Ordinal)),"Durable completion stores shared secret references instead of copying database passwords into SaaS");
         var apps=await db.BusinessApps.ToListAsync();
         Check(apps.Count==2 && apps.All(a=>a.StoreUrl.StartsWith("https://",StringComparison.Ordinal) && a.PackageName=="com.example.tenant"+a.BusinessId.ToString("N")),"Each customer app receives its own package identity and verified HTTPS tenant URL");
+        await using(var deliveryDb=new NpgsqlConnection(config["PlatformSecurity:ConnectionString"]))
+        {
+            await deliveryDb.OpenAsync();
+            await using var deliveries=new NpgsqlCommand("SELECT count(*) FROM platform_provisioning.readiness_deliveries WHERE tenant_id=ANY($1) AND deployment_id=$2 AND state='Pending'",deliveryDb);
+            deliveries.Parameters.AddWithValue(tenants);deliveries.Parameters.AddWithValue(config["Provisioning:Portable:DeploymentId"]!);
+            Check(await deliveries.ExecuteScalarAsync() is 2L,"Both actual Production tenants atomically enqueue exactly one readiness delivery after full worker completion");
+        }
         await using var queue=new PostgresProvisioningQueue(config["PlatformSecurity:ConnectionString"]!);
         foreach(var tenant in tenants)
         {

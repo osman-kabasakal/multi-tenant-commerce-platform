@@ -119,6 +119,7 @@ public static class PortableOnboarding
         if (google=="Google") services.AddScoped<IProvisioningStep,GoogleTenantStep>();
         services.AddScoped<IProvisioningStep,TenantDomainStep>();services.AddScoped<IProvisioningStep,PortableTenantPublicationStep>();
         services.AddAndroidReleases(config,environment);
+        services.AddReadinessEmail(config,environment,options);
         return services;
     }
 }
