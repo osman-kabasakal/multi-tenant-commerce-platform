@@ -13,6 +13,7 @@ on:
       - 'scripts/production*.py'
       - 'scripts/smoke_production_compose.py'
       - 'scripts/portable_saas_enrollment.py'
+      - 'tests/Browser.Acceptance/**'
       - 'scripts/smoke_docker_context.py'
       - 'scripts/smoke_production_image.py'
       - '.dockerignore'
@@ -31,6 +32,7 @@ on:
       - 'scripts/production*.py'
       - 'scripts/smoke_production_compose.py'
       - 'scripts/portable_saas_enrollment.py'
+      - 'tests/Browser.Acceptance/**'
       - 'scripts/smoke_docker_context.py'
       - 'scripts/smoke_production_image.py'
       - '.dockerignore'
@@ -67,8 +69,20 @@ jobs:
         run: python3 scripts/production_image.py verify --image commerce-platform:ci
       - name: Initialize fresh Production databases from the real container
         run: python3 scripts/smoke_production_image.py --image commerce-platform:ci
-      - name: Verify a fresh complete Compose rollout, two actual SaaS tenants and preserved-state restart
-        run: python3 scripts/smoke_production_compose.py --image commerce-platform:ci
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tests/Browser.Acceptance/package-lock.json
+      - name: Install the pinned browser and private-profile certificate tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libnss3-tools
+          npm ci --ignore-scripts --no-audit --no-fund --prefix tests/Browser.Acceptance
+          cd tests/Browser.Acceptance
+          npx --no-install playwright install --with-deps firefox
+      - name: Verify a complete Compose rollout, real Angular enrollment and preserved-state restart
+        run: python3 scripts/smoke_production_compose.py --image commerce-platform:ci --browser
       - name: Preserve source context diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -79,5 +93,6 @@ jobs:
             .local/logs/production-image-bootstrap.log
             .local/production-compose-*/fixture.log
             .local/production-compose-*/deployment.log
+            output/playwright/*/*.png
           include-hidden-files: true
           retention-days: 3

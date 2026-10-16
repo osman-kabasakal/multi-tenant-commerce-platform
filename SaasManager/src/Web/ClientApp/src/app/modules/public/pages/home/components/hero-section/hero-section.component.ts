@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import {RouterLink} from '@angular/router';
 import {FaIconComponent} from '@fortawesome/angular-fontawesome';
 import {faChartLine, faClock, faStore} from '@fortawesome/free-solid-svg-icons';
 import {ColorPalette} from '../../../../../shared/interfaces/collor-palette';
@@ -8,7 +9,8 @@ import {palletes} from './hero-color-palettes';
   selector: 'app-hero-section',
   standalone: true,
   imports: [
-    FaIconComponent
+    FaIconComponent,
+    RouterLink
   ],
   templateUrl: './hero-section.component.html',
   styleUrl: './hero-section.component.scss',
@@ -83,11 +85,6 @@ export class HeroSectionComponent {
         'background-color': this.colorPalette.button.secondary.hover
       }
     };
-  }
-
-  startTrial() {
-    // Ücretsiz deneme başlatma fonksiyonu
-    console.log('Ücretsiz deneme başlatıldı');
   }
 
   watchDemo() {

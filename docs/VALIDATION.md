@@ -267,3 +267,29 @@ Mevcut tüm test projeleri yeşil değildir: eski test altyapısında MongoDB `M
 - The same source’s server Compose probe started all real Production processes, enrolled two OIDC owners, completed both tenant jobs, verified the owner-only status/readiness and cross-owner refusals, then failed during actual storefront HTML rendering. Its trace identified named image-mutex creation in .NET 8.0.32; the preserved-state restart gate was not reached. This is not a successful complete deployment result.
 - A direct real Linux negative/positive probe reproduced that exact .NET 8.0.32 mutex failure without a private runtime directory and passed with an owned 0700 `XDG_RUNTIME_DIR`. The new `Platform.RuntimeProbe` then passed under both actual .NET 8.0.32 and 9.0.21 containers as numeric non-root UID/GID 1001 with all capabilities dropped, no network and a read-only root filesystem. Dockerfile parsing and four generated-configuration/cleanup tests passed. The new image/Compose wiring still requires its own complete remote rollout result.
 - The full goal remains active: complete storefront/admin restart, real registration browser interaction, consistent backup/restore, paid activation, iOS and configured live cloud/device delivery remain unproven.
+
+
+## Verified full Linux Compose rollout (2026-10-16)
+
+Exact source `9dce1423031f658a77ff08805a4b93817a769da9` passed [Production run 38878692968](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/runs/38878692968), job `116899875510`. Every required step completed successfully: actual Docker context/privacy, complete server/Angular image build, offline non-root execution under both patched runtimes, fresh database bootstrap and the complete Compose installation. The private runtime directory fixed the actual image mutex failure; neither locking nor runtime patch level was weakened.
+
+The actual `production.py up` installed fresh owned infrastructure and all server roles. Two real HTTPS/OIDC owners submitted actual trial registrations; their database/Keycloak/provisioning jobs and owner status completed. Both storefronts rendered real HTML, both chosen owner passwords authenticated to their tenant administration, and both Secure host-scoped sessions survived the subsequent actual startup command. SaaS completion, tenant readiness, the original master key, refusal of foreign owner operations and restricted runtime database privileges were checked again after restart. The synthetic deployment and its owned resources/keys were removed. This proves the cloud-free Linux baseline; it does not prove public DNS, live cloud/email/device delivery, backup restoration or the new Angular browser form below.
+
+## Real Angular registration browser gate (2026-10-16)
+
+The home page’s “15 Gün Ücretsiz Deneyin” and “Hemen Başlayın” buttons now route to `/register`; previously they did not start registration. The normal Angular Production build passed locally after this repair.
+
+The complete Linux Compose fixture now accepts `--browser`, and CI always selects it. Alongside the existing two HTTP/OIDC owner-isolation checks, a third synthetic verified owner uses actual Firefox to click the home CTA, log in through the real Keycloak form, fill the compiled Angular dynamic form and submit the actual authenticated/antiforgery-protected request. The browser observes the actual worker completion and published store/admin links, reloads the page, and remains open while the real `production.py up` restarts the deployment. Its original cookies must still open the same completed tenant afterward. The fixture also verifies that third tenant’s actual storefront and administrator password using the existing HTTP assertions.
+
+The browser first proves that an untrusted profile rejects the synthetic HTTPS certificate. Only its disposable profile imports the fixture CA with NSS `certutil`; global trust and hosts files are unchanged, and HTTPS error bypass is disabled. No API response is mocked and no direct enrollment POST substitutes for filling the form. Browser traces, HAR files and exported cookie/token state are not produced. Private profile, credentials and keys are removed with this fixture; masked screenshots remain in ignored `output/playwright/`.
+
+On a dedicated Linux validation machine, with the current committed server image built for the same non-root user:
+
+```sh
+sudo apt-get install -y libnss3-tools
+npm ci --ignore-scripts --no-audit --no-fund --prefix tests/Browser.Acceptance
+(cd tests/Browser.Acceptance && npx --no-install playwright install --with-deps firefox)
+python3 scripts/smoke_production_compose.py --image commerce-platform:local --browser
+```
+
+Node.js 22 and the pinned Playwright package are validation dependencies only. The ordinary server deployment still requires no host Node/.NET SDK. The fixture uses its own Docker installation and HTTPS ports 19443/19480. It creates verified synthetic identity users through the private administration API; public identity self-registration and actual verification-email delivery remain separate gates. The new complete browser execution is pending its clean Linux CI result; syntax/dependency checks and a frontend build are not recorded as a passing browser run.

@@ -1,11 +1,10 @@
 import { Component } from '@angular/core';
-import {NgForOf} from '@angular/common';
+import {RouterLink} from '@angular/router';
 
 @Component({
   selector: 'app-trial-section',
   standalone: true,
-  imports: [
-  ],
+  imports: [RouterLink],
   templateUrl: './trial-section.component.html',
   styleUrl: './trial-section.component.scss',
   styles:[

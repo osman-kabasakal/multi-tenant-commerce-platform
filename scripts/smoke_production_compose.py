@@ -70,11 +70,15 @@ def tenant_login(proxy, ca, publication, account, password):
 
 def main():
     os.umask(0o077)
-    parser = argparse.ArgumentParser(description=__doc__); parser.add_argument('--image', default='commerce-platform:ci'); args = parser.parse_args()
+    parser = argparse.ArgumentParser(description=__doc__); parser.add_argument('--image', default='commerce-platform:ci'); parser.add_argument('--browser', action='store_true', help='Also exercise real Angular enrollment and preserved browser cookies with Firefox'); args = parser.parse_args()
+    if args.browser:
+        if not sys.platform.startswith('linux') or not shutil.which('node') or not shutil.which('certutil'):
+            raise RuntimeError('Browser acceptance requires Linux, Node.js and libnss3-tools; see docs/VALIDATION.md.')
+        subprocess.run(['node', '-e', "require('playwright')"], cwd=ROOT / 'tests/Browser.Acceptance', check=True, capture_output=True)
     identity_id = uuid.uuid4().hex
     root = ROOT / '.local' / ('production-compose-' + identity_id[:10]); root.mkdir(parents=True, mode=0o700)
     state = root / 'state'; log_path = root / 'fixture.log'
-    server = None; thread = None; deployment = None
+    server = None; thread = None; deployment = None; browser_process = None
     with log_path.open('w') as log:
         try:
             for command in (
@@ -143,7 +147,7 @@ def main():
                 with direct.open(request, timeout=15) as response:
                     payload = response.read(); return json.loads(payload) if payload else None
             accounts = []
-            for index in range(2):
+            for index in range(3 if args.browser else 2):
                 account = {'username': 'compose-owner-' + str(index), 'email': 'owner' + str(index) + '@example.test', 'password': secrets.token_urlsafe(24)}
                 admin_api('/users', dict(username=account['username'], email=account['email'], firstName='Compose', lastName='Owner',
                     emailVerified=True, enabled=True, credentials=[{'type': 'password', 'value': account['password'], 'temporary': False}]))
@@ -152,7 +156,7 @@ def main():
                 admin_api('/users/' + user['id'] + '/role-mappings/realm', [role])
                 accounts.append(account)
             portal = 'https://portal.example.test:19443'
-            identity = {'root': root / 'ca.pem', 'authority': 'https://identity.example.test:19443/realms/commerce', 'accounts': accounts}
+            identity = {'root': root / 'ca.pem', 'authority': 'https://identity.example.test:19443/realms/commerce', 'accounts': accounts[:2]}
             tenants = [uuid.uuid4().hex, uuid.uuid4().hex]; password = 'Compose-İstanbul-' + secrets.token_urlsafe(24)
             sessions = enroll(portal, identity, proxy, tenants, password)
             deadline = time.monotonic() + 180
@@ -171,6 +175,34 @@ def main():
                 tenant_pages(opener, publication, tenant)
                 administration = tenant_login(proxy, root / 'ca.pem', publication, account, password)
                 tenant_sessions.append((administration, publication, tenant))
+            if args.browser:
+                browser_config = root / 'browser.json'
+                browser_result = root / 'browser-result.json'
+                production_config.write_json(browser_config, {
+                    'portal': portal, 'identity': 'https://identity.example.test:19443', 'proxy': proxy,
+                    'ca': str(root / 'ca.pem'), 'profile': str(root / 'browser-profile'), 'result': str(browser_result),
+                    'screenshots': str(ROOT / 'output/playwright' / identity_id), 'resume': str(root / 'browser-resume.json'),
+                    'account': accounts[2], 'adminPassword': password,
+                    'business': {'name': 'browser-' + identity_id[:10], 'legalCompanyName': 'Browser Fixture Company',
+                        'ownerName': 'Browser Owner', 'taxNumber': '9999999903', 'taxOffice': 'Fixture Office',
+                        'phone': '5551234567', 'address': 'Browser Fixture Street 10', 'city': 'Fixture City',
+                        'district': 'Fixture District', 'postalCode': '00000'},
+                })
+                browser_command = ['node', str(ROOT / 'tests/Browser.Acceptance/trial.cjs')]
+                browser_process = subprocess.Popen(browser_command + [str(browser_config)], stdout=log, stderr=subprocess.STDOUT)
+                deadline = time.monotonic() + 300
+                while not browser_result.exists():
+                    if browser_process.poll() is not None or time.monotonic() >= deadline:
+                        raise RuntimeError('Real Angular browser enrollment did not reach its ready screen; inspect the private browser stage log.')
+                    time.sleep(.5)
+                log.flush()
+                result = json.loads(browser_result.read_text())
+                check(len(result['tenantId']) == 32 and result['tenantId'] not in tenants,
+                    'Real Firefox submitted the Angular business form and observed a third, distinct tenant ready screen')
+                publication = {name: result[name] for name in ('storeUrl', 'adminUrl')}
+                tenant_pages(browser(proxy, root / 'ca.pem', redirect=False), publication, result['tenantId'])
+                administration = tenant_login(proxy, root / 'ca.pem', publication, accounts[2], password)
+                tenant_sessions.append((administration, publication, result['tenantId']))
             # Re-run the same real command; configuration/keys/data/identity must survive and hosts restart.
             subprocess.run(up, stdout=log, stderr=subprocess.STDOUT, env=environment, check=True, timeout=600)
             check(master == (state / 'secrets/platform-master-key').read_bytes(), 'Production restart preserves the original deployment encryption key')
@@ -179,12 +211,22 @@ def main():
                 tenant_pages(administration, publication, tenant)
                 code, _, body = page(administration, publication['adminUrl'])
                 check(code == 200 and 'logout' in body.lower(), 'The actual tenant administration session survives the full Compose restart')
+            if args.browser:
+                production_config.write_json(root / 'browser-resume.json', {'ready': True})
+                if browser_process.wait(timeout=240) != 0:
+                    raise RuntimeError('The real browser session did not survive Compose restart; inspect the private browser stage log.')
+                log.flush()
+                check(True, 'The actual Firefox owner session and Angular tenant success screen survive the complete Compose restart')
             check(deployment.sql("SELECT bool_and(NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolbypassrls) FROM pg_roles WHERE rolname IN ('platform_saas','platform_worker','platform_reader');") == 't',
                   'SaaS, worker and runtime secret reader have no database/server administration privileges')
             write = "SELECT has_schema_privilege('platform_saas','public','CREATE') OR has_schema_privilege('platform_worker','public','CREATE');"
             check(deployment.sql(write, 'platform_security') == 'f', 'Runtime database accounts cannot create application schemas')
             print('Complete real Compose rollout, two-owner enrollment and preserved-state restart checks passed.', flush=True)
         finally:
+            if browser_process and browser_process.poll() is None:
+                browser_process.terminate()
+                try: browser_process.wait(timeout=15)
+                except subprocess.TimeoutExpired: browser_process.kill(); browser_process.wait(timeout=10)
             if deployment:
                 try:
                     deployment.run('logs', '--no-color', '--tail', '100', capture=False)

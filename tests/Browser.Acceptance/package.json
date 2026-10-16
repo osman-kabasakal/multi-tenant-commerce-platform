@@ -1,0 +1,8 @@
+{
+  "name": "commerce-browser-acceptance",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Actual Angular enrollment against the disposable Linux Compose installation",
+  "engines": {"node": ">=22"},
+  "dependencies": {"playwright": "1.58.2"}
+}
