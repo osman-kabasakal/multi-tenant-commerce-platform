@@ -69,6 +69,18 @@ def tenant_login(proxy, ca, publication, account, password):
     return opener
 
 
+def identity_admin_api(deployment, path, value=None):
+    # Master-realm access tokens are short-lived; never retain one across provisioning or restart.
+    token = deployment.identity_token(administrative=True)
+    ip = deployment.definition['services']['keycloak']['networks']['platform']['ipv4_address']
+    request = urllib.request.Request('http://' + ip + ':8080/admin/realms/commerce' + path,
+        None if value is None else json.dumps(value).encode(), {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
+    direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with direct.open(request, timeout=15) as response:
+        payload = response.read()
+        return json.loads(payload) if payload else None
+
+
 def main():
     os.umask(0o077)
     parser = argparse.ArgumentParser(description=__doc__); parser.add_argument('--image', default='commerce-platform:ci'); parser.add_argument('--browser', action='store_true', help='Also exercise real Angular enrollment and preserved browser cookies with Firefox'); args = parser.parse_args()
@@ -146,14 +158,8 @@ def main():
             subprocess.run(up, stdout=log, stderr=subprocess.STDOUT, env=environment, check=True, timeout=600)
             check(True, 'The ordinary one-command Production rollout starts every real container from fresh owned data')
             deployment = production.Deployment(state, [override])
-            token = deployment.identity_token(administrative=True)
-            management = 'http://172.30.81.23:8080/admin/realms/commerce'
-            direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
             def admin_api(path, value=None):
-                request = urllib.request.Request(management + path, None if value is None else json.dumps(value).encode(),
-                    {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
-                with direct.open(request, timeout=15) as response:
-                    payload = response.read(); return json.loads(payload) if payload else None
+                return identity_admin_api(deployment, path, value)
             accounts = []
             for index in range(2):
                 account = {'username': 'compose-owner-' + str(index), 'email': 'owner' + str(index) + '@example.test', 'password': secrets.token_urlsafe(24)}
@@ -266,5 +272,6 @@ def main():
 if __name__ == '__main__':
     try: main()
     except Exception as error:
-        print('Compose fixture failed (' + type(error).__name__ + '); inspect its private fixture/deployment logs.', file=sys.stderr)
+        status = ' HTTP ' + str(error.code) if isinstance(error, urllib.error.HTTPError) else ''
+        print('Compose fixture failed (' + type(error).__name__ + status + '); inspect its private fixture/deployment logs.', file=sys.stderr)
         raise SystemExit(1)

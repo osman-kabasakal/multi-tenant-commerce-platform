@@ -3,9 +3,10 @@ import copy
 import io
 import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from production import Deployment
+from smoke_production_compose import identity_admin_api
 
 
 class IdentityPolicyTests(unittest.TestCase):
@@ -61,6 +62,22 @@ class IdentityPolicyTests(unittest.TestCase):
                 with patch('urllib.request.build_opener', return_value=direct):
                     with self.assertRaises(ValueError): deployment.reconcile_identity()
                 self.assertEqual(writes, [])
+
+    def test_compose_administration_never_reuses_a_token_across_long_running_steps(self):
+        deployment = Mock()
+        deployment.definition = {'services': {'keycloak': {'networks': {'platform': {'ipv4_address': '172.30.81.23'}}}}}
+        deployment.identity_token.side_effect = ['synthetic-first-token', 'synthetic-fresh-token']
+        requests = []
+        class Direct:
+            def open(self, request, timeout):
+                requests.append(request)
+                return io.BytesIO(b'{"realm":"commerce"}')
+        with patch('urllib.request.build_opener', return_value=Direct()):
+            identity_admin_api(deployment, '')
+            identity_admin_api(deployment, '')
+        self.assertEqual(deployment.identity_token.call_count, 2)
+        self.assertEqual([item.get_header('Authorization') for item in requests], ['Bearer synthetic-first-token', 'Bearer synthetic-fresh-token'])
+        self.assertTrue(all(item.full_url == 'http://172.30.81.23:8080/admin/realms/commerce' for item in requests))
 
     def test_default_policy_disables_public_registration_without_replacing_clients_or_users(self):
         deployment, realm, _, writes, direct = self.fixture()
