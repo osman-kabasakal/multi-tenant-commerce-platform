@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using Grand.Business.Tenants.Extensions;
 using Grand.Infrastructure.Extensions;
 using Microsoft.AspNetCore.DataProtection;
@@ -36,16 +38,42 @@ namespace Grand.Web.ExternalSettings.DataProtection
 
         public IDataProtector CreateProtector(string purpose)
         {
-            // Get the current tenant ID
-            var tenantId = _httpContextAccessor.HttpContext?.GetTenantId();
-            
-            // Create a tenant-specific purpose string
-            var tenantPurpose = !string.IsNullOrEmpty(tenantId)
-                ? $"Tenant_{tenantId}_{purpose}"
-                : purpose;
+            ArgumentNullException.ThrowIfNull(purpose);
+            return new TenantProtector(_baseProvider, _httpContextAccessor, new[] { purpose });
+        }
 
-            // Create a protector with the tenant-specific purpose
-            return _baseProvider.CreateProtector(tenantPurpose);
+        // Cookie authentication options cache protectors. Resolve the tenant for each operation,
+        // keeping the original first-purpose prefix and subsequent purpose chain intact.
+        private sealed class TenantProtector : IDataProtector
+        {
+            private readonly IDataProtectionProvider _provider;
+            private readonly IHttpContextAccessor _context;
+            private readonly string[] _purposes;
+
+            public TenantProtector(IDataProtectionProvider provider, IHttpContextAccessor context, string[] purposes)
+            {
+                _provider = provider;
+                _context = context;
+                _purposes = purposes;
+            }
+
+            public IDataProtector CreateProtector(string purpose)
+            {
+                ArgumentNullException.ThrowIfNull(purpose);
+                return new TenantProtector(_provider, _context, _purposes.Append(purpose).ToArray());
+            }
+
+            public byte[] Protect(byte[] plaintext) => Current().Protect(plaintext);
+            public byte[] Unprotect(byte[] protectedData) => Current().Unprotect(protectedData);
+
+            private IDataProtector Current()
+            {
+                var tenant = _context.HttpContext?.GetTenantId();
+                var first = string.IsNullOrEmpty(tenant) ? _purposes[0] : $"Tenant_{tenant}_{_purposes[0]}";
+                var protector = _provider.CreateProtector(first);
+                foreach (var purpose in _purposes.Skip(1)) protector = protector.CreateProtector(purpose);
+                return protector;
+            }
         }
     }
 }

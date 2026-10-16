@@ -272,6 +272,9 @@ def main():
 if __name__ == '__main__':
     try: main()
     except Exception as error:
+        import traceback
+        frame = next((item for item in reversed(traceback.extract_tb(error.__traceback__)) if Path(item.filename).name == 'smoke_production_compose.py'), None)
+        source = ' at smoke_production_compose.py:' + str(frame.lineno) if frame else ''
         status = ' HTTP ' + str(error.code) if isinstance(error, urllib.error.HTTPError) else ''
-        print('Compose fixture failed (' + type(error).__name__ + status + '); inspect its private fixture/deployment logs.', file=sys.stderr)
+        print('Compose fixture failed (' + type(error).__name__ + status + ')' + source + '; inspect its private fixture/deployment logs.', file=sys.stderr)
         raise SystemExit(1)

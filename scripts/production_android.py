@@ -79,6 +79,8 @@ python3 --version
 java -version
 /opt/android-sdk/build-tools/35.0.0/apksigner version
 /opt/android-sdk/build-tools/35.0.0/aapt2 version
+test -s /opt/android-sdk/platforms/android-31/android.jar
+test -s /opt/android-sdk/platforms/android-35/android.jar
 test -s /opt/android-sdk/platforms/android-36/android.jar
 grep -q '28.2.13676358' /opt/android-sdk/ndk/28.2.13676358/source.properties
 test "$(git -C /opt/flutter rev-parse HEAD)" = ee80f08bbf97172ec030b8751ceab557177a34a6

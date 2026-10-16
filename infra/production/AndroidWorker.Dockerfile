@@ -24,9 +24,15 @@ RUN curl --fail --location --silent --show-error \
     mv /opt/android-sdk/cmdline-tools/cmdline-tools /opt/android-sdk/cmdline-tools/19.0 && \
     rm /tmp/android-tools.zip && \
     yes | /opt/android-sdk/cmdline-tools/19.0/bin/sdkmanager --sdk_root=/opt/android-sdk --licenses >/dev/null
-RUN /opt/android-sdk/cmdline-tools/19.0/bin/sdkmanager --sdk_root=/opt/android-sdk \
-      'platforms;android-35' 'platforms;android-36' 'build-tools;35.0.0' \
-      'ndk;28.2.13676358' 'cmake;3.22.1' 'platform-tools'
+RUN for attempt in 1 2 3; do \
+      /opt/android-sdk/cmdline-tools/19.0/bin/sdkmanager --sdk_root=/opt/android-sdk \
+        'platforms;android-31' 'platforms;android-35' 'platforms;android-36' 'build-tools;35.0.0' \
+        'ndk;28.2.13676358' 'cmake;3.22.1' 'platform-tools' && break; \
+      if [ "$attempt" -eq 3 ]; then exit 1; fi; \
+    done && \
+    test -s /opt/android-sdk/platforms/android-31/android.jar && \
+    test -s /opt/android-sdk/platforms/android-35/android.jar && \
+    test -s /opt/android-sdk/platforms/android-36/android.jar
 RUN git clone --depth 1 --branch 3.44.6 https://github.com/flutter/flutter.git /opt/flutter && \
     test "$(git -C /opt/flutter rev-parse HEAD)" = ee80f08bbf97172ec030b8751ceab557177a34a6 && \
     mkdir -p /var/lib/commerce/mobile-cache /tmp/.android && \
