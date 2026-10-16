@@ -42,6 +42,26 @@ class ProductionConfigTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls): cls.temporary.cleanup()
 
+    def test_private_identity_route_preserves_public_issuer_and_admin_boundary(self):
+        state = self.root / 'private-identity-state'
+        original = config.prepare(self.plan, state, 'commerce-platform:fixture')
+        services = json.loads((state / 'compose.json').read_text())['services']
+        edge = services['edge']['networks']['platform']['ipv4_address']
+        for role in ('saas', 'worker', 'commerce', 'admin', 'gateway'):
+            self.assertEqual(services[role]['extra_hosts'], {self.plan['IdentityHost']: edge})
+        saas = json.loads((state / 'config/saas.json').read_text())
+        worker = json.loads((state / 'config/worker.json').read_text())
+        self.assertEqual(saas['AuthConfiguration']['IdentityProviderUrl'], 'https://' + self.plan['IdentityHost'] + '/realms/commerce')
+        self.assertEqual(worker['Provisioning']['Portable']['KeycloakAuthority'], 'https://' + self.plan['IdentityHost'])
+        caddy = (state / 'config/Caddyfile').read_text()
+        self.assertIn('remote_ip ' + self.plan.get('NetworkSubnet', '172.30.80.0/24'), caddy)
+        self.assertIn('respond 404', caddy)
+        self.assertEqual(config.prepare(self.plan, state, 'commerce-platform:fixture')['Credentials'], original['Credentials'])
+        custom = copy.deepcopy(self.plan); custom['HttpsPort'] = 9443
+        custom_state = self.root / 'custom-identity-port-state'
+        config.prepare(custom, custom_state, 'commerce-platform:fixture')
+        self.assertNotIn('extra_hosts', json.loads((custom_state / 'compose.json').read_text())['services']['worker'])
+
     def android_plan(self):
         plan = copy.deepcopy(self.plan)
         plan['Providers'].update(Mobile=copy.deepcopy(self.mobile), Google=copy.deepcopy(self.google))

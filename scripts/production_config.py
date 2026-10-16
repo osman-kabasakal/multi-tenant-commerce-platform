@@ -386,6 +386,10 @@ def compose(p, state, record, image, ip, identity):
         settings = service(role, number, image=image + '-android' if mobile_worker else image, command=[role], environment=environment, volumes=mounts,
                            tmpfs=['/run/platform-runtime:rw,nosuid,noexec,size=16m,uid=' + str(record['Uid']) + ',gid=' + str(record['Gid']) + ',mode=0700'],
                            security_opt=['no-new-privileges:true'], cap_drop=['ALL'])
+        # Keep the public HTTPS issuer/SNI while routing same-host identity calls over
+        # the private bridge. A public-IP hairpin can hide the peer from Caddy's admin allowlist.
+        # Nonstandard external ports need their own matching ingress listener/routing.
+        if p['HttpsPort'] == 443: settings['extra_hosts'] = {p['IdentityHost']: ip(10)}
         if role == 'bootstrap': settings.update(profiles=['initialize'], restart='no', command=['bootstrap', 'initialize', '--config', '/run/secrets/config.json'])
     return {'name': 'commerce-prod-' + p['DeploymentId'], 'services': services,
         'networks': {'platform': {'driver': 'bridge', 'labels': label, 'ipam': {'config': [{'subnet': p.get('NetworkSubnet', '172.30.80.0/24')}]}}},
