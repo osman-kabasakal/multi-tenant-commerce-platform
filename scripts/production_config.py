@@ -124,9 +124,11 @@ def prepare(plan, state, image):
         shutil.copyfile(source, state / 'secrets' / name); (state / 'secrets' / name).chmod(0o600)
     ca = plan['Tls'].get('RootCertificateFile')
     if ca: shutil.copyfile(ca, state / 'secrets/root-ca.pem'); (state / 'secrets/root-ca.pem').chmod(0o600)
-    google_credentials = plan.get('GoogleCredentialsFile')
-    if google_credentials:
-        shutil.copyfile(google_credentials, state / 'secrets/google-credentials.json'); (state / 'secrets/google-credentials.json').chmod(0o600)
+    for option, filename in (('GoogleCredentialsFile', 'google-provisioning.json'), ('NotificationCredentialsFile', 'google-notifications.json')):
+        if plan.get(option):
+            source = Path(plan[option])
+            if not source.is_absolute() or not source.is_file(): raise ValueError('Supply an absolute existing private Google credential file.')
+            shutil.copyfile(source, state / 'secrets' / filename); (state / 'secrets' / filename).chmod(0o600)
     render(plan, state, record, image)
     write_json(state / 'deployment.json', plan)
     record['Rendered'] = True
@@ -246,12 +248,12 @@ def compose(p, state, record, image, ip, identity):
         entrypoint=['/bin/sh', '-ec', 'export POSTGRES_PASSWORD="$(cat /run/secrets/postgres)"; exec docker-entrypoint.sh "$@"', 'platform-postgres'], command=['postgres'],
         environment={'POSTGRES_USER': 'postgres', 'POSTGRES_DB': 'postgres'},
         volumes=['postgres-data:/var/lib/postgresql/data', bind('secrets/postgres', '/run/secrets/postgres')],
-        healthcheck={'test': ['CMD', 'pg_isready', '-U', 'postgres'], 'interval': '5s', 'timeout': '3s', 'retries': 40})
+        healthcheck={'test': ['CMD', 'pg_isready', '-h', '127.0.0.1', '-U', 'postgres'], 'interval': '5s', 'timeout': '3s', 'retries': 40})
     service('mongo', 21, image='mongo:8.0',
         entrypoint=['/bin/sh', '-ec', 'export MONGO_INITDB_ROOT_PASSWORD="$(cat /run/secrets/mongo)"; exec docker-entrypoint.sh "$@"', 'platform-mongo'],
         command=['mongod', '--auth', '--bind_ip_all'], environment={'MONGO_INITDB_ROOT_USERNAME': 'platform_root'},
         volumes=['mongo-data:/data/db', bind('secrets/mongo', '/run/secrets/mongo')],
-        healthcheck={'test': ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping').ok"], 'interval': '5s', 'timeout': '5s', 'retries': 40})
+        healthcheck={'test': ['CMD', 'mongosh', '--host', 'mongo', '--quiet', '--eval', "db.adminCommand('ping').ok"], 'interval': '5s', 'timeout': '5s', 'retries': 40})
     service('redis', 22, image='redis:7.4-alpine',
         entrypoint=['/bin/sh', '-ec', 'cp /run/secrets/redis.conf /data/platform.conf; chown redis:redis /data/platform.conf; chmod 600 /data/platform.conf; exec docker-entrypoint.sh redis-server /data/platform.conf'],
         volumes=['redis-data:/data', bind('secrets/redis.conf', '/run/secrets/redis.conf')])
@@ -273,9 +275,11 @@ def compose(p, state, record, image, ip, identity):
         if p['Tls'].get('RootCertificateFile'): mounts.append(bind('secrets/root-ca.pem', '/run/secrets/root-ca.pem'))
         environment = {'PlatformConfiguration__ConfigPath': '/run/secrets/config.json', 'Gateway__ConfigPath': '/run/secrets/config.json',
                        'Provisioning__ConfigPath': '/run/secrets/config.json', 'ASPNETCORE_URLS': 'http://0.0.0.0:8080'}
-        if p.get('GoogleCredentialsFile') and role in ('worker', 'commerce', 'admin'):
-            mounts.append(bind('secrets/google-credentials.json', '/run/secrets/google-credentials.json'))
-            environment['GOOGLE_APPLICATION_CREDENTIALS'] = '/run/secrets/google-credentials.json'
+        credential = ('GoogleCredentialsFile', 'google-provisioning.json') if role == 'worker' else ('NotificationCredentialsFile', 'google-notifications.json') if role in ('commerce', 'admin') else None
+        if credential and p.get(credential[0]):
+            target = '/run/secrets/' + credential[1]
+            mounts.append(bind('secrets/' + credential[1], target))
+            environment['GOOGLE_APPLICATION_CREDENTIALS'] = target
         writable = {'worker': ['onboarding', 'tenants', 'routes', 'readiness-outbox', 'mobile'], 'saas': ['saas-files', 'saas-cookie-keys']}.get(role, [])
         for directory in writable: mounts.append(bind(directory, '/var/lib/commerce/' + directory, False))
         if role in ('admin', 'gateway'): mounts.append(bind('routes', '/var/lib/commerce/routes'))

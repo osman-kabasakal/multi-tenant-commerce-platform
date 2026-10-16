@@ -59,7 +59,7 @@ def main():
             started_database = True
             deadline = time.monotonic() + 90
             while time.monotonic() < deadline:
-                ready = subprocess.run(['docker', 'exec', name, 'pg_isready', '-U', 'postgres'], stdout=log, stderr=subprocess.STDOUT)
+                ready = subprocess.run(['docker', 'exec', name, 'pg_isready', '-h', '127.0.0.1', '-U', 'postgres'], stdout=log, stderr=subprocess.STDOUT)
                 if ready.returncode == 0: break
                 time.sleep(.5)
             else: raise RuntimeError('The isolated PostgreSQL did not become ready.')

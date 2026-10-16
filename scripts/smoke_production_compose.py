@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Fresh Linux Compose rollout, actual SaaS enrollment, tenant readiness and restart with isolated synthetic HTTPS."""
 import argparse
+import http.cookiejar
 import http.server
 import json
 import os
 from pathlib import Path
+from html.parser import HTMLParser
 import secrets
 import select
 import shutil
@@ -24,6 +26,46 @@ from portable_saas_enrollment import enroll, verify, browser, api
 from smoke_onboarding import check
 
 ROOT = production.ROOT
+
+
+class HiddenFields(HTMLParser):
+    def __init__(self): super().__init__(); self.values = {}
+    def handle_starttag(self, tag, attributes):
+        attributes = dict(attributes)
+        if tag == 'input' and attributes.get('type') == 'hidden' and attributes.get('name'):
+            self.values[attributes['name']] = attributes.get('value', '')
+
+
+def page(opener, url, data=None):
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'} if data is not None else {}
+    try: response = opener.open(urllib.request.Request(url, data, headers), timeout=30)
+    except urllib.error.HTTPError as error: response = error
+    with response: return response.code, response.headers, response.read().decode()
+
+
+def tenant_pages(opener, publication, tenant):
+    code, headers, body = page(opener, publication['storeUrl'] + '/_platform/ready')
+    check(code == 200 and json.loads(body)['tenantId'] == tenant and not headers.get('x-store-token'),
+          'The exact Compose tenant serves authenticated public HTTPS readiness without exposing its service token')
+    code, _, body = page(opener, publication['storeUrl'] + '/')
+    check(code == 200 and '<html' in body.lower(), 'The real Compose tenant storefront renders through validated public HTTPS')
+
+
+def tenant_login(proxy, ca, publication, account, password):
+    jar = http.cookiejar.CookieJar(); opener = browser(proxy, ca, jar, redirect=False)
+    code, headers, _ = page(opener, publication['adminUrl'])
+    origin = publication['adminUrl'].rsplit('/Admin', 1)[0]
+    location = urllib.parse.urljoin(publication['adminUrl'], headers.get('Location', ''))
+    check(code == 302 and location.startswith(origin + '/'), 'Compose administration redirects to its own HTTPS login')
+    code, _, body = page(opener, location); check(code == 200, 'Compose owner login page renders')
+    form = HiddenFields(); form.feed(body)
+    fields = dict(form.values, Email=account['email'], Password=password, RememberMe='false')
+    code, headers, _ = page(opener, origin + '/admin/login', urllib.parse.urlencode(fields).encode())
+    check(code in (302, 303) and 'login' not in headers.get('Location', '').lower(), 'The actual provisioned owner password authenticates in Compose administration')
+    code, _, body = page(opener, publication['adminUrl'])
+    check(code == 200 and 'logout' in body.lower(), 'The authenticated Compose tenant dashboard renders')
+    check(any(cookie.secure and cookie.domain == urllib.parse.urlsplit(origin).hostname for cookie in jar), 'Compose administration cookies remain Secure and scoped to this tenant host')
+    return opener
 
 
 def main():
@@ -121,16 +163,22 @@ def main():
                 time.sleep(1)
             else: raise RuntimeError('Compose tenant provisioning did not finish.')
             verify(portal, sessions)
-            for owner, _, result, _ in sessions:
+            tenant_sessions = []
+            for account, tenant, (owner, _, result, _) in zip(accounts, tenants, sessions):
                 job = api(owner, portal, result['statusUrl'])[1]
                 publication = job['steps']['publication']['resources']
                 opener = browser(proxy, root / 'ca.pem', redirect=False)
-                with opener.open(publication['storeUrl'] + '/_platform/ready', timeout=30) as response:
-                    check(response.code == 200 and json.load(response)['tenantId'] in tenants, 'Fresh Compose tenant serves its authenticated public HTTPS readiness')
+                tenant_pages(opener, publication, tenant)
+                administration = tenant_login(proxy, root / 'ca.pem', publication, account, password)
+                tenant_sessions.append((administration, publication, tenant))
             # Re-run the same real command; configuration/keys/data/identity must survive and hosts restart.
             subprocess.run(up, stdout=log, stderr=subprocess.STDOUT, env=environment, check=True, timeout=600)
             check(master == (state / 'secrets/platform-master-key').read_bytes(), 'Production restart preserves the original deployment encryption key')
             verify(portal, sessions)
+            for administration, publication, tenant in tenant_sessions:
+                tenant_pages(administration, publication, tenant)
+                code, _, body = page(administration, publication['adminUrl'])
+                check(code == 200 and 'logout' in body.lower(), 'The actual tenant administration session survives the full Compose restart')
             check(deployment.sql("SELECT bool_and(NOT rolsuper AND NOT rolcreatedb AND NOT rolcreaterole AND NOT rolbypassrls) FROM pg_roles WHERE rolname IN ('platform_saas','platform_worker','platform_reader');") == 't',
                   'SaaS, worker and runtime secret reader have no database/server administration privileges')
             write = "SELECT has_schema_privilege('platform_saas','public','CREATE') OR has_schema_privilege('platform_worker','public','CREATE');"
