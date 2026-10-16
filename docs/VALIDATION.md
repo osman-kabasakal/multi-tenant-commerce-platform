@@ -404,3 +404,10 @@ The access CLI now includes the exact parsed service-account email and UTC check
 
 
 The exact distributed-payment source `1fdc21767a8aaaee0cb8d1a4261118fb1467f4e8` passed the new real PostgreSQL step `Verify cross-process payment locking and encrypted receipt recovery` in [general CI run 38910317133](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/runs/38910317133), job `117004200973`. The same job also passed registration security, distributed secret storage and durable provisioning recovery. These are individual successful steps in a workflow that was still running when recorded; they are not a claim that all new-source workflows have completed. The payment fixture performed no merchant HTTP request or charge.
+
+
+## Complete distributed-payment source CI baseline (2026-10-16)
+
+Exact source `1fdc21767a8aaaee0cb8d1a4261118fb1467f4e8` subsequently completed all four [general CI jobs](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/runs/38910317133) successfully: source, local-demo, mobile-worker and Android demo. Its [full Linux Production workflow](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/runs/38910317410), job `117004198469`, also succeeded. The actual Angular owner created the third tenant, all three administrator sessions survived restart, and cold restoration preserved the original encryption key and exact private-file bytes. All three administrator sessions and the existing Firefox owner/Angular ready screen also survived restoration. Runtime/database/context isolation gates remained enabled. The separate packaged signed-Android workflow is recorded independently when it finishes.
+
+The general job log separately confirms all eleven real PostgreSQL payment fixture assertions, including cross-process exclusion, other-business independence, encrypted receipt recovery, lock release after process termination and refusal after backend termination. No merchant API call was performed. These successful gates do not prove live Google project creation, external DNS, real mailbox/device delivery, actual merchant acceptance or iOS signing.
