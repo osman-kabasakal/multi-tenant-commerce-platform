@@ -10,6 +10,8 @@ let stage = 'configuration';
 let context;
 let page;
 let config;
+const responses = [];
+const location = address => { const value = new URL(address); return value.origin + value.pathname; };
 const check = (condition, message) => { assert.ok(condition, message); console.log('PASS: ' + message); };
 const canonicalId = value => String(value).replaceAll('-', '').toLowerCase();
 const privateJson = (file, value) => {
@@ -69,17 +71,61 @@ async function main() {
   page = await context.newPage();
   page.setDefaultTimeout(30000);
   page.setDefaultNavigationTimeout(30000);
+  page.on('response', response => {
+    if (response.request().isNavigationRequest() || response.status() >= 400) {
+      try { responses.push({url: location(response.url()), status: response.status()}); if (responses.length > 30) responses.shift(); } catch { /* No raw URLs. */ }
+    }
+  });
   stage = 'home registration CTA';
   const home = await page.goto(config.portal + '/', {waitUntil: 'domcontentloaded'});
   check(home.ok(), 'The actual compiled SaaS home page loads over validated HTTPS');
   await page.locator('app-trial-section').getByRole('button', {name: 'Hemen Başlayın', exact: true}).waitFor();
   await page.locator('app-hero-section').getByRole('button', {name: '15 Gün Ücretsiz Deneyin', exact: true}).click();
   stage = 'Keycloak browser login';
-  await page.waitForURL(url => url.origin === config.identity && url.pathname.includes('/protocol/openid-connect/auth'));
-  await page.locator('input[name="username"]').fill(config.account.username);
-  await page.locator('input[name="password"]').fill(config.account.password);
-  await page.locator('#kc-login').click();
-  await page.waitForURL(config.portal + '/register');
+  await page.waitForURL(url => url.origin === config.identity && url.pathname.startsWith('/realms/commerce/'), {waitUntil: 'domcontentloaded'});
+  await page.locator('#kc-form-login').waitFor();
+  if (config.selfRegistration) {
+    stage = 'Keycloak public registration';
+    assert.ok(path.isAbsolute(config.verificationMail));
+    assert.ok(!fs.existsSync(config.verificationMail));
+    await page.locator('a[href*="/login-actions/registration"]').click();
+    await page.locator('#firstName').fill('Browser');
+    await page.locator('#lastName').fill('Owner');
+    await page.locator('#email').fill(config.account.email);
+    await page.locator('#username').fill(config.account.username);
+    await page.locator('#password').fill(config.account.password);
+    await page.locator('#password-confirm').fill(config.account.password);
+    await page.locator('#kc-register-form input[type="submit"], #kc-register-form button[type="submit"]').click();
+    stage = 'Keycloak verification email';
+    const mailDeadline = Date.now() + 60000;
+    while (!fs.existsSync(config.verificationMail)) {
+      assert.ok(Date.now() < mailDeadline, 'Keycloak must send its real verification email');
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    check(new URL(page.url()).origin === config.identity && await page.getByRole('heading', {name: 'İşletmenizi oluşturun', exact: true}).count() === 0,
+      'The newly registered identity must verify its email before accessing business enrollment');
+    const mail = JSON.parse(fs.readFileSync(config.verificationMail, 'utf8'));
+    assert.equal(mail.recipient, config.account.email);
+    const verification = new URL(mail.verificationUrl);
+    assert.equal(verification.origin, config.identity);
+    assert.equal(verification.pathname, '/realms/commerce/login-actions/action-token');
+    stage = 'follow actual verification email';
+    await page.goto(mail.verificationUrl, {waitUntil: 'domcontentloaded'});
+    if (new URL(page.url()).origin === config.identity) {
+      const continueLink = page.locator('#kc-info-message a[href]');
+      if (await continueLink.count() === 1) await continueLink.click();
+    }
+    check(true, 'The browser follows the actual Keycloak SMTP verification link');
+  } else {
+    stage = 'Keycloak username';
+    await page.locator('input[name="username"]').fill(config.account.username);
+    stage = 'Keycloak password';
+    await page.locator('input[name="password"]').fill(config.account.password);
+    stage = 'submit Keycloak login';
+    await page.locator('#kc-login').click();
+  }
+  stage = 'Keycloak portal callback';
+  await page.waitForURL(config.portal + '/register', {waitUntil: 'domcontentloaded'});
   await page.getByRole('heading', {name: 'İşletmenizi oluşturun', exact: true}).waitFor();
   check(true, 'The home CTA reaches real Keycloak login and returns to the Angular business registration form');
 
@@ -137,9 +183,15 @@ process.once('SIGTERM', async () => {
   process.exit(143);
 });
 
-main().catch(async () => {
+main().catch(async error => {
   // Playwright errors can include passwords passed to fill(); never log raw exceptions, traces or storage state.
   console.error('Real browser acceptance failed at: ' + stage);
+  try {
+    const frame = String(error.stack || '').split('\n').find(line => /^\s+at /.test(line) && line.includes('/trial.cjs:')) || '';
+    const controls = page ? await page.locator('input, button, textarea').evaluateAll(nodes => nodes.map(node => ({id: node.id, name: node.getAttribute('name'), type: node.getAttribute('type')}))) : [];
+    if (config) privateJson(path.join(path.dirname(config.result), 'browser-diagnostics.json'),
+      {stage, errorType: error.name, sourceFrame: frame, location: page ? location(page.url()) : null, controls, responses});
+  } catch { /* Failure diagnostics must not expose raw errors or credentials. */ }
   if (page && config) {
     try { await page.screenshot({path: path.join(config.screenshots, 'failure.png'), mask: [page.locator('input, textarea')]}); }
     catch { /* The browser may already be closed. */ }

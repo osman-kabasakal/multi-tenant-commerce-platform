@@ -13,6 +13,7 @@ on:
       - 'scripts/production*.py'
       - 'scripts/smoke_production_compose.py'
       - 'scripts/portable_saas_enrollment.py'
+      - 'scripts/fixture_identity_mail.py'
       - 'tests/Browser.Acceptance/**'
       - 'scripts/smoke_docker_context.py'
       - 'scripts/smoke_production_image.py'
@@ -32,6 +33,7 @@ on:
       - 'scripts/production*.py'
       - 'scripts/smoke_production_compose.py'
       - 'scripts/portable_saas_enrollment.py'
+      - 'scripts/fixture_identity_mail.py'
       - 'tests/Browser.Acceptance/**'
       - 'scripts/smoke_docker_context.py'
       - 'scripts/smoke_production_image.py'
@@ -93,6 +95,7 @@ jobs:
             .local/logs/production-image-bootstrap.log
             .local/production-compose-*/fixture.log
             .local/production-compose-*/deployment.log
+            .local/production-compose-*/browser-diagnostics.json
             output/playwright/*/*.png
           include-hidden-files: true
           retention-days: 3

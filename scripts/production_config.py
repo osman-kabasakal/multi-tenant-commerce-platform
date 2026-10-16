@@ -46,6 +46,14 @@ def validate(plan):
         if type(port) is not int or not 1 <= port <= 65535: raise ValueError('Use valid public HTTP/HTTPS ports.')
         plan[key] = port
     if plan['HttpPort'] == plan['HttpsPort']: raise ValueError('HTTP and HTTPS ports must differ.')
+    identity = plan.get('Identity', {})
+    if not isinstance(identity, dict) or type(identity.get('RegistrationAllowed', False)) is not bool:
+        raise ValueError('Identity registration must be selected with an explicit boolean.')
+    smtp = identity.get('Smtp', {})
+    if not isinstance(smtp, dict) or any(not isinstance(value, str) for value in smtp.values()):
+        raise ValueError('Keycloak SMTP settings must be an object with string values.')
+    if identity.get('RegistrationAllowed') and (not smtp.get('host') or not smtp.get('from') or not smtp.get('port', '').isdigit() or not 1 <= int(smtp['port']) <= 65535):
+        raise ValueError('Configure an SMTP host, sender and port before enabling public identity registration.')
     providers = plan['Providers']
     domains = providers['Domains']
     if domains.get('Provider') == 'Wildcard':
@@ -230,6 +238,7 @@ def render(p, state, record, image):
     for role, value in {'commerce': commerce, 'admin': administration, 'installer': installer, 'gateway': gateway, 'saas': saas, 'worker': worker, 'bootstrap': bootstrap}.items():
         write_json(state / 'config' / (role + '.json'), value)
     realm = {'realm': 'commerce', 'enabled': True, 'sslRequired': 'external', 'registrationAllowed': False,
+        'attributes': {'platform-installation-id': record['InstallationId']},
         'verifyEmail': True, 'resetPasswordAllowed': True,
         'roles': {'realm': [{'name': 'business_owner'}, {'name': 'admin'}]},
         'clients': [{'clientId': 'saas-manager', 'enabled': True, 'publicClient': False, 'secret': c['saas_client'],
@@ -239,9 +248,7 @@ def render(p, state, record, image):
                      'serviceAccountsEnabled': True, 'standardFlowEnabled': False, 'directAccessGrantsEnabled': False}],
         'users': [{'username': 'service-account-tenant-provisioner', 'enabled': True, 'serviceAccountClientId': 'tenant-provisioner',
                    'clientRoles': {'realm-management': ['create-client', 'query-clients', 'view-clients', 'manage-clients']}}]}
-    if p.get('Identity', {}).get('RegistrationAllowed'):
-        if not p['Identity'].get('Smtp'): raise ValueError('Configure Keycloak SMTP before enabling public identity registration.')
-        realm.update(registrationAllowed=True, smtpServer=p['Identity']['Smtp'])
+    realm.update(registrationAllowed=p.get('Identity', {}).get('RegistrationAllowed', False), smtpServer=p.get('Identity', {}).get('Smtp', {}))
     write_json(state / 'realm/commerce-realm.json', realm)
     (state / 'secrets/redis.conf').write_text('bind 0.0.0.0\nprotected-mode yes\nrequirepass ' + c['redis'] + '\nappendonly yes\n')
     (state / 'secrets/redis.conf').chmod(0o600)

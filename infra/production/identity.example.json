@@ -1,0 +1,16 @@
+{
+  "Identity": {
+    "RegistrationAllowed": true,
+    "Smtp": {
+      "host": "smtp.example.com",
+      "port": "587",
+      "from": "accounts@example.com",
+      "fromDisplayName": "Commerce Platform",
+      "auth": "true",
+      "user": "REPLACE_IN_PRIVATE_INPUT",
+      "password": "REPLACE_IN_PRIVATE_INPUT",
+      "starttls": "true",
+      "ssl": "false"
+    }
+  }
+}

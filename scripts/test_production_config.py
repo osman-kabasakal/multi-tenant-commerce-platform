@@ -88,6 +88,23 @@ class ProductionConfigTests(unittest.TestCase):
             self.assertEqual((state / 'secrets' / name).stat().st_mode & 0o777, 0o600)
 
 
+    def test_identity_registration_requires_explicit_smtp_and_keeps_original_secrets(self):
+        for identity in ({'RegistrationAllowed': 'false'}, {'RegistrationAllowed': True},
+                         {'RegistrationAllowed': True, 'Smtp': {'host': 'smtp.example.test', 'port': 587, 'from': 'accounts@example.test'}}):
+            with self.subTest(identity=identity):
+                plan = copy.deepcopy(self.plan); plan['Identity'] = identity
+                with self.assertRaises(ValueError): config.validate(plan)
+        plan = copy.deepcopy(self.plan)
+        plan.update(json.loads((config.ROOT / 'infra/production/identity.example.json').read_text()))
+        state = self.root / 'identity-state'
+        original = config.prepare(self.plan, state, 'commerce-platform:fixture')
+        updated = config.prepare(plan, state, 'commerce-platform:fixture')
+        self.assertEqual(original['MasterKey'], updated['MasterKey']); self.assertEqual(original['Credentials'], updated['Credentials'])
+        realm = json.loads((state / 'realm/commerce-realm.json').read_text())
+        self.assertTrue(realm['registrationAllowed'] and realm['verifyEmail'])
+        self.assertEqual(realm['smtpServer'], plan['Identity']['Smtp'])
+        self.assertEqual(realm['attributes']['platform-installation-id'], original['InstallationId'])
+
     def test_container_probe_cleanup_removes_ephemeral_keys_without_following_links(self):
         private = self.root / 'container-probe'; private.mkdir()
         probe = private / 'flutter-release-synthetic'; probe.mkdir()

@@ -24,6 +24,7 @@ import production
 import production_config
 from portable_saas_enrollment import enroll, verify, browser, api
 from smoke_onboarding import check
+from fixture_identity_mail import IdentityMail
 
 ROOT = production.ROOT
 
@@ -78,7 +79,7 @@ def main():
     identity_id = uuid.uuid4().hex
     root = ROOT / '.local' / ('production-compose-' + identity_id[:10]); root.mkdir(parents=True, mode=0o700)
     state = root / 'state'; log_path = root / 'fixture.log'
-    server = None; thread = None; deployment = None; browser_process = None
+    server = None; thread = None; deployment = None; browser_process = None; mail = None; mail_thread = None
     with log_path.open('w') as log:
         try:
             for command in (
@@ -95,6 +96,9 @@ def main():
                         ListenAddress='127.0.0.1', HttpPort=19480, HttpsPort=19443)
             plan['Tls'] = {'CertificateFile': str(root / 'tls.pem'), 'PrivateKeyFile': str(root / 'tls.key'), 'RootCertificateFile': str(root / 'ca.pem')}
             plan['TrialPlan']['Id'] = str(uuid.uuid4()); plan['Providers']['Domains']['WildcardConfigured'] = True
+            if args.browser:
+                plan['Identity'] = {'RegistrationAllowed': False, 'Smtp': {'host': '172.30.81.1', 'port': '25',
+                    'from': 'no-reply@example.test', 'fromDisplayName': 'Compose Fixture', 'auth': 'false', 'ssl': 'false', 'starttls': 'false'}}
             plan_path = root / 'plan.json'; production_config.write_json(plan_path, plan)
             command = [sys.executable, str(ROOT / 'scripts/production.py'), 'prepare', '--config', str(plan_path), '--state', str(state), '--image', args.image]
             subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)
@@ -127,6 +131,10 @@ def main():
             server = http.server.ThreadingHTTPServer((gateway, 0), Connect); server.daemon_threads = True
             thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
             proxy = 'http://' + gateway + ':' + str(server.server_port)
+            if args.browser:
+                mail = IdentityMail((gateway, 0), root / 'identity-verification.json', 'browser-owner@example.test')
+                mail_thread = threading.Thread(target=mail.serve_forever, daemon=True); mail_thread.start()
+                plan['Identity']['Smtp']['port'] = str(mail.server_address[1]); production_config.write_json(plan_path, plan)
             override = root / 'proxy.json'
             production_config.write_json(override, {'services': {role: {'environment': {'HTTPS_PROXY': proxy, 'https_proxy': proxy,
                 'NO_PROXY': 'localhost,127.0.0.1,postgres,mongo,redis,keycloak,commerce,admin,gateway,saas',
@@ -147,7 +155,7 @@ def main():
                 with direct.open(request, timeout=15) as response:
                     payload = response.read(); return json.loads(payload) if payload else None
             accounts = []
-            for index in range(3 if args.browser else 2):
+            for index in range(2):
                 account = {'username': 'compose-owner-' + str(index), 'email': 'owner' + str(index) + '@example.test', 'password': secrets.token_urlsafe(24)}
                 admin_api('/users', dict(username=account['username'], email=account['email'], firstName='Compose', lastName='Owner',
                     emailVerified=True, enabled=True, credentials=[{'type': 'password', 'value': account['password'], 'temporary': False}]))
@@ -155,6 +163,8 @@ def main():
                 role = admin_api('/roles/business_owner')
                 admin_api('/users/' + user['id'] + '/role-mappings/realm', [role])
                 accounts.append(account)
+            if args.browser:
+                accounts.append({'username': 'browser-owner', 'email': 'browser-owner@example.test', 'password': secrets.token_urlsafe(24)})
             portal = 'https://portal.example.test:19443'
             identity = {'root': root / 'ca.pem', 'authority': 'https://identity.example.test:19443/realms/commerce', 'accounts': accounts[:2]}
             tenants = [uuid.uuid4().hex, uuid.uuid4().hex]; password = 'Compose-İstanbul-' + secrets.token_urlsafe(24)
@@ -176,13 +186,20 @@ def main():
                 administration = tenant_login(proxy, root / 'ca.pem', publication, account, password)
                 tenant_sessions.append((administration, publication, tenant))
             if args.browser:
+                check(admin_api('')['registrationAllowed'] is False, 'The fresh owned identity realm initially keeps public registration disabled')
+                plan['Identity']['RegistrationAllowed'] = True; production_config.write_json(plan_path, plan)
+                subprocess.run(up, stdout=log, stderr=subprocess.STDOUT, env=environment, check=True, timeout=600)
+                realm = admin_api('')
+                check(realm['registrationAllowed'] and realm['verifyEmail'] and realm['smtpServer']['port'] == str(mail.server_address[1]),
+                    'The ordinary startup command enables configured registration/email on an existing realm while preserving its users and tenant clients')
                 browser_config = root / 'browser.json'
                 browser_result = root / 'browser-result.json'
                 production_config.write_json(browser_config, {
                     'portal': portal, 'identity': 'https://identity.example.test:19443', 'proxy': proxy,
                     'ca': str(root / 'ca.pem'), 'profile': str(root / 'browser-profile'), 'result': str(browser_result),
                     'screenshots': str(ROOT / 'output/playwright' / identity_id), 'resume': str(root / 'browser-resume.json'),
-                    'account': accounts[2], 'adminPassword': password,
+                    'account': accounts[2], 'adminPassword': password, 'selfRegistration': True,
+                    'verificationMail': str(root / 'identity-verification.json'),
                     'business': {'name': 'browser-' + identity_id[:10], 'legalCompanyName': 'Browser Fixture Company',
                         'ownerName': 'Browser Owner', 'taxNumber': '9999999903', 'taxOffice': 'Fixture Office',
                         'phone': '5551234567', 'address': 'Browser Fixture Street 10', 'city': 'Fixture City',
@@ -197,6 +214,9 @@ def main():
                     time.sleep(.5)
                 log.flush()
                 result = json.loads(browser_result.read_text())
+                new_identity = admin_api('/users?username=' + urllib.parse.quote(accounts[2]['username']))
+                check(len(new_identity) == 1 and new_identity[0]['emailVerified'] and new_identity[0]['email'] == accounts[2]['email'],
+                    'The actual self-registered Keycloak owner verified its email through the received SMTP message')
                 check(len(result['tenantId']) == 32 and result['tenantId'] not in tenants,
                     'Real Firefox submitted the Angular business form and observed a third, distinct tenant ready screen')
                 publication = {name: result[name] for name in ('storeUrl', 'adminUrl')}
@@ -233,11 +253,13 @@ def main():
                 finally:
                     deployment.run('down', '--volumes', '--remove-orphans')
                 if deployment.log_path.exists(): shutil.copyfile(deployment.log_path, root / 'deployment.log')
+            if mail: mail.shutdown(); mail.server_close()
+            if mail_thread: mail_thread.join(timeout=5)
             if server: server.shutdown(); server.server_close()
             if thread: thread.join(timeout=5)
             for path in root.iterdir():
                 if path.is_dir(): shutil.rmtree(path)
-                elif path.name not in ('fixture.log', 'deployment.log'): path.unlink()
+                elif path.name not in ('fixture.log', 'deployment.log', 'browser-diagnostics.json'): path.unlink()
             print('Only this synthetic Compose installation, owned volumes/network and disposable private files were removed.', flush=True)
 
 

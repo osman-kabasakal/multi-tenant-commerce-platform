@@ -143,6 +143,45 @@ user(a,'tenant_provisioner',s.worker,[{role:'readWriteAnyDatabase',db:'admin'},{
         self.identity_token()
         return True
 
+    def reconcile_identity(self):
+        # Startup import skips existing realms. Apply only the explicitly configured identity policy.
+        token = self.identity_token(administrative=True)
+        ip = self.definition['services']['keycloak']['networks']['platform']['ipv4_address']
+        origin = 'http://' + ip + ':8080/admin/realms/commerce'
+        direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        def request(path='', body=None):
+            value = None if body is None else json.dumps(body).encode()
+            req = urllib.request.Request(origin + path, value, {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'},
+                                         method='GET' if body is None else 'PUT')
+            with direct.open(req, timeout=15) as response:
+                data = response.read()
+                return json.loads(data) if data else None
+        realm = request()
+        attributes = dict(realm.get('attributes') or {})
+        owner = attributes.get('platform-installation-id')
+        if realm.get('realm') != 'commerce' or not realm.get('enabled') or owner not in (None, self.record['InstallationId']):
+            raise ValueError('The identity realm does not belong to this installation.')
+        # Older owned installations have no realm marker. Both original private clients must still match.
+        for name, secret in (('saas-manager', 'saas_client'), ('tenant-provisioner', 'provisioner')):
+            clients = request('/clients?clientId=' + name)
+            if len(clients) != 1 or clients[0].get('clientId') != name or clients[0].get('publicClient') or not clients[0].get('enabled'):
+                raise ValueError('The original private identity client policy changed; repair explicitly.')
+            saved = request('/clients/' + urllib.parse.quote(clients[0]['id'], safe='') + '/client-secret')
+            if saved.get('value') != self.record['Credentials'][secret]:
+                raise ValueError('The original identity client credential changed; refusing automatic replacement.')
+        attributes['platform-installation-id'] = self.record['InstallationId']
+        identity = self.plan.get('Identity', {})
+        wanted = {'attributes': attributes, 'verifyEmail': True, 'registrationAllowed': identity.get('RegistrationAllowed', False),
+                  'smtpServer': identity.get('Smtp', {})}
+        # Admin representations can mask SMTP passwords; write the explicit private input, never a returned mask.
+        visible = lambda value: {key: item for key, item in value.items() if key != 'password'}
+        if any(realm.get(key) != value for key, value in wanted.items() if key != 'smtpServer') or visible(realm.get('smtpServer') or {}) != visible(wanted['smtpServer']) or 'password' in wanted['smtpServer']:
+            request(body=wanted)
+        actual = request()
+        if any(actual.get(key) != value for key, value in wanted.items() if key != 'smtpServer') or visible(actual.get('smtpServer') or {}) != visible(wanted['smtpServer']):
+            raise ValueError('The configured identity registration/email policy was not applied.')
+        print('PASS: Owned Keycloak identity registration/email settings applied without replacing clients, users or credentials.', flush=True)
+
     def verify_hosts(self):
         for role in ('saas', 'commerce', 'admin', 'gateway', 'worker'):
             def ready(role=role):
@@ -200,6 +239,7 @@ user(a,'tenant_provisioner',s.worker,[{role:'readWriteAnyDatabase',db:'admin'},{
         self.grant_runtime()
         self.run('up', '-d', 'keycloak')
         self.wait('scoped Keycloak client authentication', self.verify_identity, 240)
+        self.reconcile_identity()
         self.run('up', '-d', '--force-recreate', 'commerce', 'admin', 'saas', 'gateway', 'edge', 'worker')
         self.verify_hosts()
         print('Deployment ready. Private state and operator credentials: ' + str(self.state), flush=True)
