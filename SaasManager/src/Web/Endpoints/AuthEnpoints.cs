@@ -142,6 +142,7 @@ public class AuthEnpoints : EndpointGroupBase
             var refreshToken = await contextAccessor.HttpContext.GetTokenAsync("refresh_token");
             if (string.IsNullOrEmpty(refreshToken))
             {
+                await contextAccessor.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
                 return TypedResults.Unauthorized();
             }
 
@@ -170,6 +171,8 @@ public class AuthEnpoints : EndpointGroupBase
             }
             catch
             {
+                // A rejected refresh must not leave a cookie that redirects the SPA back into the same failed session.
+                await contextAccessor.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
                 return TypedResults.Unauthorized();
             }
         }

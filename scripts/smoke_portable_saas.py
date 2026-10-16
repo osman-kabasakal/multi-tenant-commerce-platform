@@ -70,6 +70,16 @@ def probe(identity,keys,certificate,private_key):
         check(ready,'A new Production process starts against the same persistent cookie key ring')
         with opener.open('https://localhost:18084/api/Auth/sessionInfo',timeout=30) as response:session=json.load(response)
         check(session.get('isSuccess') and session.get('data',{}).get('user',{}).get('email')==identity['account']['email'],'Authenticated Production session survives an independent process restart without Azure')
+        refreshed=refresh_owner_session(opener,identity)
+        revoke=urllib.parse.urlencode({'client_id':config['AuthConfiguration']['ClientId'],'client_secret':identity_secret,
+            'token_type_hint':'refresh_token','token':refreshed['refreshToken']}).encode()
+        with opener.open(urllib.request.Request(identity['authority']+'/protocol/openid-connect/revoke',revoke,
+                {'Content-Type':'application/x-www-form-urlencoded'}),timeout=30) as response:
+            check(response.status==200,'The fixture revokes its own actual Keycloak refresh grant')
+        check(request('/api/Auth/refresh')[0]==401,'A revoked identity grant is refused by the actual Production refresh endpoint')
+        check(not any(cookie.name.startswith('__Host-auth.session') for cookie in jar),
+            'Rejected token renewal clears the unusable host-only cookie instead of retaining a portal login loop')
+        check(request('/api/Auth/sessionInfo')[0]==401,'The rejected session requires authentication again')
         print('Portable SaaS Production HTTPS/OIDC checks passed. Full platform deployment remains a separate gate.',flush=True)
     finally:
         if proc.poll() is None:
@@ -112,6 +122,18 @@ def authenticate(opener,jar,identity,context):
     check(session.get('isSuccess') and session.get('data',{}).get('user',{}).get('email')==identity['account']['email'],'Production validates a real identity token and establishes the SaaS owner session')
     auth=next((cookie for cookie in jar if cookie.name=='__Host-auth.session'),None)
     check(auth is not None and auth.secure and auth.path=='/' and not auth.domain_specified and any(key.lower()=='httponly' for key in auth._rest),'Production issues a secure HttpOnly host-only session cookie')
+
+    refresh_owner_session(opener,identity)
+
+def refresh_owner_session(opener,identity):
+    with opener.open('https://localhost:18084/api/Auth/refresh',timeout=30) as response:refreshed=json.load(response)
+    data=refreshed.get('data') or {}
+    check(refreshed.get('isSuccess') and bool(data.get('accessToken')) and bool(data.get('refreshToken')) and data.get('expiresIn',0)>0,
+        'The real Production refresh endpoint renews actual Keycloak tokens through explicit private CA trust')
+    with opener.open('https://localhost:18084/api/Auth/sessionInfo',timeout=30) as response:session=json.load(response)
+    check(session.get('isSuccess') and session.get('data',{}).get('user',{}).get('email')==identity['account']['email'],
+        'Token renewal preserves the authenticated owner and usable cookie session')
+    return data
 
 def main():
     os.umask(0o077)

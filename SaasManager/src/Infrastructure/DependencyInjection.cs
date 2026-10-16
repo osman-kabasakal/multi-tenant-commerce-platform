@@ -121,6 +121,9 @@ public static class DependencyInjection
     {
         var localDemo = builder.Configuration.GetValue<bool>("LocalDemo:Enabled");
         builder.Services.AddScoped<IKeyCloakJwtValidationService, KeyCloakJwtValidationService>();
+        builder.Services.AddHttpClient<IKeycloakService, KeycloakService>()
+            .ConfigurePrimaryHttpMessageHandler(() => IdentityTransport.Create(builder.Configuration)
+                ?? new SocketsHttpHandler { AllowAutoRedirect = false });
 
         builder.Services.Configure<AuthConfiguration>(instance =>
         {
@@ -511,8 +514,6 @@ public static class DependencyInjection
         else builder.Services.AddScoped<IEmailService, EmailService>();
 
         builder.Services.AddScoped<IIyzicoService, IyzicoService>();
-
-        builder.Services.AddScoped<IKeycloakService, KeycloakService>();
 
         builder.Services.AddScoped<IPaymentProvider, IyzicoPaymentProvider>();
         builder.Services.AddScoped<IPaymentProviderFactory, PaymentProviderFactory>();

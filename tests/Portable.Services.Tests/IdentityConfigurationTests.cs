@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SaasManager.Infrastructure;
 using SaasManager.Infrastructure.Authentication;
+using SaasManager.Application.Common.Interfaces.Keycloak;
 
 namespace Portable.Services.Tests;
 
@@ -45,11 +46,22 @@ public sealed class IdentityConfigurationTests
         Assert.ThrowsException<InvalidOperationException>(() => IdentityTransport.Create(invalid));
     }
 
-    private static ServiceProvider Services(string authority,string secret)
+    [TestMethod]
+    public void TokenOperationsUseTheConfiguredIdentityTrustAndRefuseAnInvalidAnchor()
+    {
+        using var valid=Services("https://identity.example.test/realms/commerce","configured");
+        Assert.IsNotNull(valid.GetRequiredService<IKeycloakService>());
+        using var invalid=Services("https://identity.example.test/realms/commerce","configured","relative-or-missing.crt");
+        var error=Assert.ThrowsException<InvalidOperationException>(() => invalid.GetRequiredService<IKeycloakService>());
+        StringAssert.Contains(error.Message,"private-CA certificate file");
+    }
+
+    private static ServiceProvider Services(string authority,string secret,string? rootCertificate=null)
     {
         var builder=Host.CreateApplicationBuilder(new HostApplicationBuilderSettings { DisableDefaults=true,EnvironmentName=Environments.Production });
         builder.Configuration.AddInMemoryCollection(new Dictionary<string,string?> {
-            ["AuthConfiguration:IdentityProviderUrl"]=authority,["AuthConfiguration:ClientId"]="portal",["ClientSecret-portal"]=secret
+            ["AuthConfiguration:IdentityProviderUrl"]=authority,["AuthConfiguration:ClientId"]="portal",["ClientSecret-portal"]=secret,
+            ["AuthConfiguration:AuthorityRootCertificateFile"]=rootCertificate
         });
         builder.RegisterAuthentication();return builder.Services.BuildServiceProvider();
     }
