@@ -73,6 +73,37 @@ class ProductionConfigTests(unittest.TestCase):
         with self.assertRaises(ValueError): config.prepare(self.android_plan(), state, 'commerce-platform:fixture')
         self.assertEqual((state / 'secrets/platform-master-key').read_text(), original['MasterKey'])
 
+    def combined_plan(self):
+        plan = self.android_plan()
+        plan['Providers']['Mobile'].update(Provider='AndroidIosAppDistribution', Ios={'Release': {
+            'DevelopmentTeam': 'ABCDE12345', 'SigningCertificateSha256': 'a' * 64, 'ExpectedSourceHash': 'b' * 64, 'BuildNumber': 7}})
+        return plan
+
+    def test_combined_mobile_keeps_mac_credentials_out_of_linux_and_selects_the_real_android_worker(self):
+        plan = self.combined_plan(); state = self.root / 'combined-state'
+        config.validate(plan); original = config.prepare(plan, state, 'commerce-platform:fixture')
+        replay = config.prepare(plan, state, 'commerce-platform:fixture')
+        self.assertEqual(original['MasterKey'], replay['MasterKey']); self.assertEqual(original['Credentials'], replay['Credentials'])
+        worker = json.loads((state / 'config/worker.json').read_text())['Provisioning']['Mobile']
+        saas = json.loads((state / 'config/saas.json').read_text())['Provisioning']['Mobile']
+        self.assertEqual(saas, {'Provider': 'AndroidIosAppDistribution'})
+        self.assertEqual(worker['Ios'], plan['Providers']['Mobile']['Ios'])
+        self.assertEqual(worker['Android']['SourceDirectory'], '/app/mobile-source')
+        services = json.loads((state / 'compose.json').read_text())['services']
+        self.assertEqual(services['worker']['image'], 'commerce-platform:fixture-android')
+        self.assertIn('/var/lib/commerce/mobile-artifacts', {item['target'] for item in services['worker']['volumes']})
+        self.assertNotIn('Worker', worker['Ios']); self.assertNotIn('KeyFile', json.dumps(worker)); self.assertNotIn('RequiredDeviceUdids', json.dumps(worker))
+
+    def test_combined_mobile_requires_the_exact_public_binding_and_rejects_private_mac_inputs(self):
+        for change in ({'DevelopmentTeam': ''}, {'ExpectedSourceHash': 'b' * 64 + '\n'}, {'SigningCertificateSha256': 'A' * 64},
+                       {'BuildNumber': True}, {'BuildNumber': 0}, {'KeyFile': '/private/key.p8'}):
+            plan = self.combined_plan(); plan['Providers']['Mobile']['Ios']['Release'].update(change)
+            with self.subTest(fields=tuple(change)), self.assertRaises(ValueError): config.validate(plan)
+        plan = self.combined_plan(); plan['Providers']['Mobile']['Ios']['Worker'] = {'AppleConfigFile': '/private/apple.json'}
+        with self.assertRaises(ValueError): config.validate(plan)
+        plan = self.combined_plan(); plan['Providers']['Mobile']['Android']['AllowSigningKeyCreation'] = False
+        with self.assertRaises(ValueError): config.validate(plan)
+
     def test_google_administration_and_notification_credentials_have_separate_mounts(self):
         plan = copy.deepcopy(self.plan)
         for option in ('GoogleCredentialsFile', 'NotificationCredentialsFile'):

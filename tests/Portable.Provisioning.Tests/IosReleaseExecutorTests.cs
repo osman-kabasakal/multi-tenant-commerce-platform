@@ -161,6 +161,7 @@ internal sealed class IosExecutorFixture : IDisposable
     public readonly IosBuilderFixture Builder;
     public IosExecutorFixture()
     {
+        Android.Request = Android.Request with { MobileReleaseProfile = "AndroidIosAppDistribution" };
         Plan = new(Android.Request.TenantId, Android.Google.DeploymentId, Android.Firebase.IosBundleId, Apple.Plan.DevelopmentTeam,
             Apple.Plan.SigningCertificateSha256, new string('b', 64), 7, Android.Firebase.ProjectId, Android.Firebase.ProjectNumber,
             Android.Firebase.IosAppId, IosReleaseOptions.SdkHash(Android.Firebase), Android.Deployment.StoreUrl(Android.Request.Slug));

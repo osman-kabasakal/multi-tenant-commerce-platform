@@ -41,10 +41,10 @@ public sealed class PostgresProvisioningQueue : IProvisioningQueue, IAsyncDispos
                 END IF;
                 IF NEW.state='Succeeded' THEN
                     mobile:=COALESCE(NEW.request->>'MobileReleaseProfile','Disabled');
-                    IF mobile NOT IN ('Disabled','AndroidAppDistribution') THEN
+                    IF mobile NOT IN ('Disabled','AndroidAppDistribution','AndroidIosAppDistribution') THEN
                         RAISE EXCEPTION 'Unsupported required mobile release profile' USING ERRCODE='23514';
                     END IF;
-                    IF mobile='AndroidAppDistribution' AND NOT (
+                    IF mobile IN ('AndroidAppDistribution','AndroidIosAppDistribution') AND NOT (
                         COALESCE(NEW.steps->'mobile-android-release'->>'Provider','')='AndroidAppDistribution' AND
                         COALESCE(NEW.steps->'mobile-android-release'->'Resources'->>'androidApplicationId','')=
                             COALESCE(NEW.request->>'AndroidPackageName','com.example.tenant'||NEW.tenant_id) AND
@@ -66,13 +66,14 @@ public sealed class PostgresProvisioningQueue : IProvisioningQueue, IAsyncDispos
         await cmd.ExecuteNonQueryAsync(ct);
         await ReadinessDeliverySchema.InitializeAsync(connection,transaction,ct);
         await PostgresIosReleaseQueue.InitializeAsync(connection,transaction,ct);
+        await IosReleaseCompletionSchema.InitializeAsync(connection,transaction,ct);
         await transaction.CommitAsync(ct);
     }
 
     public async Task<ProvisioningJob> EnqueueAsync(TenantProvisioningRequest request, CancellationToken cancellationToken = default)
     {
         request.Validate();
-        if(request.MobileReleaseProfile=="AndroidAppDistribution")
+        if(request.MobileReleaseProfile is "AndroidAppDistribution" or "AndroidIosAppDistribution")
         {
             await using var compatibility=_db.CreateCommand("""
                 SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_trigger
@@ -81,6 +82,16 @@ public sealed class PostgresProvisioningQueue : IProvisioningQueue, IAsyncDispos
                 """);
             if(await compatibility.ExecuteScalarAsync(cancellationToken) is not true)
                 throw new InvalidOperationException("Initialize the mobile-aware queue schema with its owner before enabling signed enrollment.");
+        }
+        if (request.MobileReleaseProfile == "AndroidIosAppDistribution")
+        {
+            await using var protocol = _db.CreateCommand("""
+                SELECT pg_catalog.to_regclass('platform_provisioning.ios_release_jobs') IS NOT NULL AND EXISTS(
+                    SELECT 1 FROM pg_catalog.pg_trigger WHERE tgrelid='platform_provisioning.jobs'::regclass
+                    AND tgname='enforce_ios_release_v1' AND NOT tgisinternal AND tgenabled IN ('O','A'))
+                """);
+            if (await protocol.ExecuteScalarAsync(cancellationToken) is not true)
+                throw new InvalidOperationException("Apply the current iOS completion protocol with the schema owner before combined enrollment.");
         }
         await using var cmd = _db.CreateCommand("""
             INSERT INTO platform_provisioning.jobs(tenant_id,slug,request)
@@ -172,12 +183,24 @@ public sealed class PostgresProvisioningQueue : IProvisioningQueue, IAsyncDispos
 
     public async Task<bool> RetryAsync(string tenantId, CancellationToken cancellationToken = default)
     {
-        await using var cmd = _db.CreateCommand("""
+        await using var connection = await _db.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await using var cmd = new NpgsqlCommand("""
             UPDATE platform_provisioning.jobs SET state='Pending',attempts=0,error_code=NULL,available_at=now(),updated_at=now()
-            WHERE tenant_id=$1 AND state='Failed'
-            """);
+            WHERE tenant_id=$1 AND state='Failed' RETURNING request->>'MobileReleaseProfile'
+            """, connection, transaction);
         cmd.Parameters.AddWithValue(tenantId);
-        return await cmd.ExecuteNonQueryAsync(cancellationToken) == 1;
+        var profile = await cmd.ExecuteScalarAsync(cancellationToken);
+        if (profile == null) return false;
+        if (profile is string mobile && mobile == "AndroidIosAppDistribution")
+        {
+            await using var child = new NpgsqlCommand("""
+                UPDATE platform_provisioning.ios_release_jobs SET state='Pending',attempts=0,error_code=NULL,available_at=now(),updated_at=now()
+                WHERE tenant_id=$1 AND state='Failed'
+                """, connection, transaction);
+            child.Parameters.AddWithValue(tenantId); await child.ExecuteNonQueryAsync(cancellationToken);
+        }
+        await transaction.CommitAsync(cancellationToken); return true;
     }
 
     private NpgsqlCommand OwnedCommand(string update, ProvisioningLease lease)

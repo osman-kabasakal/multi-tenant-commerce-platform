@@ -20,6 +20,7 @@ interface TrialConfiguration {
 interface TrialJob {
   state: string;
   steps: {[name: string]: {resources: {[key: string]: string}}};
+  iosRelease?: {state: string; attempts: number; errorCode: string | null};
 }
 
 @Component({selector: 'app-registration', templateUrl: './registration.component.html', styleUrl: './registration.component.scss'})
@@ -85,6 +86,14 @@ export class RegistrationComponent implements OnInit, OnDestroy {
         next: result => { this.submitting = false; this.watch(result.statusUrl); },
         error: error => { this.submitting = false; this.showError(error); }
       });
+  }
+  get iosReleaseMessage(): string {
+    const messages: {[state: string]: string} = {
+      NotQueued: 'iOS uygulamanız için mağaza kurulumu bekleniyor.',
+      Pending: 'iOS uygulamanız sırada.', Running: 'iOS uygulamanız hazırlanıyor.',
+      Succeeded: 'iOS test sürümünüzün dağıtımı tamamlandı.', Failed: 'iOS uygulaması hazırlanamadı. Kurulumu tekrar deneyebilirsiniz.'
+    };
+    return messages[this.job?.iosRelease?.state ?? ''] ?? 'iOS uygulamanızın durumu kontrol ediliyor.';
   }
   retry(): void {
     if (!this.trial || !this.statusUrl || this.submitting) return;

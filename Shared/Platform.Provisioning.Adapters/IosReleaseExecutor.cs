@@ -39,7 +39,7 @@ public sealed class IosReleaseExecutor(IosReleaseOptions options, GoogleCloudOpt
             throw new InvalidOperationException("The queued iOS plan targets a different Mac source or deployment.");
         var parent = await parents.GetAsync(plan.TenantId, ct) ?? throw new InvalidOperationException("The iOS job has no tenant onboarding parent.");
         var request = parent.Request; request.Validate();
-        if (request.TenantId != plan.TenantId || request.DeploymentId != plan.DeploymentId || parent.State is not ("Pending" or "Running") ||
+        if (request.MobileReleaseProfile != "AndroidIosAppDistribution" || request.TenantId != plan.TenantId || request.DeploymentId != plan.DeploymentId || parent.State is not ("Pending" or "Running") ||
             (request.IosBundleId ?? "com.example.tenant" + request.TenantId) != plan.IosBundleId ||
             !parent.Steps.TryGetValue("publication", out var published) || published.Resources.GetValueOrDefault("readiness") != "Verified" ||
             published.Resources.GetValueOrDefault("storeUrl") != plan.StoreUrl || !parent.Steps.TryGetValue("google-firebase", out var cloud))

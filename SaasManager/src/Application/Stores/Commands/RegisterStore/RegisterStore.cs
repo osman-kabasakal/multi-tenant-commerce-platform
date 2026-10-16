@@ -92,9 +92,9 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
         if (!string.Equals(request.StoreSubDomain, business.ToSubdomain(), StringComparison.Ordinal))
             throw new ArgumentException("Store subdomain must match the registered business.");
         var mobileProfile=_configuration["Provisioning:Mobile:Provider"]??"Disabled";
-        if(mobileProfile is not ("Disabled" or "AndroidAppDistribution") || mobileProfile=="AndroidAppDistribution" &&
+        if(mobileProfile is not ("Disabled" or "AndroidAppDistribution" or "AndroidIosAppDistribution") || mobileProfile!="Disabled" &&
             (!_configuration.GetValue<bool>("Provisioning:Enabled") || _configuration["Provisioning:Profile"]!="Portable" || string.IsNullOrWhiteSpace(_configuration["Provisioning:DeploymentId"])))
-            throw new InvalidOperationException("Signed Android enrollment requires an explicit durable Portable deployment.");
+            throw new InvalidOperationException("Signed mobile enrollment requires an explicit durable Portable deployment.");
         if (!string.Equals(request.OwnerEmail, _workContext.GuestRegistration?.Email, StringComparison.OrdinalIgnoreCase))
             throw new UnauthorizedAccessException("The store owner email must match the registered business owner.");
         await TenantProvisioningEntitlement.RequireAsync(_context, _workContext, _configuration, business.Id, cancellationToken);

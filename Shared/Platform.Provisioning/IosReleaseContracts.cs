@@ -61,3 +61,11 @@ public sealed record IosReleaseReceipt(string IpaSha256, string SourceHash, stri
 public sealed record IosReleaseJob(IosReleasePlan Plan, string State, int Attempts, IosReleaseReceipt? Receipt,
     string? ErrorCode, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
 public sealed record IosReleaseLease(IosReleaseJob Job, Guid Token);
+
+public sealed record IosReleaseStatus(string State, int Attempts, string? ErrorCode);
+public interface IIosReleaseQueue
+{
+    Task<IosReleaseJob> EnqueueAsync(IosReleasePlan plan, CancellationToken ct = default);
+    Task<IosReleaseJob?> GetAsync(string tenant, CancellationToken ct = default);
+    Task<bool> RetryAsync(string tenant, CancellationToken ct = default);
+}

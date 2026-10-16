@@ -30,7 +30,7 @@ public sealed record TrialEnrollmentPolicy(Guid PlanId, string DeploymentId)
         if (!config.GetValue<bool>("TenantOnboarding:Trial:Enabled") || environment.EnvironmentName is not ("Production" or "Staging") ||
             config.GetValue<bool>("LocalDemo:Enabled") || !config.GetValue<bool>("Provisioning:Enabled") || config["Provisioning:Profile"]!="Portable" ||
             config["PlatformSecurity:Provider"] is not ("AesGcm" or "Azure") || config.GetValue<bool>("PlatformSecurity:ReadOnly") ||
-            (config["Provisioning:Mobile:Provider"]??"Disabled") is not ("Disabled" or "AndroidAppDistribution") ||
+            (config["Provisioning:Mobile:Provider"]??"Disabled") is not ("Disabled" or "AndroidAppDistribution" or "AndroidIosAppDistribution") ||
             !Guid.TryParse(config["TenantOnboarding:Trial:PlanId"],out var plan) || plan==Guid.Empty || !Regex.IsMatch(deployment,"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$"))
             throw new InvalidOperationException("Trial enrollment requires explicit Production/Staging Portable provisioning, a deployment id, a public trial plan and writable shared secrets.");
         return new(plan,deployment);

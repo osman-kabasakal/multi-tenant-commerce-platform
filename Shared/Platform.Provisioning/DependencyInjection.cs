@@ -12,6 +12,8 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("A PostgreSQL provisioning connection string is required.");
         services.AddSingleton(_ => new PostgresProvisioningQueue(connection));
         services.AddSingleton<IProvisioningQueue>(sp => sp.GetRequiredService<PostgresProvisioningQueue>());
+        services.AddSingleton(_ => new PostgresIosReleaseQueue(connection));
+        services.AddSingleton<IIosReleaseQueue>(sp => sp.GetRequiredService<PostgresIosReleaseQueue>());
         if (configuration.GetValue<bool>("Provisioning:InitializeSchema")) services.AddHostedService<ProvisioningStartup>();
         return services;
     }

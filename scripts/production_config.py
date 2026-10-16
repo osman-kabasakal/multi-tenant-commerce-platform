@@ -80,14 +80,24 @@ def validate(plan):
         if pricing.int == 0 or type(plan['TrialPlan'].get('Price')) not in (int, float) or not math.isfinite(plan['TrialPlan']['Price']) or plan['TrialPlan']['Price'] <= 0:
             raise ValueError('Paid enrollment requires a nonempty merchant pricing reference and a positive matching plan price.')
     mobile = providers.get('Mobile', {'Provider': 'Disabled'})
-    if mobile.get('Provider') not in ('Disabled', 'AndroidAppDistribution'):
-        raise ValueError('Explicitly select Disabled or AndroidAppDistribution mobile provisioning.')
-    if mobile['Provider'] == 'AndroidAppDistribution':
+    if mobile.get('Provider') not in ('Disabled', 'AndroidAppDistribution', 'AndroidIosAppDistribution'):
+        raise ValueError('Explicitly select Disabled, AndroidAppDistribution or AndroidIosAppDistribution mobile provisioning.')
+    if mobile['Provider'] in ('AndroidAppDistribution', 'AndroidIosAppDistribution'):
         android = mobile.get('Android', {})
         if providers['Google'].get('Provider') != 'Google' or providers['Google'].get('AllowCloudWrites') is not True or mobile.get('AcceptAndroidSdkLicenses') is not True or android.get('AllowSigningKeyCreation') is not True or android.get('SharedArtifactsConfirmed') is not True:
             raise ValueError('Android publication requires explicit Google writes, SDK license acceptance, signing creation and shared artifact backup confirmation.')
         if type(android.get('BuildNumber', 1)) is not int or not 1 <= android.get('BuildNumber', 1) <= 2100000000 or type(android.get('BuildTimeoutSeconds', 7200)) is not int or not 300 <= android.get('BuildTimeoutSeconds', 7200) <= 14400:
             raise ValueError('Use a valid Android initial build number and timeout.')
+    if mobile['Provider'] == 'AndroidIosAppDistribution':
+        ios = mobile.get('Ios', {})
+        release = ios.get('Release', {}) if isinstance(ios, dict) else {}
+        if not isinstance(ios, dict) or set(ios) != {'Release'} or not isinstance(release, dict) or set(release) - {'DevelopmentTeam', 'SigningCertificateSha256', 'ExpectedSourceHash', 'BuildNumber'}:
+            raise ValueError('Linux receives only the public iOS Release binding; keep Mac credentials and device policy on the Mac.')
+        for field, pattern in [('DevelopmentTeam', r'[A-Z0-9]{10}'), ('SigningCertificateSha256', r'[a-f0-9]{64}'), ('ExpectedSourceHash', r'[a-f0-9]{64}')]:
+            if not isinstance(release.get(field), str) or not re.fullmatch(pattern, release[field]):
+                raise ValueError('Configure the public Apple team, certificate and exact Mac source fingerprint.')
+        if type(release.get('BuildNumber', 1)) is not int or not 1 <= release.get('BuildNumber', 1) <= 2100000000:
+            raise ValueError('Use a valid initial iOS build number.')
     trial = plan['TrialPlan']
     if uuid.UUID(trial['Id']).int == 0: raise ValueError('Select the stable public trial plan GUID.')
     # The owner CLI performs the complete policy/schema validation before hosts start.
@@ -140,7 +150,7 @@ def prepare(plan, state, image):
         if path.is_symlink(): raise ValueError('Private deployment directories cannot be symbolic links.')
         if record.get('Rendered') and not path.is_dir(): raise ValueError('An original private deployment directory is missing; restore a consistent backup.')
         path.mkdir(exist_ok=True, mode=0o700)
-    if plan['Providers'].get('Mobile', {}).get('Provider') == 'AndroidAppDistribution' or record.get('MobilePrepared'):
+    if plan['Providers'].get('Mobile', {}).get('Provider') in ('AndroidAppDistribution', 'AndroidIosAppDistribution') or record.get('MobilePrepared'):
         for directory in ('mobile-work', 'mobile-artifacts', 'mobile-cache'):
             path = state / directory
             if path.is_symlink() or record.get('MobilePrepared') and not path.is_dir():
@@ -241,12 +251,14 @@ def render(p, state, record, image):
             'RouteDirectory': '/var/lib/commerce/routes', 'NotificationDirectory': '/var/lib/commerce/readiness-outbox', 'MobileDirectory': '/var/lib/commerce/mobile',
             'StoreBaseUrl': store, 'AdminBaseUrl': admin, 'KeycloakAuthority': identity, 'KeycloakRealm': 'commerce',
             'KeycloakAdminRealm': 'commerce', 'KeycloakAdminClientId': 'tenant-provisioner', 'KeycloakAdminClientSecret': c['provisioner']}})
-    if mobile['Provider'] == 'AndroidAppDistribution':
+    if mobile['Provider'] in ('AndroidAppDistribution', 'AndroidIosAppDistribution'):
         android = mobile['Android']
         worker['Provisioning']['Mobile']['Android'] = dict(android,
             SourceDirectory='/app/mobile-source', WorkingDirectory='/var/lib/commerce/mobile-work',
             ArtifactDirectory='/var/lib/commerce/mobile-artifacts', PythonPath='/usr/bin/python3',
             FlutterPath='/opt/flutter/bin/flutter', KeytoolPath='/usr/lib/jvm/java-17-openjdk-amd64/bin/keytool', AndroidSdkDirectory='/opt/android-sdk')
+    if mobile['Provider'] == 'AndroidIosAppDistribution':
+        worker['Provisioning']['Mobile']['Ios'] = {'Release': copy.deepcopy(mobile['Ios']['Release'])}
     if ca: worker['Provisioning']['Portable'].update(IdentityRootCertificateFile=ca, IngressRootCertificateFile=ca)
     bootstrap = copy.deepcopy(base)
     bootstrap.update(PlatformSecurity=security('owner'), ConnectionStrings={'SaasManagerDb': connection('platform_saas', 'owner')},
@@ -335,7 +347,7 @@ def compose(p, state, record, image, ip, identity):
             for directory, target in (('media-images', 'images'), ('media-files', 'files')):
                 mounts.append(bind(directory, '/app/' + role + '/wwwroot/assets/' + target + '/uploaded', False))
         if role == 'worker': mounts.append(bind('config/installer.json', '/run/secrets/installer.json'))
-        mobile_worker = role == 'worker' and p['Providers'].get('Mobile', {}).get('Provider') == 'AndroidAppDistribution'
+        mobile_worker = role == 'worker' and p['Providers'].get('Mobile', {}).get('Provider') in ('AndroidAppDistribution', 'AndroidIosAppDistribution')
         if mobile_worker:
             for directory in ('mobile-work', 'mobile-artifacts', 'mobile-cache'):
                 mounts.append(bind(directory, '/var/lib/commerce/' + directory, False))

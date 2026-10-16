@@ -60,7 +60,7 @@ public static class AndroidReleases
     {
         var provider=config["Provisioning:Mobile:Provider"]??"Disabled";
         if (provider=="Disabled") return services;
-        if (provider!="AndroidAppDistribution") throw new InvalidOperationException("Choose Disabled or AndroidAppDistribution mobile provisioning.");
+        if (provider is not ("AndroidAppDistribution" or "AndroidIosAppDistribution")) throw new InvalidOperationException("Choose Disabled, AndroidAppDistribution or AndroidIosAppDistribution mobile provisioning.");
         var options=config.GetSection("Provisioning:Mobile:Android").Get<AndroidReleaseOptions>()??throw new InvalidOperationException("Configure Android release options.");
         options.Validate(config,environment);services.AddSingleton(options);
         services.TryAddSingleton<IAndroidSigningKeyFactory,KeytoolAndroidSigningKeyFactory>();

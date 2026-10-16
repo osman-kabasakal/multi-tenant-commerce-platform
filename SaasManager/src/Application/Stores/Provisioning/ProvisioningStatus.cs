@@ -11,7 +11,7 @@ public sealed record GetProvisioningStatus(Guid BusinessId) : IRequest<Provision
 [Authorize]
 public sealed record RetryProvisioning(Guid BusinessId) : IRequest<bool>;
 
-public sealed class ProvisioningStatusHandler(IApplicationDbContext db, IWorkContext work, IProvisioningQueue queue, IConfiguration config)
+public sealed class ProvisioningStatusHandler(IApplicationDbContext db, IWorkContext work, IProvisioningQueue queue, IConfiguration config, IIosReleaseQueue? ios = null)
     : IRequestHandler<GetProvisioningStatus, ProvisioningJob?>, IRequestHandler<RetryProvisioning, bool>
 {
     private async Task AuthorizeAsync(Guid id, CancellationToken ct)
@@ -23,7 +23,20 @@ public sealed class ProvisioningStatusHandler(IApplicationDbContext db, IWorkCon
     public async Task<ProvisioningJob?> Handle(GetProvisioningStatus request, CancellationToken cancellationToken)
     {
         await AuthorizeAsync(request.BusinessId, cancellationToken);
-        return await queue.GetAsync(request.BusinessId.ToString("N"), cancellationToken);
+        var tenant = request.BusinessId.ToString("N");
+        var job = await queue.GetAsync(tenant, cancellationToken);
+        if (job != null && job.Request.TenantId != tenant) throw new InvalidOperationException("The provisioning status belongs to another tenant.");
+        if (job?.Request.MobileReleaseProfile != "AndroidIosAppDistribution") return job;
+        if (ios == null) throw new InvalidOperationException("Register the shared iOS queue for combined releases.");
+        var child = await ios.GetAsync(tenant, cancellationToken);
+        if (child != null && (child.Plan.TenantId != tenant || child.Plan.DeploymentId != job.Request.DeploymentId))
+            throw new InvalidOperationException("The iOS status belongs to another tenant or deployment.");
+        if (child != null)
+        {
+            child.Plan.Validate();
+            if (child.State == "Succeeded") (child.Receipt ?? throw new InvalidOperationException("The iOS result is incomplete.")).Validate(child.Plan);
+        }
+        return job with { IosRelease = child == null ? new("NotQueued", 0, null) : new(child.State, child.Attempts, child.ErrorCode) };
     }
     public async Task<bool> Handle(RetryProvisioning request, CancellationToken cancellationToken)
     {

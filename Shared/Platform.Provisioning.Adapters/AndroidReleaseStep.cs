@@ -45,7 +45,7 @@ public sealed class AndroidReleasePipeline(AndroidReleaseOptions options,Portabl
     public async Task ValidateSavedPlanAsync(TenantProvisioningRequest request,bool checkpoint,CancellationToken ct)
     {
         request.Validate();
-        if(request.MobileReleaseProfile!="AndroidAppDistribution")throw new InvalidOperationException("The queued request did not select automatic signed Android distribution.");
+        if(request.MobileReleaseProfile is not ("AndroidAppDistribution" or "AndroidIosAppDistribution"))throw new InvalidOperationException("The queued request did not select automatic signed Android distribution.");
         if(request.DeploymentId!=null && request.DeploymentId!=deployment.DeploymentId)throw new InvalidOperationException("Mobile job targets another deployment.");
         var existing=await FindAsync(request.TenantId,PlanSecret,ct);
         if(existing==null){if(checkpoint)throw new InvalidOperationException("The original mobile release binding is missing.");return;}

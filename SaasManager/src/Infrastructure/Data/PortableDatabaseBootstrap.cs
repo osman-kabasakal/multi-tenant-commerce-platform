@@ -91,7 +91,7 @@ public sealed class PortableDatabaseBootstrap(PortableBootstrapOptions options,I
         await using var queue=new NpgsqlConnection(options.QueueConnection);await queue.OpenAsync(ct);
         var queueState=await ReadStateAsync(queue,ct,queue:true);RequireMatchingState(queueState);
         if(queueState?.State!="Complete")throw new InvalidOperationException("The owned queue bootstrap is incomplete.");
-        if(!await ScalarAsync<bool>(queue,"SELECT count(*)=2 FROM pg_catalog.pg_trigger WHERE tgrelid='platform_provisioning.jobs'::regclass AND tgname IN ('enforce_job_requirements_v1','enqueue_tenant_ready_v1') AND NOT tgisinternal AND tgenabled IN ('O','A')",ct) || !await TableAsync(queue,"platform_provisioning.readiness_deliveries",ct))
+        if(!await ScalarAsync<bool>(queue,"SELECT count(*)=3 FROM pg_catalog.pg_trigger WHERE tgrelid='platform_provisioning.jobs'::regclass AND tgname IN ('enforce_job_requirements_v1','enqueue_tenant_ready_v1','enforce_ios_release_v1') AND NOT tgisinternal AND tgenabled IN ('O','A')",ct) || (!await TableAsync(queue,"platform_provisioning.readiness_deliveries",ct) || !await TableAsync(queue,"platform_provisioning.ios_release_jobs",ct)))
             throw new InvalidOperationException("The provisioning queue requires its current owner-applied protocol schema.");
     }
     public static async Task VerifyRuntimeAsync(ApplicationDbContext db,IConfiguration config,bool requireOwnership,CancellationToken ct=default)

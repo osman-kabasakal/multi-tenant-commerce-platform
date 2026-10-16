@@ -1,0 +1,22 @@
+{
+  "Providers": {
+    "Mobile": {
+      "Provider": "AndroidIosAppDistribution",
+      "AcceptAndroidSdkLicenses": false,
+      "Android": {
+        "AllowSigningKeyCreation": false,
+        "SharedArtifactsConfirmed": false,
+        "BuildNumber": 1,
+        "BuildTimeoutSeconds": 7200
+      },
+      "Ios": {
+        "Release": {
+          "DevelopmentTeam": "",
+          "SigningCertificateSha256": "",
+          "ExpectedSourceHash": "",
+          "BuildNumber": 1
+        }
+      }
+    }
+  }
+}

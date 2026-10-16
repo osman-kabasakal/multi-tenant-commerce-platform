@@ -22,9 +22,14 @@ public sealed record TenantProvisioningRequest(
             throw new ArgumentException("A store name and valid owner email are required.");
         if (DeploymentId != null && !Regex.IsMatch(DeploymentId, "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$"))
             throw new ArgumentException("Invalid provisioning deployment id.");
-        if (MobileReleaseProfile is not (null or "Disabled" or "AndroidAppDistribution"))
+        if (MobileReleaseProfile is not (null or "Disabled" or "AndroidAppDistribution" or "AndroidIosAppDistribution"))
             throw new ArgumentException("Choose an explicit supported mobile release profile.");
-        foreach (var package in new[] { AndroidPackageName, IosBundleId }.Where(p => p != null))
+        if (MobileReleaseProfile == "AndroidIosAppDistribution" &&
+            (DeploymentId == null || !Regex.IsMatch(DeploymentId, "^[A-Za-z0-9][A-Za-z0-9._-]{0,99}\\z") ||
+             IosBundleId != null && (IosBundleId.Length > 220 || !Regex.IsMatch(IosBundleId, "^[A-Za-z][A-Za-z0-9-]*(\\.[A-Za-z][A-Za-z0-9-]*)+\\z"))))
+            throw new ArgumentException("Combined mobile releases require an explicit deployment and Apple-compatible bundle identity.");
+        var packages = MobileReleaseProfile == "AndroidIosAppDistribution" ? new[] { AndroidPackageName } : new[] { AndroidPackageName, IosBundleId };
+        foreach (var package in packages.Where(p => p != null))
             if (!Regex.IsMatch(package!, "^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$"))
                 throw new ArgumentException("Invalid mobile package identifier.");
     }
@@ -33,7 +38,11 @@ public sealed record TenantProvisioningRequest(
 public sealed record ProvisioningStepResult(string Provider, IReadOnlyDictionary<string, string> Resources);
 public sealed record ProvisioningJob(TenantProvisioningRequest Request, string State, int Attempts,
     IReadOnlyDictionary<string, ProvisioningStepResult> Steps, string? ErrorCode,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public IosReleaseStatus? IosRelease { get; init; }
+}
 public sealed record ProvisioningLease(ProvisioningJob Job, Guid Token);
 
 public interface IProvisioningQueue

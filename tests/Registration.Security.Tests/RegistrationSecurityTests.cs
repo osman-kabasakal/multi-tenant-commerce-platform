@@ -52,7 +52,7 @@ public class RegistrationSecurityTests
         db.PaymentSetupStates.Add(payment);
     }
     [DataTestMethod]
-    [DataRow("Disabled")][DataRow("AndroidAppDistribution")]
+    [DataRow("Disabled")][DataRow("AndroidAppDistribution")][DataRow("AndroidIosAppDistribution")]
     public async Task SaasQueuesTheSelectedMobilePolicyWithTheDeploymentAndCanonicalBusiness(string mobile)
     {
         await using var db=Context();var guest=new GuestRegistration("owner@example.test","synthetic-token"){Id=Guid.NewGuid()};
@@ -66,6 +66,58 @@ public class RegistrationSecurityTests
         var handler=new RegisterStoreCommandHandler(db,new Mock<IMongoAtlasManager>(MockBehavior.Strict).Object,new Mock<ISubscriber>(MockBehavior.Strict).Object,config,new Mock<ITenantSecrets>().Object,Work(guest).Object,queue.Object);
         await handler.Handle(new RegisterStoreCommand{BusinessId=business.Id,StoreSubDomain="test-shop",StoreName="Test Shop",OwnerEmail=guest.Email!,Password="synthetic-private-password"},default);
         Assert.IsNotNull(captured);captured.Validate();Assert.AreEqual(mobile,captured.MobileReleaseProfile);Assert.AreEqual("production-a",captured.DeploymentId);Assert.AreEqual(business.Id.ToString("N"),captured.TenantId);
+    }
+    [DataTestMethod]
+    [DataRow("NotQueued")][DataRow("Pending")][DataRow("Running")][DataRow("Failed")][DataRow("Succeeded")]
+    public async Task OnlyTheOwnedIosStatusIsExposedAndRetryKeepsTheParentAuthorization(string state)
+    {
+        await using var db = Context(); var guest = new GuestRegistration("owner@example.test", "synthetic-token") { Id = Guid.NewGuid() };
+        var business = new Business("Test Shop", "Owner", guest.Email!, "000", "123", "Test", "Street", "City", "District", "00000", "Test Ltd", guest.Id);
+        db.GuestRegistrations.Add(guest); db.Businesses.Add(business); GrantPaidEntitlement(db, guest, business); await db.SaveChangesAsync();
+        var work = Work(guest); var tenant = business.Id.ToString("N");
+        var request = new TenantProvisioningRequest(tenant, "test-shop", "Test Shop", guest.Email!, "Owner", "Fixture", "Street", "000", guest.Email!,
+            DeploymentId: "production-a", MobileReleaseProfile: "AndroidIosAppDistribution");
+        var parent = new ProvisioningJob(request, "Failed", 1, new Dictionary<string, ProvisioningStepResult>(), null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var plan = new IosReleasePlan(tenant, "production-a", "com.example.tenant" + tenant, "ABCDE12345", new string('a', 64), new string('b', 64), 7,
+            "status-fixture-demo", "123456789", "1:123456789:ios:bbbbbbbb", new string('c', 64), "https://test-shop.shops.example.test");
+        var receipt = state == "Succeeded" ? new IosReleaseReceipt(new string('f', 64), plan.SourceHash, plan.SigningCertificateSha256, plan.FirebaseSdkSha256,
+            plan.BuildNumber, "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222", "projects/123456789/apps/1:123456789:ios:bbbbbbbb/releases/fixture", true) : null;
+        var queue = new Mock<IProvisioningQueue>(MockBehavior.Strict); var ios = new Mock<IIosReleaseQueue>(MockBehavior.Strict);
+        queue.Setup(x => x.GetAsync(tenant, It.IsAny<CancellationToken>())).ReturnsAsync(parent);
+        queue.Setup(x => x.RetryAsync(tenant, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        ios.Setup(x => x.GetAsync(tenant, It.IsAny<CancellationToken>())).ReturnsAsync(state == "NotQueued" ? null :
+            new IosReleaseJob(plan, state, 1, receipt, state == "Failed" ? "ios-release:InvalidOperationException" : null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+        var handler = new ProvisioningStatusHandler(db, work.Object, queue.Object, new ConfigurationBuilder().Build(), ios.Object);
+        var result = (await handler.Handle(new GetProvisioningStatus(business.Id), default))!;
+        Assert.AreEqual(state, result.IosRelease!.State);
+        var json = JsonSerializer.Serialize(result);
+        Assert.IsFalse(json.Contains("ABCDE12345")); Assert.IsFalse(json.Contains("DeviceUdids")); Assert.IsFalse(json.Contains("SourceHash"));
+        Assert.IsTrue(await handler.Handle(new RetryProvisioning(business.Id), default));
+        work.SetupProperty(x => x.GuestRegistration, new GuestRegistration("other@example.test", "synthetic-other") { Id = Guid.NewGuid() });
+        await Assert.ThrowsExceptionAsync<UnauthorizedAccessException>(() => handler.Handle(new GetProvisioningStatus(business.Id), default));
+        await Assert.ThrowsExceptionAsync<UnauthorizedAccessException>(() => handler.Handle(new RetryProvisioning(business.Id), default));
+        queue.Verify(x => x.GetAsync(tenant, It.IsAny<CancellationToken>()), Times.Once);
+        ios.Verify(x => x.GetAsync(tenant, It.IsAny<CancellationToken>()), Times.Once);
+        queue.Verify(x => x.RetryAsync(tenant, It.IsAny<CancellationToken>()), Times.Once);
+        ios.Verify(x => x.RetryAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+    [TestMethod]
+    public async Task AForeignIosPlanCannotBeReturnedAsTheOwnersProgress()
+    {
+        await using var db = Context(); var guest = new GuestRegistration("owner@example.test", "synthetic-token") { Id = Guid.NewGuid() };
+        var business = new Business("Test Shop", "Owner", guest.Email!, "000", "123", "Test", "Street", "City", "District", "00000", "Test Ltd", guest.Id);
+        db.Businesses.Add(business); await db.SaveChangesAsync(); var tenant = business.Id.ToString("N");
+        var request = new TenantProvisioningRequest(tenant, "test-shop", "Test Shop", guest.Email!, "Owner", "Fixture", "Street", "000", guest.Email!, DeploymentId: "production-a", MobileReleaseProfile: "AndroidIosAppDistribution");
+        var parent = new ProvisioningJob(request, "Pending", 0, new Dictionary<string, ProvisioningStepResult>(), null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var queue = new Mock<IProvisioningQueue>(); queue.Setup(x => x.GetAsync(tenant, It.IsAny<CancellationToken>())).ReturnsAsync(parent);
+        var ios = new Mock<IIosReleaseQueue>();
+        var foreign = new IosReleasePlan(Guid.NewGuid().ToString("N"), "production-a", "dev.commerce.foreign", "ABCDE12345", new string('a', 64), new string('b', 64), 7,
+            "status-fixture-demo", "123456789", "1:123456789:ios:bbbbbbbb", new string('c', 64), "https://foreign.shops.example.test");
+        ios.Setup(x => x.GetAsync(tenant, It.IsAny<CancellationToken>())).ReturnsAsync(new IosReleaseJob(foreign, "Pending", 0, null, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+        var handler = new ProvisioningStatusHandler(db, Work(guest).Object, queue.Object, new ConfigurationBuilder().Build(), ios.Object);
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => handler.Handle(new GetProvisioningStatus(business.Id), default));
+        queue.Setup(x => x.GetAsync(tenant, It.IsAny<CancellationToken>())).ReturnsAsync(parent with { Request = request with { TenantId = foreign.TenantId } });
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => handler.Handle(new GetProvisioningStatus(business.Id), default));
     }
     [TestMethod]
     public void TenantAndBuildMessagesNeverSerializeCredentialValues()

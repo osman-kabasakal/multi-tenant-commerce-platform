@@ -5,7 +5,7 @@ using Npgsql;
 namespace Platform.Provisioning;
 
 /// <summary>Separate Mac work lane; immutable plans and expiring claim tokens survive worker restarts.</summary>
-public sealed class PostgresIosReleaseQueue(string connectionString) : IAsyncDisposable
+public sealed class PostgresIosReleaseQueue(string connectionString) : IIosReleaseQueue, IAsyncDisposable
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private readonly NpgsqlDataSource db = NpgsqlDataSource.Create(connectionString);
