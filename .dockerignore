@@ -18,3 +18,22 @@
 **/logs
 **/Logs
 **/exportimport
+# Deployment/runtime secrets must not enter a Docker build context.
+**/Settings.cfg
+**/DataProtectionKeys
+**/App_Data/**/appsettings.json
+**/App_Data/**/appsettings.*.json
+**/appsettings.Production.json
+**/appsettings.Staging.json
+**/google-services.json
+**/GoogleService-Info.plist
+**/firebase_options.dart
+**/key.properties
+**/local.properties
+**/*.pem
+**/*.key
+**/*.p8
+**/service_account*.json
+**/*service-account*.json
+**/*service_account*.json
+**/credentials.json

@@ -116,7 +116,7 @@ Aktif uygulama `Platforms/store_user_app`, Flutter **3.44.6** ile ARM64 Android 
 | `scripts/` | Yerel kurulum, sunucu taraflı token ağ geçidi ve smoke kontrolü |
 | `docs/` | Mimari, güvenlik temizliği, doğrulama ve yayın aşamaları |
 
-[Üretim veritabanı kurulumu ve yetkiler](docs/DATABASE_BOOTSTRAP.md) · [Üretim gateway ve HTTPS tenant yönlendirmesi](docs/GATEWAY.md) · [Portable tenant çalışanı ve domain sağlayıcıları](docs/PORTABLE_PROVISIONING.md) · [SaaS sağlayıcıları ve HTTPS Production doğrulaması](docs/SAAS_PROVIDERS.md) · [Tenant bildirimleri ve doğrulama](docs/NOTIFICATIONS.md) · [Mağaza hazır e-postası ve bağımsız gönderici](docs/READINESS_EMAIL.md) · [Tenant şifreleme ve dağıtık secret kurulumu](docs/TENANT_SECURITY.md) · [Architecture / English overview](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+[Linux Production konteyner paketi ve doğrulama kapsamı](docs/LINUX_PRODUCTION.md) · [Üretim veritabanı kurulumu ve yetkiler](docs/DATABASE_BOOTSTRAP.md) · [Üretim gateway ve HTTPS tenant yönlendirmesi](docs/GATEWAY.md) · [Portable tenant çalışanı ve domain sağlayıcıları](docs/PORTABLE_PROVISIONING.md) · [SaaS sağlayıcıları ve HTTPS Production doğrulaması](docs/SAAS_PROVIDERS.md) · [Tenant bildirimleri ve doğrulama](docs/NOTIFICATIONS.md) · [Mağaza hazır e-postası ve bağımsız gönderici](docs/READINESS_EMAIL.md) · [Tenant şifreleme ve dağıtık secret kurulumu](docs/TENANT_SECURITY.md) · [Architecture / English overview](docs/ARCHITECTURE.md) · [Security](SECURITY.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## CodeGraph
 
