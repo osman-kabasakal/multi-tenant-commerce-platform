@@ -1,5 +1,4 @@
 using Platform.Security;
-using Azure.Security.KeyVault.Secrets;
 using Grand.Business.Core.Interfaces.Tenants.KeycloakJwtToken;
 using Grand.Business.Core.Interfaces.Tenants.KeycloakUsers;
 using Grand.Business.Tenants.Extensions;
@@ -30,18 +29,20 @@ public class TenantStartup : IStartupApplication
 
     public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
-        var azureKeyVaultClient = services.BuildServiceProvider().GetRequiredService<ISecretStore>();
-        var conf = new KeycloakSettings();
-        configuration.GetSection("KeyCloakServiceClient").Bind(conf);
-        conf.ClientSecret = azureKeyVaultClient.GetAsync("system", $"ClientSecret-{conf.ClientId}").GetAwaiter().GetResult();
-        services.AddSingleton(conf);
+        services.AddSingleton(provider =>
+        {
+            var settings = new KeycloakSettings();
+            configuration.GetSection("KeyCloakServiceClient").Bind(settings);
+            if (string.IsNullOrWhiteSpace(settings.Authority) || string.IsNullOrWhiteSpace(settings.Realm) || string.IsNullOrWhiteSpace(settings.ClientId))
+                throw new InvalidOperationException("Configure the optional Keycloak management client before using legacy identity administration.");
+            settings.ClientSecret = provider.GetRequiredService<ISecretStore>()
+                .GetAsync("system", $"ClientSecret-{settings.ClientId}").GetAwaiter().GetResult();
+            return settings;
+        });
         services.Configure<KeycloakSettings>(configuration.GetSection("KeyCloakServiceClient"));
 
-        services.Configure<AuthConfiguration>(instance =>
-        {
-            configuration.GetSection("AuthConfiguration").Bind(instance);
-            instance.ClientSecret = azureKeyVaultClient.GetAsync("system", $"ClientSecret-{instance.ClientId}").GetAwaiter().GetResult();
-        });
+        // Public issuer/JWKS verification needs no confidential management credential.
+        services.Configure<AuthConfiguration>(configuration.GetSection("AuthConfiguration"));
 
         services.AddTransient<IKeycloakJwtTokenValidationService, KeycloakJwtTokenValidationService>();
 

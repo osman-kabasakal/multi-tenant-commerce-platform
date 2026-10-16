@@ -1,3 +1,4 @@
+using Platform.Security;
 using Grand.Business.Core.Interfaces.Tenants.KeycloakJwtToken;
 using Grand.Domain.Tenants;
 using Grand.Infrastructure.Caching;
@@ -18,17 +19,20 @@ public class KeycloakJwtTokenValidationService: IKeycloakJwtTokenValidationServi
     private readonly IOptions<AuthConfiguration> _optionsAuthConfiguration;
     private readonly ICacheBase _cache;
     private readonly HttpClient _httpClient;
+    private readonly ISecretStore _secrets;
 
     public KeycloakJwtTokenValidationService(
         ILogger<KeycloakJwtTokenValidationService> logger,
         IHttpClientFactory clientFactory,
         IOptions<AuthConfiguration> optionsAuthConfiguration,
-        ICacheBase cache
+        ICacheBase cache,
+        ISecretStore secrets
     )
     {
         _logger = logger;
         _optionsAuthConfiguration = optionsAuthConfiguration;
         _cache = cache;
+        _secrets = secrets;
         _httpClient = clientFactory.CreateClient();
     }
 
@@ -129,13 +133,16 @@ public class KeycloakJwtTokenValidationService: IKeycloakJwtTokenValidationServi
 
     public async Task<bool> RemoteValidationTokenAsync(string token)
     {
+        if (string.IsNullOrWhiteSpace(_optionsAuthConfiguration.Value.ClientId))
+            throw new InvalidOperationException("Configure a confidential client before requesting token introspection.");
+        var secret = await _secrets.GetAsync("system", $"ClientSecret-{_optionsAuthConfiguration.Value.ClientId}");
         var introspectionEndpoint =
             $"{_optionsAuthConfiguration.Value.IdentityProviderUrl}/protocol/openid-connect/token/introspect";
 
         var content = new FormUrlEncodedContent(new Dictionary<string, string> {
             ["token"] = token,
             ["client_id"] = _optionsAuthConfiguration.Value.ClientId,
-            ["client_secret"] = _optionsAuthConfiguration.Value.ClientSecret
+            ["client_secret"] = secret
         });
 
         var response = await _httpClient.PostAsync(introspectionEndpoint, content);
