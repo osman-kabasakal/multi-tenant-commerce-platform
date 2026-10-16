@@ -7,7 +7,7 @@ namespace Platform.Provisioning;
 public sealed record TenantProvisioningRequest(
     string TenantId, string Slug, string StoreName, string OwnerEmail,
     string FirstName, string LastName, string CompanyAddress, string CompanyPhone,
-    string CompanyEmail, string? AndroidPackageName = null, string? IosBundleId = null, string? DeploymentId = null)
+    string CompanyEmail, string? AndroidPackageName = null, string? IosBundleId = null, string? DeploymentId = null, string? MobileReleaseProfile = null)
 {
     public void Validate()
     {
@@ -22,6 +22,8 @@ public sealed record TenantProvisioningRequest(
             throw new ArgumentException("A store name and valid owner email are required.");
         if (DeploymentId != null && !Regex.IsMatch(DeploymentId, "^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$"))
             throw new ArgumentException("Invalid provisioning deployment id.");
+        if (MobileReleaseProfile is not (null or "Disabled" or "AndroidAppDistribution"))
+            throw new ArgumentException("Choose an explicit supported mobile release profile.");
         foreach (var package in new[] { AndroidPackageName, IosBundleId }.Where(p => p != null))
             if (!Regex.IsMatch(package!, "^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$"))
                 throw new ArgumentException("Invalid mobile package identifier.");

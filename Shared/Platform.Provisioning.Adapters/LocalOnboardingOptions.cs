@@ -38,6 +38,8 @@ public static class LocalOnboarding
 {
     public static IServiceCollection AddLocalOnboarding(this IServiceCollection services, IConfiguration config, string environment)
     {
+        if ((config["Provisioning:Mobile:Provider"]??"Disabled")!="Disabled")
+            throw new InvalidOperationException("Automatic signed releases require the Portable Production/Staging profile.");
         var options = config.GetSection("Provisioning:Local").Get<LocalOnboardingOptions>()
             ?? throw new InvalidOperationException("Configure Provisioning:Local.");
         options.Validate(environment, config);
@@ -82,7 +84,8 @@ internal sealed class LocalDeploymentGuard : IProvisioningGuard
 {
     public Task ValidateAsync(TenantProvisioningRequest request,IReadOnlyDictionary<string,ProvisioningStepResult> completed,CancellationToken ct)
     {
-        if(request.DeploymentId!=null)throw new InvalidOperationException("A deployment-bound job cannot run through local demo adapters.");
+        if(request.DeploymentId!=null || (request.MobileReleaseProfile??"Disabled")!="Disabled")
+            throw new InvalidOperationException("A deployment-bound or signed-mobile job cannot run through local demo adapters.");
         return Task.CompletedTask;
     }
 }

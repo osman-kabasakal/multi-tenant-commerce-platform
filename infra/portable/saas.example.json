@@ -29,7 +29,10 @@
     "Enabled": true,
     "InitializeSchema": false,
     "Profile": "Portable",
-    "DeploymentId": "commerce-production"
+    "DeploymentId": "commerce-production",
+    "Mobile": {
+      "Provider": "Disabled"
+    }
   },
   "CardProtection": {
     "Provider": "Disabled"

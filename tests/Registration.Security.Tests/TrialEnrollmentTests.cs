@@ -37,6 +37,7 @@ public sealed class TrialEnrollmentTests
     [DataRow("TenantOnboarding:Trial:Enabled","false")][DataRow("Provisioning:Enabled","false")][DataRow("Provisioning:Profile","Local")]
     [DataRow("Provisioning:DeploymentId","")][DataRow("LocalDemo:Enabled","true")][DataRow("PlatformSecurity:Provider","Local")]
     [DataRow("PlatformSecurity:ReadOnly","true")][DataRow("TenantOnboarding:Trial:PlanId","")]
+    [DataRow("Provisioning:Mobile:Provider","Unknown")]
     public async Task ImplicitOrDemoConfigurationCannotCreateProductionBusinesses(string key,string value)
     {
         await using var f=new Fixture();await f.Seed();f.Config[key]=value;await Assert.ThrowsExceptionAsync<InvalidOperationException>(()=>f.Handle());Assert.AreEqual(0,await f.Db.Businesses.CountAsync());

@@ -90,6 +90,10 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
             throw new UnauthorizedAccessException("Business ownership is required to provision tenant secrets.");
         if (!string.Equals(request.StoreSubDomain, business.ToSubdomain(), StringComparison.Ordinal))
             throw new ArgumentException("Store subdomain must match the registered business.");
+        var mobileProfile=_configuration["Provisioning:Mobile:Provider"]??"Disabled";
+        if(mobileProfile is not ("Disabled" or "AndroidAppDistribution") || mobileProfile=="AndroidAppDistribution" &&
+            (!_configuration.GetValue<bool>("Provisioning:Enabled") || _configuration["Provisioning:Profile"]!="Portable" || string.IsNullOrWhiteSpace(_configuration["Provisioning:DeploymentId"])))
+            throw new InvalidOperationException("Signed Android enrollment requires an explicit durable Portable deployment.");
         var tenantId = request.BusinessId.ToString("N");
         await _tenantSecrets.ProvisionAsync(tenantId, request.StoreSubDomain, cancellationToken);
         if (_configuration.GetValue<bool>("Provisioning:Enabled"))
@@ -105,7 +109,7 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
             await _provisioning.EnqueueAsync(new TenantProvisioningRequest(tenantId, request.StoreSubDomain,
                 request.StoreName, request.OwnerEmail, request.FirstName, request.Lastname,
                 request.CompanyAddress, request.CompanyPhoneNumber, request.CompanyEmail,
-                businessAppForProvisioning?.PackageName, businessAppForProvisioning?.PackageName, _configuration["Provisioning:DeploymentId"]), cancellationToken);
+                businessAppForProvisioning?.PackageName, businessAppForProvisioning?.PackageName, _configuration["Provisioning:DeploymentId"], mobileProfile), cancellationToken);
             return ServiceResponse<TenantStatusMessage>.Success(new TenantStatusMessage {
                 TenantId = tenantId, StatusEventType = TenantStatusEvent.Registered,
                 StoreName = request.StoreName, StoreSubDomain = request.StoreSubDomain,

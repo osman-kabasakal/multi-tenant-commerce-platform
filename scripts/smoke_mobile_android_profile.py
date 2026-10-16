@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+"""Verify tenant Android resources and synthetic APK signatures without a Flutter release or cloud resources."""
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import uuid
+import xml.etree.ElementTree as ET
+
+import mobile_android as mobile
+from test_mobile_android import fixtures
+
+
+def verify_apk_boundary(probe, tenant, sdk, environment, log_path):
+    # A tiny native APK exercises the actual signature/package verifier without a Flutter release build.
+    fixture = probe / 'apk-verification'; fixture.mkdir()
+    android_manifest = fixture / 'AndroidManifest.xml'
+    android_manifest.write_text('<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.tenantapp" android:versionCode="23" android:versionName="1.0"><uses-sdk android:minSdkVersion="23"/><application android:label="Synthetic fixture"/></manifest>')
+    sdk = Path(sdk)
+    platform_jars = sorted((sdk / 'platforms').glob('android-*/android.jar'), key=lambda p: int(p.parent.name.split('-')[-1]) if p.parent.name.split('-')[-1].isdigit() else 0, reverse=True)
+    if not platform_jars: raise ValueError('Install an Android SDK platform.')
+    unsigned = fixture / 'unsigned.apk'; signed = fixture / 'signed.apk'; keystore = fixture / 'fixture.p12'
+    signing_env = dict(environment, PLATFORM_SYNTHETIC_SIGNING_PASSWORD='synthetic-fixture-only')
+    java_home = os.environ.get('JAVA_HOME')
+    keytool = str(Path(java_home) / 'bin/keytool') if java_home else 'keytool'
+    with log_path.open('a') as log:
+        mobile.run_private([str(mobile.sdk_tool(sdk, 'aapt2')), 'link', '-I', str(platform_jars[0]), '--manifest', str(android_manifest), '-o', str(unsigned)], fixture, signing_env, log, 60)
+        mobile.run_private([keytool, '-genkeypair', '-noprompt', '-alias', 'fixture', '-keyalg', 'RSA', '-keysize', '2048', '-validity', '2', '-dname', 'CN=Synthetic Android Fixture', '-keystore', str(keystore), '-storepass:env', 'PLATFORM_SYNTHETIC_SIGNING_PASSWORD', '-keypass:env', 'PLATFORM_SYNTHETIC_SIGNING_PASSWORD'], fixture, signing_env, log, 60)
+        mobile.run_private([str(mobile.sdk_tool(sdk, 'apksigner')), 'sign', '--ks', str(keystore), '--ks-key-alias', 'fixture', '--ks-pass', 'env:PLATFORM_SYNTHETIC_SIGNING_PASSWORD', '--key-pass', 'env:PLATFORM_SYNTHETIC_SIGNING_PASSWORD', '--out', str(signed), str(unsigned)], fixture, signing_env, log, 60)
+    verified = mobile.verify_binary(signed, tenant, sdk, 23, signing_env)
+    assert re.fullmatch(r'[a-f0-9]{64}', verified['signingCertificateSha256'])
+    assert re.fullmatch(r'[a-f0-9]{64}', verified['sha256'])
+    print('PASS: Actual apksigner and AAPT2 verify a synthetic APK signature, package, version and certificate fingerprint.', flush=True)
+    for label, expected, version in [('foreign package', dict(tenant, androidApplicationId='com.example.foreign'), 23), ('wrong version', tenant, 24)]:
+        try: mobile.verify_binary(signed, expected, sdk, version, signing_env)
+        except ValueError: pass
+        else: raise AssertionError('APK verifier accepted ' + label)
+        print('PASS: Actual signed APK verification rejects a ' + label + '.', flush=True)
+    try: mobile.verify_binary(unsigned, tenant, sdk, 23, signing_env)
+    except subprocess.CalledProcessError: pass
+    else: raise AssertionError('APK verifier accepted an unsigned artifact')
+    print('PASS: Actual APK verification rejects an unsigned artifact before distribution.', flush=True)
+    debug_manifest = fixture / 'DebugManifest.xml'
+    debug_manifest.write_text(android_manifest.read_text().replace('<application ', '<application android:debuggable="true" '))
+    debug_unsigned = fixture / 'debug-unsigned.apk'; debug_signed = fixture / 'debug-signed.apk'
+    with log_path.open('a') as log:
+        mobile.run_private([str(mobile.sdk_tool(sdk, 'aapt2')), 'link', '-I', str(platform_jars[0]), '--manifest', str(debug_manifest), '-o', str(debug_unsigned)], fixture, signing_env, log, 60)
+        mobile.run_private([str(mobile.sdk_tool(sdk, 'apksigner')), 'sign', '--ks', str(keystore), '--ks-key-alias', 'fixture', '--ks-pass', 'env:PLATFORM_SYNTHETIC_SIGNING_PASSWORD', '--key-pass', 'env:PLATFORM_SYNTHETIC_SIGNING_PASSWORD', '--out', str(debug_signed), str(debug_unsigned)], fixture, signing_env, log, 60)
+    try: mobile.verify_binary(debug_signed, tenant, sdk, 23, signing_env)
+    except ValueError: pass
+    else: raise AssertionError('APK verifier accepted a debuggable artifact')
+    print('PASS: Actual APK verification rejects a debuggable signed artifact before distribution.', flush=True)
+    shutil.rmtree(fixture)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--flutter', default='flutter')
+    parser.add_argument('--gradle', type=Path, default=mobile.ROOT / 'Platforms/store_user_app/android/gradlew', help='An installed Gradle 8.11.1 executable or the wrapper generated by a prior Flutter Android build.')
+    parser.add_argument('--android-sdk', default=os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT'))
+    args = parser.parse_args()
+    if not args.gradle.is_file() or not args.android_sdk:
+        parser.error('Supply --gradle and --android-sdk (or ANDROID_HOME). Flutter creates its wrapper during an Android build.')
+    os.umask(0o077)
+    probe = mobile.ROOT / '.local' / ('mobile-native-profile-' + uuid.uuid4().hex[:10])
+    probe.mkdir(parents=True, mode=0o700)
+    print('Private native-profile diagnostics: ' + str(probe), flush=True)
+    manifest, client, android = fixtures()
+    for name, value in [('manifest.json', manifest), ('firebase-client.json', client), ('google-services.json', android)]:
+        mobile.private_json(probe / name, value)
+    workspace, _ = mobile.prepare(probe / 'manifest.json', probe, probe / 'workspace', 23)
+    signing = probe / 'synthetic-signing.properties'
+    signing.write_text('storeFile=' + str(probe / 'not-used.jks') + '\nstorePassword=synthetic-only\nkeyAlias=synthetic\nkeyPassword=synthetic-only\n')
+    signing.chmod(0o600)
+    app = workspace / 'Platforms/store_user_app'
+    environment = dict(os.environ, PLATFORM_TENANT_CONFIG=str(workspace / 'tenant-build.json'), PLATFORM_ANDROID_SIGNING_PROPERTIES=str(signing), ANDROID_HOME=str(args.android_sdk))
+    log_path = probe / 'native-profile.log'
+    with log_path.open('w') as log:
+        mobile.run_private([args.flutter, 'pub', 'get', '--enforce-lockfile'], app, environment, log, 600)
+        mobile.run_private([str(args.gradle.absolute()), ':app:processTenantReleaseGoogleServices', ':app:injectCrashlyticsMappingFileIdTenantRelease', ':app:generateTenantReleaseResources', '--no-daemon', '--console=plain'], app / 'android', environment, log, 900)
+        values = ET.parse(app / 'build/app/generated/res/processTenantReleaseGoogleServices/values/values.xml').getroot()
+        resources = {item.attrib.get('name'): item.text for item in values}
+        assert resources['project_id'] == client['projectId']
+        assert resources['google_app_id'] == client['androidAppId']
+        assert resources['gcm_defaultSenderId'] == client['projectNumber']
+        mapping = ET.parse(app / 'build/app/generated/res/injectCrashlyticsMappingFileIdTenantRelease/values/com_google_firebase_crashlytics_mappingfileid.xml').getroot()
+        assert re.fullmatch(r'[a-f0-9]{32}', mapping.find('string').text)
+        print('PASS: Actual Google Services resources match the owned tenant project, sender and Android app.', flush=True)
+        print('PASS: Actual Crashlytics plugin generates its release mapping identity.', flush=True)
+        compiled = probe / 'compiled-resources'; compiled.mkdir()
+        mobile.run_private([str(mobile.sdk_tool(args.android_sdk, 'aapt2')), 'compile', str(app / 'android/app/src/tenant/res/values/strings.xml'), '-o', str(compiled)], app, environment, log, 60)
+        assert list(compiled.glob('*.flat'))
+        print('PASS: Android AAPT2 compiles Turkish, apostrophes, quotes and ampersands in the tenant label.', flush=True)
+        demo = environment.copy(); demo.pop('PLATFORM_TENANT_CONFIG'); demo.pop('PLATFORM_ANDROID_SIGNING_PROPERTIES')
+        mobile.run_private([str(args.gradle.absolute()), ':app:generateDemoDebugResources', ':app:tasks', '--all', '--no-daemon', '--console=plain'], app / 'android', demo, log, 900)
+    diagnostic = log_path.read_text()
+    assert 'processDemoDebugGoogleServices' not in diagnostic
+    assert 'injectCrashlyticsMappingFileIdDemoDebug' not in diagnostic
+    print('PASS: Ordinary demo resources build with Firebase/Crashlytics Gradle tasks disabled and no signing credentials.', flush=True)
+    verify_apk_boundary(probe, json.loads((workspace / 'tenant-build.json').read_text()), args.android_sdk, environment, log_path)
+    mobile.private_json(probe / 'result.json', {'tenantId': manifest['tenantId'], 'nativeProfileVerified': True, 'syntheticApkSignatureVerified': True, 'flutterReleaseBuilt': False, 'cloudResourcesCreated': False})
+    # Keep bounded private diagnostics; remove only this uniquely created source/build copy.
+    shutil.rmtree(workspace)
+    print('Tenant Android native profile and synthetic APK checks passed; no Flutter release or distribution was performed.', flush=True)
+
+
+if __name__ == '__main__':
+    main()

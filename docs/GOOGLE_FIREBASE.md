@@ -1,6 +1,6 @@
 # Per-tenant Google and Firebase
 
-The durable onboarding worker has an **opt-in Google provider**. The default local demo keeps `Provisioning:Google:Provider=Disabled` and creates no cloud resources. The Google provider currently plugs into the Local orchestration profile, so you can exercise actual Google setup while keeping the database, Keycloak and storefront local. A production orchestration profile, automatic signed mobile builds, live mobile notification delivery and complete deployment verification remain unfinished; see [PROVISIONING.md](PROVISIONING.md).
+The durable onboarding worker has an **opt-in Google provider**. The default local demo keeps `Provisioning:Google:Provider=Disabled` and creates no cloud resources. The Google provider plugs into both the Local and Portable orchestration profiles. You can exercise Google setup while keeping the database, Keycloak and storefront local, or explicitly configure it in a Portable deployment. Opt-in automatic Android release orchestration, encrypted tenant signing and durable artifact replay are implemented. Full tenant Flutter release execution, iOS, live mobile notification/crash delivery and complete deployment verification remain unfinished; see [PROVISIONING.md](PROVISIONING.md).
 
 ## Resources and ownership
 
@@ -45,7 +45,7 @@ Provisioning__ConfigPath="$PWD/.local/google-worker.json" python3 scripts/demo.p
 
 The merged file must retain the generated local database, Keycloak, installer and security settings. Do not edit only `.local/tenantmanager.json` and then run `up`: the launcher regenerates that file with Google disabled. The explicit private copy survives regeneration. Provisioning starts cloud writes only when a **new** onboarding job reaches the Google step. Billing links and tester invitations are real effects when configured.
 
-Create a new local trial through the SaaS onboarding page. The new job has a `google-firebase` checkpoint before publication. SDK files appear under `.local/mobile/<slug>/`; the manifest has `firebase.enabled=true`. `scripts/mobile_tenant.py` deliberately accepts only the Firebase-disabled debug profile; it does not build a Firebase release yet. API activation alone does not establish Crashlytics SDK initialization, symbols or delivery.
+Create a new local trial through the SaaS onboarding page. The new job has a `google-firebase` checkpoint before publication. SDK files appear under `.local/mobile/<slug>/`; the manifest has `firebase.enabled=true`. `scripts/mobile_tenant.py` deliberately accepts only the Firebase-disabled debug profile. The separate isolated Android runner in [MOBILE.md](MOBILE.md#prepare-a-firebase-enabled-tenant-android-release) requires a Portable publication manifest with `localDemo=false` and the verified HTTPS store origin; a Local-profile Google probe does not turn a demo manifest into a release deployment. API activation alone does not establish Crashlytics SDK initialization, symbols or delivery.
 
 ## Export public SDK files and distribute an existing build
 
@@ -63,7 +63,7 @@ dotnet run --project tools/Platform.Cloud -- distribute \
 
 `export-mobile` performs no Google API call and does not require Google write permission. It exports only `google-services.json`, `GoogleService-Info.plist` and a public client manifest, with owner-only file permissions on Unix. `distribute` requires the configured Google provider and `AllowCloudWrites`, rechecks cloud project ownership, uploads the APK (or signed IPA with `--platform ios`), waits for the release and distributes only to that tenant's configured group. It rejects a release resource belonging to another app. A repeated identical binary can reuse the release according to the provider's upload contract.
 
-These commands do not sign an app or claim an existing APK has Crashlytics integrated. Tenant build automation, iOS signing and live crash verification remain required before a complete automatic mobile release is ready.
+These commands do not sign an app or claim an existing APK has Crashlytics integrated. An explicit isolated Android build/sign/verify/distribute runner is now available in [MOBILE.md](MOBILE.md#prepare-a-firebase-enabled-tenant-android-release). Automatic onboarding-to-release scheduling, per-tenant signing provisioning, iOS signing and live crash verification remain required before a complete automatic mobile release is ready.
 
 ## Verify without a cloud account
 

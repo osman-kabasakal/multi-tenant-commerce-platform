@@ -1,0 +1,20 @@
+{
+  "Provisioning": {
+    "Mobile": {
+      "Provider": "AndroidAppDistribution",
+      "Android": {
+        "AllowSigningKeyCreation": false,
+        "SharedArtifactsConfirmed": false,
+        "SourceDirectory": "/app/mobile-source",
+        "WorkingDirectory": "/var/lib/commerce/mobile-work",
+        "ArtifactDirectory": "/var/lib/commerce/mobile-artifacts",
+        "PythonPath": "/usr/bin/python3",
+        "FlutterPath": "/opt/flutter/bin/flutter",
+        "KeytoolPath": "/usr/lib/jvm/java-17-openjdk-amd64/bin/keytool",
+        "AndroidSdkDirectory": "/opt/android-sdk",
+        "BuildNumber": 1,
+        "BuildTimeoutSeconds": 7200
+      }
+    }
+  }
+}

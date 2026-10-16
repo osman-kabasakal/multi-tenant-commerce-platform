@@ -1,6 +1,5 @@
 import 'package:store_user_app/core/config/local_demo.dart';
 import 'dart:async';
-import 'dart:io';
 
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
@@ -15,6 +14,7 @@ class CrashlyticsService {
 
   /// Firebase Crashlytics'i başlatır ve yapılandırır
   Future<void> initialize() async {
+    if (LocalDemo.enabled) return;
     try {
       // Debug modunda crashlytics'i devre dışı bırak
       await _crashlytics?.setCrashlyticsCollectionEnabled(!kDebugMode);
@@ -26,7 +26,7 @@ class CrashlyticsService {
           FlutterError.dumpErrorToConsole(details);
         } else {
           // Release modunda Crashlytics'e gönder
-          _crashlytics?.recordFlutterError(details);
+          _crashlytics?.recordFlutterFatalError(details);
         }
       };
 
@@ -35,8 +35,7 @@ class CrashlyticsService {
         if (!kDebugMode) {
           _crashlytics?.recordError(error, stack, fatal: true);
         }
-        // Varsayılan hata işlemeyi sürdür
-        return false;
+        return !kDebugMode && !LocalDemo.enabled;
       };
 
       LoggerService.info('Crashlytics başarıyla yapılandırıldı');

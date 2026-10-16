@@ -40,6 +40,9 @@
     "Domains": {
       "Provider": "Wildcard",
       "WildcardConfigured": false
+    },
+    "Mobile": {
+      "Provider": "Disabled"
     }
   }
 }

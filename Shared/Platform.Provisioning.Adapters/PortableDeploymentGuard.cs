@@ -10,6 +10,8 @@ public sealed class PortableDeploymentGuard(PortableOnboardingOptions options,Te
         request.Validate();
         if(request.DeploymentId!=null && request.DeploymentId!=options.DeploymentId)
             throw new InvalidOperationException("This job targets a different deployment.");
+        if((request.MobileReleaseProfile??"Disabled")!=options.MobileReleaseProvider)
+            throw new InvalidOperationException("This worker's mobile policy differs from the queued tenant request.");
         // Registration must already own this tenant and have persisted its initial password.
         await secrets.GetAsync(request.TenantId,TenantSecretNames.InitialPassword,ct);
         var expected=options.TargetFingerprint()+":"+domains.TargetFingerprint();

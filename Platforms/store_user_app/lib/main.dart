@@ -1,10 +1,11 @@
+import 'core/config/tenant_firebase_identity.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:store_user_app/core/config/local_demo.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:auto_route/auto_route.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -24,12 +25,10 @@ import 'package:store_user_app/core/constants/app_constants.dart';
 import 'package:store_user_app/core/data/events/event_bus.dart';
 import 'package:store_user_app/core/navigation/app_paths.dart';
 import 'package:store_user_app/core/navigation/app_router.dart';
-import 'package:store_user_app/core/navigation/app_router.gr.dart';
 import 'package:store_user_app/core/services/Security/connectivity_monitor.dart';
 import 'package:store_user_app/core/services/analytics/analytics_service.dart';
 import 'package:store_user_app/core/services/auth/app_tokens_refresh_event.dart';
 import 'package:store_user_app/core/services/auth/auth_service.dart';
-import 'package:store_user_app/core/services/background_task_queue/background_task_queue.dart';
 import 'package:store_user_app/core/services/crashlytics/crashlytics_service.dart';
 import 'package:store_user_app/core/services/deeplink/deeplink_service.dart';
 import 'package:store_user_app/core/services/fcm_service.dart';
@@ -37,7 +36,6 @@ import 'package:store_user_app/core/services/theme/theme_controller.dart';
 import 'package:store_user_app/core/utils/provider/app_provider_observer.dart';
 import 'package:store_user_app/domain/usecases/notification/notification_checker_service.dart';
 /*********DO NOT DELETE THIS LINE ***********/
-import 'package:store_user_app/presentation/widgets/layout/view/app_back_button_handler.dart';
 
 import 'core/config/environment_config.dart';
 import 'core/data/events/entity_event.dart';
@@ -47,6 +45,7 @@ import 'core/services/logger/logger_service.dart';
 import 'presentation/widgets/layout/view/cannectivity_aware_widget.dart';
 
 Future<void> main() async {
+  var firebaseIdentityVerified = false;
   // Catch any errors during initialization to prevent crash dumps exposing sensitive data
   await runZonedGuarded(
         () async {
@@ -55,7 +54,33 @@ Future<void> main() async {
 
       // Firebase Core'u başlat (Analytics ve Crashlytics için gerekli)
       LocalDemo.validate();
-      if (!LocalDemo.enabled) await Firebase.initializeApp();
+      if (!LocalDemo.enabled) {
+        final firebase = await Firebase.initializeApp();
+        const tenantId = String.fromEnvironment('TENANT_ID');
+        if (tenantId.isNotEmpty) {
+          final android = Platform.isAndroid;
+          final package = await PackageInfo.fromPlatform();
+          TenantFirebaseIdentity(
+            tenantId: tenantId,
+            packageName: android
+                ? const String.fromEnvironment('PACKAGE_NAME_ANDROID')
+                : const String.fromEnvironment('PACKAGE_NAME_IOS'),
+            projectId: const String.fromEnvironment('FIREBASE_PROJECT_ID'),
+            projectNumber: const String.fromEnvironment('FIREBASE_PROJECT_NUMBER'),
+            appId: android
+                ? const String.fromEnvironment('FIREBASE_ANDROID_APP_ID')
+                : const String.fromEnvironment('FIREBASE_IOS_APP_ID'),
+          ).verify(
+            nativePackageName: package.packageName,
+            nativeProjectId: firebase.options.projectId,
+            nativeProjectNumber: firebase.options.messagingSenderId,
+            nativeAppId: firebase.options.appId,
+            platform: android ? 'android' : 'ios',
+          );
+        }
+      }
+
+      firebaseIdentityVerified = !LocalDemo.enabled && Firebase.apps.isNotEmpty;
 
       // Security checks before proceeding with app initialization
       if (!LocalDemo.enabled && !await DeviceSecurityService.isDeviceSecure()) {
@@ -106,7 +131,7 @@ Future<void> main() async {
       // Send error to monitoring service without sensitive data
       LoggerService.error('App initialization error', error, stackTrace);
       // Hata bilgisini Crashlytics'e gönder
-      if (!kDebugMode && !LocalDemo.enabled) {
+      if (!kDebugMode && firebaseIdentityVerified) {
         FirebaseCrashlytics.instance.recordError(
           error,
           stackTrace,
@@ -271,7 +296,7 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
     } catch (e, stackTrace) {
       LoggerService.error('App state initialization error', e, stackTrace);
       // Hatayı Crashlytics'e rapor et
-      if (!kDebugMode && !LocalDemo.enabled) {
+      if (!kDebugMode && !LocalDemo.enabled && Firebase.apps.isNotEmpty) {
         FirebaseCrashlytics.instance.recordError(e, stackTrace, fatal: false);
       }
       // Handle initialization error gracefully

@@ -38,6 +38,22 @@ public class RegistrationSecurityTests
         work.SetupProperty(x=>x.GuestRegistration,guest);
         return work;
     }
+    [DataTestMethod]
+    [DataRow("Disabled")][DataRow("AndroidAppDistribution")]
+    public async Task SaasQueuesTheSelectedMobilePolicyWithTheDeploymentAndCanonicalBusiness(string mobile)
+    {
+        await using var db=Context();var guest=new GuestRegistration("owner@example.test","synthetic-token"){Id=Guid.NewGuid()};
+        var business=new Business("Test Shop","Owner",guest.Email!,"000","123","Test","Street","City","District","00000","Test Ltd",guest.Id);
+        db.GuestRegistrations.Add(guest);db.Businesses.Add(business);await db.SaveChangesAsync();
+        TenantProvisioningRequest? captured=null;var queue=new Mock<IProvisioningQueue>();
+        queue.Setup(x=>x.EnqueueAsync(It.IsAny<TenantProvisioningRequest>(),It.IsAny<CancellationToken>()))
+            .Callback<TenantProvisioningRequest,CancellationToken>((request,_)=>captured=request)
+            .ReturnsAsync((TenantProvisioningRequest request,CancellationToken _)=>new ProvisioningJob(request,"Pending",0,new Dictionary<string,ProvisioningStepResult>(),null,DateTimeOffset.UtcNow,DateTimeOffset.UtcNow));
+        var config=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>{{"Provisioning:Enabled","true"},{"Provisioning:Profile","Portable"},{"Provisioning:DeploymentId","production-a"},{"Provisioning:Mobile:Provider",mobile}}).Build();
+        var handler=new RegisterStoreCommandHandler(db,new Mock<IMongoAtlasManager>(MockBehavior.Strict).Object,new Mock<ISubscriber>(MockBehavior.Strict).Object,config,new Mock<ITenantSecrets>().Object,Work(guest).Object,queue.Object);
+        await handler.Handle(new RegisterStoreCommand{BusinessId=business.Id,StoreSubDomain="test-shop",StoreName="Test Shop",OwnerEmail=guest.Email!,Password="synthetic-private-password"},default);
+        Assert.IsNotNull(captured);captured.Validate();Assert.AreEqual(mobile,captured.MobileReleaseProfile);Assert.AreEqual("production-a",captured.DeploymentId);Assert.AreEqual(business.Id.ToString("N"),captured.TenantId);
+    }
     [TestMethod]
     public void TenantAndBuildMessagesNeverSerializeCredentialValues()
     {

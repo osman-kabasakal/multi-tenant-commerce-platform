@@ -1,5 +1,6 @@
 import java.util.Properties
 import java.io.FileInputStream
+import groovy.json.JsonSlurper
 
 
 plugins {
@@ -11,10 +12,29 @@ plugins {
 
 
 val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
+val tenantConfigPath = System.getenv("PLATFORM_TENANT_CONFIG")
+val tenantConfig = tenantConfigPath?.let {
+    @Suppress("UNCHECKED_CAST")
+    (JsonSlurper().parse(file(it)) as Map<String, Any>)
+}
+if (tenantConfig != null) {
+    project.extra["platformTenant"] = tenantConfig
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+}
+val keystorePropertiesFile = System.getenv("PLATFORM_ANDROID_SIGNING_PROPERTIES")
+    ?.let { file(it) } ?: rootProject.file("key.properties")
+val releaseRequested = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
+if (releaseRequested) {
+    require(tenantConfig != null) { "Release builds require explicit tenant configuration." }
+    require(keystorePropertiesFile.isFile) { "Release builds require private signing properties." }
+}
 
 if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+    FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
+    for (name in listOf("keyAlias", "keyPassword", "storeFile", "storePassword")) {
+        require(!keystoreProperties.getProperty(name).isNullOrBlank()) { "Incomplete private signing configuration." }
+    }
 }
 
 
@@ -56,8 +76,6 @@ android {
     }
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.findByName("release")
         }
     }

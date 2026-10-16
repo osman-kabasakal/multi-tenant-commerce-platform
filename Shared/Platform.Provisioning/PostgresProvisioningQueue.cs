@@ -32,6 +32,36 @@ public sealed class PostgresProvisioningQueue : IProvisioningQueue, IAsyncDispos
             );
             CREATE INDEX IF NOT EXISTS jobs_available ON platform_provisioning.jobs(available_at,id)
                 WHERE state IN ('Pending','Running');
+            CREATE OR REPLACE FUNCTION platform_provisioning.enforce_job_requirements_v1()
+            RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $$
+            DECLARE mobile text;
+            BEGIN
+                IF NEW.request IS DISTINCT FROM OLD.request THEN
+                    RAISE EXCEPTION 'The original provisioning request is immutable' USING ERRCODE='23514';
+                END IF;
+                IF NEW.state='Succeeded' THEN
+                    mobile:=COALESCE(NEW.request->>'MobileReleaseProfile','Disabled');
+                    IF mobile NOT IN ('Disabled','AndroidAppDistribution') THEN
+                        RAISE EXCEPTION 'Unsupported required mobile release profile' USING ERRCODE='23514';
+                    END IF;
+                    IF mobile='AndroidAppDistribution' AND NOT (
+                        COALESCE(NEW.steps->'mobile-android-release'->>'Provider','')='AndroidAppDistribution' AND
+                        COALESCE(NEW.steps->'mobile-android-release'->'Resources'->>'androidApplicationId','')=
+                            COALESCE(NEW.request->>'AndroidPackageName','com.example.tenant'||NEW.tenant_id) AND
+                        COALESCE(NEW.steps->'mobile-android-release'->'Resources'->>'sourceHash','') ~ '^[a-f0-9]{64}$' AND
+                        COALESCE(NEW.steps->'mobile-android-release'->'Resources'->>'sha256','') ~ '^[a-f0-9]{64}$' AND
+                        COALESCE(NEW.steps->'mobile-android-release'->'Resources'->>'signingCertificateSha256','') ~ '^[a-f0-9]{64}$' AND
+                        COALESCE(NEW.steps->'mobile-android-release'->'Resources'->>'release','') ~ '^projects/[1-9][0-9]*/apps/1:[1-9][0-9]*:android:[A-Za-z0-9]+/releases/[A-Za-z0-9_-]+$'
+                    ) THEN
+                        RAISE EXCEPTION 'The required Android release is not complete' USING ERRCODE='23514';
+                    END IF;
+                END IF;
+                RETURN NEW;
+            END;
+            $$;
+            DROP TRIGGER IF EXISTS enforce_job_requirements_v1 ON platform_provisioning.jobs;
+            CREATE TRIGGER enforce_job_requirements_v1 BEFORE UPDATE OF state,steps,request ON platform_provisioning.jobs
+                FOR EACH ROW EXECUTE FUNCTION platform_provisioning.enforce_job_requirements_v1();
             """, connection, transaction);
         await cmd.ExecuteNonQueryAsync(ct);
         await transaction.CommitAsync(ct);
@@ -40,6 +70,16 @@ public sealed class PostgresProvisioningQueue : IProvisioningQueue, IAsyncDispos
     public async Task<ProvisioningJob> EnqueueAsync(TenantProvisioningRequest request, CancellationToken cancellationToken = default)
     {
         request.Validate();
+        if(request.MobileReleaseProfile=="AndroidAppDistribution")
+        {
+            await using var compatibility=_db.CreateCommand("""
+                SELECT EXISTS(SELECT 1 FROM pg_catalog.pg_trigger
+                    WHERE tgrelid='platform_provisioning.jobs'::regclass AND tgname='enforce_job_requirements_v1'
+                    AND NOT tgisinternal AND tgenabled IN ('O','A'))
+                """);
+            if(await compatibility.ExecuteScalarAsync(cancellationToken) is not true)
+                throw new InvalidOperationException("Initialize the mobile-aware queue schema with its owner before enabling signed enrollment.");
+        }
         await using var cmd = _db.CreateCommand("""
             INSERT INTO platform_provisioning.jobs(tenant_id,slug,request)
             VALUES($1,$2,$3::jsonb) ON CONFLICT DO NOTHING
@@ -49,7 +89,10 @@ public sealed class PostgresProvisioningQueue : IProvisioningQueue, IAsyncDispos
         cmd.Parameters.AddWithValue(JsonSerializer.Serialize(request));
         await cmd.ExecuteNonQueryAsync(cancellationToken);
         var job = await GetAsync(request.TenantId, cancellationToken);
-        if (job == null || job.Request != request) throw new ProvisioningConflictException();
+        // Legacy jobs omitted the disabled mobile policy. Equivalent disabled replays preserve the old request unchanged.
+        if (job == null || (job.Request with { MobileReleaseProfile = null }) != (request with { MobileReleaseProfile = null }) ||
+            (job.Request.MobileReleaseProfile ?? "Disabled") != (request.MobileReleaseProfile ?? "Disabled"))
+            throw new ProvisioningConflictException();
         return job;
     }
 

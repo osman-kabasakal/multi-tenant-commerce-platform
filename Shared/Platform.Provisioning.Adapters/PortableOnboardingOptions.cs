@@ -45,9 +45,12 @@ public sealed class PortableOnboardingOptions : OnboardingInfrastructureOptions
     public string? IdentityRootCertificateFile { get; init; }
     public string? IngressRootCertificateFile { get; init; }
     public string InstallerEnvironment { get; private set; } = "Production";
+    public string MobileReleaseProvider { get; private set; } = "Disabled";
 
     public void Validate(string environment, IConfiguration config)
     {
+        MobileReleaseProvider=config["Provisioning:Mobile:Provider"]??"Disabled";
+        if(MobileReleaseProvider is not ("Disabled" or "AndroidAppDistribution"))throw new InvalidOperationException("Unsupported mobile provisioning provider.");
         if (config.GetValue<bool>("LocalDemo:Enabled") || environment is not ("Production" or "Staging" or "Development"))
             throw new InvalidOperationException("Portable onboarding requires an explicit deployment environment with LocalDemo disabled.");
         if (config["PlatformSecurity:Provider"] is not ("AesGcm" or "Azure"))
@@ -115,6 +118,7 @@ public static class PortableOnboarding
         services.AddScoped<IProvisioningStep,StoreInstallerStep>();services.AddScoped<IProvisioningStep,KeycloakTenantStep>();
         if (google=="Google") services.AddScoped<IProvisioningStep,GoogleTenantStep>();
         services.AddScoped<IProvisioningStep,TenantDomainStep>();services.AddScoped<IProvisioningStep,PortableTenantPublicationStep>();
+        services.AddAndroidReleases(config,environment);
         return services;
     }
 }

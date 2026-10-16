@@ -61,24 +61,11 @@ public sealed class FirebaseAppDistribution(GoogleRestClient api, GoogleCloudOpt
     public async Task<string> UploadAndDistributeAsync(TenantFirebaseConfiguration tenant, string platform,
         string binaryPath, CancellationToken ct = default)
     {
-        options.Validate();
-        FirebaseConfigValidator.Validate(tenant);
-        if (tenant.ProjectId != options.ProjectId(tenant.TenantId) || tenant.DistributionGroupAlias != options.DistributionGroupAlias)
-            throw new InvalidOperationException("App Distribution target belongs to another deployment.");
-        var app = platform switch { "android" => tenant.AndroidAppId, "ios" => tenant.IosAppId, _ => throw new ArgumentException("Choose android or ios.") };
-        if (!Regex.IsMatch(tenant.ProjectNumber, "^[1-9][0-9]*$") ||
-            !Regex.IsMatch(app, "^1:" + tenant.ProjectNumber + ":" + platform + ":[A-Za-z0-9]+$"))
-            throw new InvalidOperationException("Invalid App Distribution application identity.");
-        var extension = platform == "android" ? ".apk" : ".ipa";
-        if (!Path.GetExtension(binaryPath).Equals(extension, StringComparison.OrdinalIgnoreCase))
+        var extension = platform switch { "android"=>".apk", "ios"=>".ipa", _=>throw new ArgumentException("Choose android or ios.") };
+        if (!Path.GetExtension(binaryPath).Equals(extension,StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Supply an APK for Android or a signed IPA for iOS.");
-        var project = (await api.SendAsync(GoogleApi.ResourceManager, HttpMethod.Get, "v3/projects/" + tenant.ProjectId, null, ct))!;
-        if (project["labels"]?["platform-tenant"]?.GetValue<string>() != tenant.TenantId ||
-            project["labels"]?["platform-deployment"]?.GetValue<string>() != options.DeploymentId ||
-            project["parent"]?.GetValue<string>() != options.Parent || project["state"]?.GetValue<string>() != "ACTIVE" ||
-            project["name"]?.GetValue<string>() != "projects/" + tenant.ProjectNumber)
-            throw new InvalidOperationException("App Distribution project ownership changed.");
-        var appResource = $"projects/{tenant.ProjectNumber}/apps/{app}";
+        var appResource=TargetApp(tenant,platform);
+        await VerifyProjectAsync(tenant,ct);
         await using var stream = File.OpenRead(binaryPath);
         using var content = new StreamContent(stream);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
@@ -96,4 +83,34 @@ public sealed class FirebaseAppDistribution(GoogleRestClient api, GoogleCloudOpt
             new { groupAliases = new[] { tenant.DistributionGroupAlias } }, ct);
         return name;
     }
+    private string TargetApp(TenantFirebaseConfiguration tenant,string platform)
+    {
+        options.Validate();FirebaseConfigValidator.Validate(tenant);
+        if(tenant.ProjectId!=options.ProjectId(tenant.TenantId) || tenant.DistributionGroupAlias!=options.DistributionGroupAlias)
+            throw new InvalidOperationException("App Distribution target belongs to another deployment.");
+        var app=platform switch {"android"=>tenant.AndroidAppId,"ios"=>tenant.IosAppId,_=>throw new ArgumentException("Choose android or ios.")};
+        if(!Regex.IsMatch(tenant.ProjectNumber,"^[1-9][0-9]*$") || !Regex.IsMatch(app,"^1:"+tenant.ProjectNumber+":"+platform+":[A-Za-z0-9]+$"))
+            throw new InvalidOperationException("Invalid App Distribution application identity.");
+        return $"projects/{tenant.ProjectNumber}/apps/{app}";
+    }
+    private async Task VerifyProjectAsync(TenantFirebaseConfiguration tenant,CancellationToken ct)
+    {
+        var project=(await api.SendAsync(GoogleApi.ResourceManager,HttpMethod.Get,"v3/projects/"+tenant.ProjectId,null,ct))!;
+        if(project["labels"]?["platform-tenant"]?.GetValue<string>()!=tenant.TenantId ||
+            project["labels"]?["platform-deployment"]?.GetValue<string>()!=options.DeploymentId ||
+            project["parent"]?.GetValue<string>()!=options.Parent || project["state"]?.GetValue<string>()!="ACTIVE" ||
+            project["name"]?.GetValue<string>()!="projects/"+tenant.ProjectNumber)
+            throw new InvalidOperationException("App Distribution project ownership changed.");
+    }
+    public async Task VerifyReleaseAsync(TenantFirebaseConfiguration tenant,string platform,string name,string expectedBuildVersion,CancellationToken ct=default)
+    {
+        var app=TargetApp(tenant,platform);
+        if(!Regex.IsMatch(name,"^"+Regex.Escape(app)+"/releases/[a-zA-Z0-9_-]+$") || !Regex.IsMatch(expectedBuildVersion,"^[0-9]{1,10}$"))
+            throw new InvalidOperationException("Cached App Distribution release belongs to another target.");
+        await VerifyProjectAsync(tenant,ct);
+        var release=(await api.SendAsync(GoogleApi.Distribution,HttpMethod.Get,"v1/"+name,null,ct))!;
+        if(release["name"]?.GetValue<string>()!=name || release["buildVersion"]?.GetValue<string>()!=expectedBuildVersion)
+            throw new InvalidOperationException("Cached App Distribution release version or ownership changed.");
+    }
+
 }
