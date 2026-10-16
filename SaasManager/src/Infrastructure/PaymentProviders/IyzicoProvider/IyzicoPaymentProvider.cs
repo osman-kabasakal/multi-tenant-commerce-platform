@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Core.Models.Configs;
 using Core.Utilities;
@@ -55,6 +57,8 @@ public class IyzicoPaymentProvider : IPaymentProvider
     public string Code => "IYZICO";
     public PaymentProviderType Type => PaymentProviderType.CreditCard;
     public bool IsActive => true;
+    public string ConfigurationFingerprint => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+        "iyzico/v1/" + (_isSandbox ? "sandbox/" : "live/") + _apiKey))).ToLowerInvariant();
 
     public IyzicoPaymentProvider(
         IApplicationDbContext context,
@@ -143,10 +147,12 @@ public class IyzicoPaymentProvider : IPaymentProvider
     }
     private static bool Success(string? status) => string.Equals(status, "success", StringComparison.OrdinalIgnoreCase);
     private static bool Reference(string? value) => Guid.TryParseExact(value, "D", out var id) && id != Guid.Empty;
-    private static PaymentResponse Rejected() => new() { IsSuccess = false, ErrorMessage = "Subscription payment could not be verified." };
+    private static PaymentResponse Rejected(PaymentInitializationOutcome outcome = PaymentInitializationOutcome.NotSubmitted) =>
+        new() { IsSuccess = false, InitializationOutcome = outcome, ErrorMessage = "Subscription payment could not be verified." };
 
     public async Task<PaymentResponse> ProcessPaymentAsync(BusinessSubscription subscription, CardData cardModel)
     {
+        var submitted = false;
         try
         {
             var options = MerchantOptions();
@@ -178,17 +184,20 @@ public class IyzicoPaymentProvider : IPaymentProvider
                 PaymentCard = new CardInfo { CardNumber = cardModel.Number, CardHolderName = cardModel.CardHolderName,
                     ExpireMonth = cardModel.ExpiryMonth, ExpireYear = year, Cvc = cardModel.Cvv, RegisterConsumerCard = true }
             };
+            submitted = true;
             var response = _subscriptions.Initialize(request, options);
             var data = response.Data;
-            if (!Success(response.Status) || data == null || !Reference(data.ReferenceCode) ||
-                data.PricingPlanReferenceCode != plan.Code || data.SubscriptionStatus != "PENDING" || !Reference(data.CustomerReferenceCode))
-                return Rejected();
-            return new PaymentResponse { IsSuccess = true, PaymentId = data.ReferenceCode, RawResult = JsonSerializer.Serialize(data) };
+            if (!Success(response.Status)) return Rejected(response.Status == "failure" && string.IsNullOrEmpty(data?.ReferenceCode)
+                ? PaymentInitializationOutcome.Rejected : PaymentInitializationOutcome.Unknown);
+            if (data == null || !Reference(data.ReferenceCode) || data.PricingPlanReferenceCode != plan.Code ||
+                data.SubscriptionStatus != "PENDING" || !Reference(data.CustomerReferenceCode)) return Rejected(PaymentInitializationOutcome.Unknown);
+            return new PaymentResponse { IsSuccess = true, InitializationOutcome = PaymentInitializationOutcome.Initialized,
+                PaymentId = data.ReferenceCode, RawResult = JsonSerializer.Serialize(data) };
         }
         catch (Exception error)
         {
             _logger.LogError("Iyzico subscription initialization failed ({ErrorType}).", error.GetType().Name);
-            return Rejected();
+            return Rejected(submitted ? PaymentInitializationOutcome.Unknown : PaymentInitializationOutcome.NotSubmitted);
         }
     }
 

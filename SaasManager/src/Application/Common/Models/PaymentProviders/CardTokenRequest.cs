@@ -10,9 +10,12 @@ public class CardTokenRequest
 }
 
 
+public enum PaymentInitializationOutcome { Unknown, NotSubmitted, Rejected, Initialized }
+
 public class PaymentResponse
 {
     public bool IsSuccess { get; set; }
+    public PaymentInitializationOutcome InitializationOutcome { get; set; }
     public string? PaymentId { get; set; }
     public string? ErrorMessage { get; set; }
     public string? RawResult { get; set; }

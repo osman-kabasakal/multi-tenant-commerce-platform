@@ -96,7 +96,8 @@ class ProductionConfigTests(unittest.TestCase):
         plan['TrialPlan']['Code'] = '22222222-2222-2222-2222-222222222222'
         state = self.root / 'payment-state'; original = config.prepare(plan, state, 'commerce-platform:fixture')
         saas = json.loads((state / 'config/saas.json').read_text())
-        self.assertEqual(saas['Payments'], plan['Providers']['Payments'])
+        self.assertEqual({k: v for k, v in saas['Payments'].items() if k != 'ExclusiveSessionConfirmed'}, plan['Providers']['Payments'])
+        self.assertTrue(saas['Payments']['ExclusiveSessionConfirmed'])
         self.assertEqual(saas['CardProtection']['Provider'], 'Platform')
         self.assertEqual((state / 'config/saas.json').stat().st_mode & 0o777, 0o600)
         for file in (state / 'config').iterdir():

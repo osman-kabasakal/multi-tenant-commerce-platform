@@ -517,6 +517,7 @@ public static class DependencyInjection
 
         builder.Services.AddScoped<IPaymentProvider, IyzicoPaymentProvider>();
         builder.Services.AddScoped<IPaymentProviderFactory, PaymentProviderFactory>();
+        builder.Services.AddScoped<IPaymentAttemptLock, PostgresPaymentAttemptLock>();
 
         builder.Services.AddFileStorage(builder.Configuration,builder.Environment.ContentRootPath);
 

@@ -81,6 +81,9 @@ jobs:
         run: python3 scripts/demo.py up
       - name: Verify distributed secret storage
         run: python3 scripts/test_distributed_security.py
+      - name: Verify cross-process payment locking and encrypted receipt recovery
+        working-directory: SaasManager
+        run: dotnet run --project ../tests/Payments.Integration/Payments.Integration.csproj -c Release -- ../.local/saas.json
       - name: Check durable tenant provisioning and worker recovery
         run: dotnet run --project tests/Provisioning.Integration/Provisioning.Integration.csproj -c Release -- .local/saas.json
       - name: Build tenant worker with shared security

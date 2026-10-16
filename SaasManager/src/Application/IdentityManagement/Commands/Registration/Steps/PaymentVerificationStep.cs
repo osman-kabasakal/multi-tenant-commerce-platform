@@ -32,7 +32,8 @@ public class PaymentVerificationStep(
     ISender sender,
     IMediator mediator,
     ITenantSecrets tenantSecrets,
-    IConfiguration configuration)
+    IConfiguration configuration,
+    IPaymentAttemptLock paymentAttemptLock)
     : BaseRegistrationStep<PaymentSetupState>(context, workContext, logger)
 {
     public override string StepKey => nameof(PaymentSetupState);
@@ -67,126 +68,88 @@ public class PaymentVerificationStep(
         RegistrationCommand command,
         CancellationToken cancellationToken)
     {
-        // Mevcut state'i bul veya yeni oluştur
-        var savedState = await _context.RegistrationStates
-            .OfType<PaymentSetupState>()
-            .FirstOrDefaultAsync(s =>
-                    s.GuestId == _workContext.GuestId &&
-                    s.IsActive,
-                cancellationToken);
-
-        if (savedState == null)
-        {
-            savedState = new PaymentSetupState(_workContext.GuestRegistration!);
-            await _context.PaymentSetupStates.AddAsync(savedState, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-
-            return GuestValidationResult.Failure(StepKey, "");
-        }
-
-        if (savedState.IsCompleted)
-        {
-            // Payment may have committed just before the queue became unavailable.
-            // Reconcile onboarding on replay without charging the subscription a second time.
-            if (configuration.GetValue<bool>("Provisioning:Enabled"))
-                await EnsureDurableProvisioningAsync(cancellationToken);
-            return GuestValidationResult.Success();
-        }
-
-        if (!command.Data.Any())
-        {
-            return CreateValidationError("", null);
-        }
-
-        var (isValid, errorMessage) = await ValidateRequiredFields(command.Data);
-        if (!isValid)
-        {
-            return CreateValidationError("Lütfen bilgilerinizi kontrol ederek tekrar deneyiniz!", errorMessage!);
-        }
-
         try
         {
-            var model = command.Data.BindToModel<CreditCardFormModel>();
+            var guest = _workContext.GuestRegistration ?? throw new InvalidOperationException("Registration owner is required.");
+            var businessId = guest.ConvertedBusinessId ?? throw new InvalidOperationException("Registration business is required.");
+            await using var lease = await paymentAttemptLock.TryAcquireAsync(businessId, cancellationToken);
+            if (lease == null) return CreateValidationError("Ödeme işleminiz başka bir istekte sürüyor. Lütfen bekleyip tekrar deneyiniz.");
+            // Read persisted completion under the exclusive lease; a previously tracked entity may be stale.
+            var completed = await _context.PaymentSetupStates.AsNoTracking().AnyAsync(s =>
+                s.GuestId == guest.Id && s.IsActive && !s.IsDeleted && s.CompletedAt.HasValue, cancellationToken);
+            if (completed)
+            {
+                if (configuration.GetValue<bool>("Provisioning:Enabled")) await EnsureDurableProvisioningAsync(cancellationToken);
+                return GuestValidationResult.Success();
+            }
+            var savedState = await _context.PaymentSetupStates.FirstOrDefaultAsync(s =>
+                s.GuestId == guest.Id && s.IsActive && !s.IsDeleted, cancellationToken);
+            if (savedState == null)
+            {
+                await _context.PaymentSetupStates.AddAsync(new PaymentSetupState(guest), cancellationToken);
+                await _context.SaveChangesAsync(cancellationToken);
+                return GuestValidationResult.Failure(StepKey, "");
+            }
+            var savedBusinessSubscription = await (
+                from selection in _context.SubscriptionSelectionStates
+                join selectedPlan in _context.SubscriptionPlans on selection.SelectedPlanId equals selectedPlan.Id
+                join subscription in _context.BusinessSubscriptions on selectedPlan.Id equals subscription.PlanId
+                where selection.GuestId == guest.Id && selection.IsActive && selection.CompletedAt.HasValue && !selection.IsDeleted &&
+                    subscription.BusinessId == businessId && !subscription.IsDeleted && subscription.IsActive &&
+                    subscription.Status == SubscriptionStatus.AwaitingPayment && selectedPlan.IsActive && !selectedPlan.IsDeleted
+                select subscription).SingleAsync(cancellationToken);
+            var plan = await _context.SubscriptionPlans.SingleAsync(p => p.Id == savedBusinessSubscription.PlanId, cancellationToken);
+            var business = await _context.Businesses.SingleAsync(b => b.Id == businessId && !b.IsDeleted, cancellationToken);
             var paymentProvider = paymentProviderFactory.GetDefaultProvider();
-            var cardModel = new CardData()
+            var journal = await SubscriptionPaymentJournal.OpenAsync(tenantSecrets, lease, guest.Id,
+                savedBusinessSubscription, plan, paymentProvider, cancellationToken);
+            if (journal.CurrentPhase == SubscriptionPaymentJournal.Phase.Initializing)
+                return CreateValidationError("Ödeme isteğinin sonucu belirsiz. Yeni işlem başlatılmadı; işletme desteğiyle ödeme kaydı kontrol edilmelidir.");
+            if (journal.CurrentPhase == SubscriptionPaymentJournal.Phase.Ready)
             {
-                CardHolderName = model.CardHolderName!,
-                Number = model.CardNumber!,
-                ExpiryMonth = model.ExpireMonth!,
-                ExpiryYear = model.ExpireYear!,
-                Cvv = model.Cvc!
-            };
-
-            if (!(await paymentProvider.ValidateCardAsync(cardModel)) ||
-                !(await cardDataProtector.ValidateAsync(cardModel)))
-            {
-                return CreateValidationError("Kartınız doğrulanamadı");
+                var (isValid, errors) = await ValidateRequiredFields(command.Data);
+                if (!isValid) return CreateValidationError("Lütfen bilgilerinizi kontrol ederek tekrar deneyiniz!", errors!);
+                var model = command.Data.BindToModel<CreditCardFormModel>();
+                var card = new CardData { CardHolderName = model.CardHolderName!, Number = model.CardNumber!,
+                    ExpiryMonth = model.ExpireMonth!, ExpiryYear = model.ExpireYear!, Cvv = model.Cvc! };
+                if (!await cardDataProtector.ValidateAsync(card) || !await paymentProvider.ValidateCardAsync(card))
+                    return CreateValidationError("Kartınız doğrulanamadı");
+                // This durable marker precedes the external call. The protector never persists CVV.
+                await journal.BeginAsync(await cardDataProtector.EncryptAsync(card), cancellationToken);
+                await lease.EnsureHeldAsync(cancellationToken);
+                var initialized = await paymentProvider.ProcessPaymentAsync(savedBusinessSubscription, card);
+                // Preserve a known result even if the browser disconnects while the provider is responding.
+                using var receiptTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                if (!await journal.RecordInitializationAsync(initialized, receiptTimeout.Token))
+                    return CreateValidationError("Ödeme doğrulanamadı. Sonuç belirsizse yeni abonelik oluşturulmaz.");
             }
-
-            var savedBusinessSubscription = await
-            (
-                from subscriptionSelectionState in _context.SubscriptionSelectionStates
-                join subscriptionPlan in _context.SubscriptionPlans on subscriptionSelectionState.SelectedPlanId equals
-                    subscriptionPlan.Id
-                join businessSubscription in _context.BusinessSubscriptions on subscriptionPlan.Id equals
-                    businessSubscription.PlanId
-                where subscriptionSelectionState.GuestId == _workContext.GuestRegistration!.Id &&
-                      subscriptionSelectionState.IsActive &&
-                      subscriptionSelectionState.CompletedAt.HasValue &&
-                      !subscriptionSelectionState.IsDeleted &&
-                      businessSubscription.BusinessId == _workContext.GuestRegistration!.ConvertedBusinessId &&
-                      !businessSubscription.IsDeleted && businessSubscription.IsActive &&
-                      businessSubscription.Status == SubscriptionStatus.AwaitingPayment &&
-                      subscriptionPlan.IsActive && !subscriptionPlan.IsDeleted
-                select businessSubscription
-            ).FirstAsync(cancellationToken);
-            
-            var business = await _context.Businesses.FirstAsync(x=>x.Id == savedBusinessSubscription.BusinessId, cancellationToken);
-
-            var subscriptionPayment = await paymentProvider.ProcessPaymentAsync(savedBusinessSubscription!, cardModel);
-            if (!subscriptionPayment.IsSuccess)
-            {
-                return CreateValidationError($"Ödeme doğrulama hatası: {subscriptionPayment.ErrorMessage}");
-            }
-
-            if (!(await paymentProvider.ActivateSubscriptionAsync(subscriptionPayment)))
-            {
-                return CreateValidationError("Aboneliğiniz aktifleştirilirken hata oluştu.");
-            }
-
-            var protectedCard = await cardDataProtector.EncryptAsync(cardModel);
-
-            var paymentMethod = new PaymentMethod(
-                _workContext.GuestRegistration!.ConvertedBusinessId!.Value,
-                paymentProvider.Id,
-                protectedCard.EncryptedNumber,
-                protectedCard.LastFourDigits,
-                protectedCard.CardType,
-                protectedCard.CardHolderName,
-                (dateTime.ParseISO8601(dateTime.FormatISO8601(new DateTime(
-                    int.Parse(DateTime.Now.Year.ToString().Substring(0, 2) + protectedCard.ExpiryYear),
-                    int.Parse(protectedCard.ExpiryMonth),
-                    1
-                ).AddMonths(1).AddDays(-1).ToIstanbulDateTime()))??dateTime.Now.AddYears(15)));
-            
+            var subscriptionPayment = journal.Receipt;
+            await lease.EnsureHeldAsync(cancellationToken);
+            // An existing receipt resumes the same provider subscription without resending card initialization.
+            if (!await paymentProvider.ActivateSubscriptionAsync(subscriptionPayment))
+                return CreateValidationError("Abonelik henüz doğrulanamadı. Tekrar denendiğinde aynı ödeme kaydı kontrol edilecek.");
+            using (var activeTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(15)))
+                await journal.RecordActiveAsync(activeTimeout.Token);
+            var protectedCard = journal.Card;
+            var year = int.Parse(protectedCard.ExpiryYear, System.Globalization.CultureInfo.InvariantCulture);
+            if (year < 100) year += 2000;
+            var expires = new DateTime(year, int.Parse(protectedCard.ExpiryMonth, System.Globalization.CultureInfo.InvariantCulture),
+                1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1).AddTicks(-1);
+            var paymentMethod = new PaymentMethod(businessId, paymentProvider.Id, protectedCard.EncryptedNumber,
+                protectedCard.LastFourDigits, protectedCard.CardType, protectedCard.CardHolderName, expires);
             paymentMethod.SetAsDefault();
             paymentMethod.RecordSuccessfulPayment(JsonDocument.Parse(JsonSerializer.Serialize(subscriptionPayment)));
-
             await _context.PaymentMethods.AddAsync(paymentMethod, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-
-
-            // Başarılı ön yetkilendirmeyi kaydet
-            _logger.LogInformation("Setting pre-auth details and completing registration state for GuestId: {GuestId}", _workContext.GuestId);
             savedState.SetPreAuthDetails(1.0m, subscriptionPayment.PaymentId!);
+            savedState.Complete();
             savedBusinessSubscription.UpdateStatus(SubscriptionStatus.Active);
             _context.BusinessSubscriptions.Update(savedBusinessSubscription);
-            savedState.Complete();
             _context.RegistrationStates.Update(savedState);
+            await lease.EnsureHeldAsync(cancellationToken);
+            // One EF transaction commits the payment method, subscription and registration completion together.
             await _context.SaveChangesAsync(cancellationToken);
             await mediator.Publish(new PaymentPreAuthCompletedEvent(savedState.GuestId, 1.0m, subscriptionPayment.PaymentId!), cancellationToken);
-            
-            
+
             _logger.LogInformation("Updating business status to UnderSetup - BusinessId: {BusinessId}, BusinessName: {BusinessName}", 
                 business.Id, business.Name);
                 
@@ -248,7 +211,7 @@ public class PaymentVerificationStep(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during payment verification for guest {GuestId}", _workContext.GuestId);
+            _logger.LogError("Payment verification failed for guest {GuestId} ({ErrorType}).", _workContext.GuestId, ex.GetType().Name);
             return CreateValidationError("Ödeme doğrulama sırasında bir hata oluştu");
         }
     }

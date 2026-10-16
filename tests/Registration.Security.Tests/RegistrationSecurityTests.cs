@@ -120,8 +120,8 @@ public class RegistrationSecurityTests
         var config=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?> { ["Provisioning:Enabled"]="true" }).Build();
         var step=new PaymentVerificationStep(db,Work(guest).Object,new Mock<IDateTime>().Object,
             NullLogger<PaymentVerificationStep>.Instance,protector.Object,payment.Object,
-            sender.Object,new Mock<IMediator>().Object,new Mock<ITenantSecrets>().Object,config);
-        await Assert.ThrowsExceptionAsync<IOException>(()=>step.ValidateAsync(new RegistrationCommand(),default));
+            sender.Object,new Mock<IMediator>().Object,new Mock<ITenantSecrets>().Object,config,new PaymentTestLock());
+        Assert.IsFalse((await step.ValidateAsync(new RegistrationCommand(),default)).IsValid);
         await step.ValidateAsync(new RegistrationCommand(),default);
         Assert.IsTrue(paymentState.IsCompleted);
         sender.Verify(x=>x.Send(It.Is<RegisterStoreCommand>(c=>c.BusinessId==business.Id),It.IsAny<CancellationToken>()),Times.Exactly(2));

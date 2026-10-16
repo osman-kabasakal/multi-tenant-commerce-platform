@@ -226,7 +226,10 @@ def render(p, state, record, image):
         GuestAuth={'Issuer': portal, 'Audience': portal, 'SecretKey': c['guest']}, redispublisher='redis:6379,password=' + c['redis'],
         Proxy=proxy([ip(10)]), Diagnostics={'DatabaseQueries': {'Enabled': False}})
     saas['Payments'] = copy.deepcopy(p['Providers'].get('Payments', {'Provider': 'Disabled'}))
-    if saas['Payments']['Provider'] == 'Iyzico': saas['CardProtection'] = {'Provider': 'Platform'}
+    if saas['Payments']['Provider'] == 'Iyzico':
+        saas['CardProtection'] = {'Provider': 'Platform'}
+        # This generated profile connects straight to its own PostgreSQL service.
+        saas['Payments']['ExclusiveSessionConfirmed'] = True
     if ca: saas['AuthConfiguration']['AuthorityRootCertificateFile'] = ca
     worker = copy.deepcopy(base)
     worker.update(PlatformSecurity=security('worker'), Provisioning={'Enabled': True, 'InitializeSchema': False, 'Profile': 'Portable',

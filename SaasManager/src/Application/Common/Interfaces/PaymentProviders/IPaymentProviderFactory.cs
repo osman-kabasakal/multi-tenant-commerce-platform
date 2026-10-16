@@ -20,6 +20,7 @@ public interface IPaymentProvider
     string Code { get; }
     PaymentProviderType Type { get; }
     bool IsActive { get; }
+    string ConfigurationFingerprint { get; }
     
     Task<CardTokenResponse> CreateCardTokenAsync(CardData request);
     Task<PaymentResponse> ProcessPaymentAsync(BusinessSubscription request, CardData cardModel);

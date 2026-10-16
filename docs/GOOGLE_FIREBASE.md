@@ -33,6 +33,16 @@ The provisioning identity needs these capabilities on the configured parent/new 
 
 The runtime sender is a separate, narrower identity. Configure it as `SenderServiceAccount`; enable the Firebase Cloud Messaging API in its sender project too. Run the eventual commerce sender using that identity's ADC credentials. It needs the per-target FCM role above, not project creation, IAM administration or service-account key creation. Commerce now uses this shared tenant sender. Select `Notifications:Provider=Fcm` on the commerce/admin hosts; runtime delivery uses the sender identity and does not require provisioning write options. See [NOTIFICATIONS.md](NOTIFICATIONS.md) for local capture, consent and verification limits.
 
+## Create the separate runtime FCM sender
+
+In the Google Cloud console, select the intended central sender project and open IAM & Admin → Service Accounts → Create service account. Use a dedicated ID such as `tenant-fcm-sender`. The resulting address is `tenant-fcm-sender@YOUR_SENDER_PROJECT.iam.gserviceaccount.com`. The optional project-role and service-account-user grants can remain empty: the worker grants this principal `roles/firebasecloudmessaging.admin` on each owned target tenant project. It does not need organization access, Project Creator, Owner or general Firebase administration to send those messages. Enable the Firebase Cloud Messaging API in the central sender project.
+
+For local/Linux file-based ADC, open this new account's Keys tab → Add key → Create new key → JSON. Keep the downloaded file outside the checkout with owner-only access; provide its path as `NotificationCredentialsFile` and its email as `Providers:Google:SenderServiceAccount` in the private deployment input. Select `Providers:Notifications:Provider=Fcm`. The existing provisioning credential remains a separate `GoogleCredentialsFile`. Workload Identity/attached identities can avoid a long-lived key in environments that support them; do not relax organization policy automatically to create one. Do not upload the key or paste its contents into a support conversation.
+
+Project creation is a different authorization: grant the provisioning principal `roles/resourcemanager.projectCreator` on the intended organization/folder parent. Giving a role only on an existing project does not authorize creating sibling tenant projects under its organization. Verify the exact parent with `check-access --parent ...` after IAM propagation. This check does not require granting organization-wide access to the runtime sender.
+
+Official steps: [create an account](https://docs.cloud.google.com/iam/docs/service-accounts-create), [create a JSON key](https://docs.cloud.google.com/iam/docs/keys-create-delete), [FCM authorization across projects](https://firebase.google.com/docs/cloud-messaging/send/v1-api).
+
 ## Check a specific service account without cloud writes
 
 Before selecting a provisioning target, run the management tool with an explicit service-account file. This command does not use the Firebase CLI login or fall back to another ADC identity. It reads the credential project, Firebase identity, API states, paginated Android/iOS app counts and App Distribution group count. It tests the selected permissions with Resource Manager `testIamPermissions`; those POST requests do not change policy.

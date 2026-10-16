@@ -169,17 +169,17 @@ public sealed class IyzicoSubscriptionTests
         Assert.AreEqual(string.Empty, value.ApiKey); Assert.AreEqual(string.Empty, value.SecretKey);
     }
     [DataTestMethod]
-    [DataRow(false)][DataRow(true)]
-    public async Task PaidRegistrationEnqueuesOnlyAfterConfirmedActivationAndDoesNotInitializeOnCompletedReplay(bool rejectActivation)
+    [DataRow(false, false)][DataRow(true, false)][DataRow(false, true)]
+    public async Task PaidRegistrationRequiresConfirmedActivationAndNeverReinitializesSavedAttempt(bool rejectActivation, bool unknownInitialization)
     {
-        await using var f = await Fixture.Create(true); f.Api.RejectActivation = rejectActivation;
+        await using var f = await Fixture.Create(true); f.Api.RejectActivation = rejectActivation; f.Api.ThrowInitialize = unknownInitialization;
         var selection = new SubscriptionSelectionState(f.Guest); selection.SelectPlan(f.Plan, false); selection.Complete();
         var state = new PaymentSetupState(f.Guest); f.Db.SubscriptionSelectionStates.Add(selection); f.Db.PaymentSetupStates.Add(state); await f.Db.SaveChangesAsync();
         var factory = new PaymentProviderFactory(f.Db, Microsoft.Extensions.Options.Options.Create(new IyzicoConfiguration {
             ApiKey = "synthetic-merchant-key", SecretKey = "synthetic-merchant-secret", IsSandbox = true }), [f.Provider], NullLogger<PaymentProviderFactory>.Instance);
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?> {
             ["Provisioning:Enabled"] = "true", ["Provisioning:Profile"] = "Portable" }).Build();
-        var secrets = new Mock<ITenantSecrets>(); var queue = new Mock<IProvisioningQueue>();
+        var secrets = PaymentTestLock.Secrets(); var queue = new Mock<IProvisioningQueue>();
         queue.Setup(q => q.EnqueueAsync(It.IsAny<TenantProvisioningRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((TenantProvisioningRequest request, CancellationToken _) => new ProvisioningJob(request, "Pending", 0,
                 new Dictionary<string,ProvisioningStepResult>(), null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
@@ -194,14 +194,30 @@ public sealed class IyzicoSubscriptionTests
             ExpiryMonth = "09", ExpiryYear = "34", KeyIdentifier = "fixture-key" });
         var clock = new Mock<IDateTime>(); clock.SetupGet(c => c.Now).Returns(DateTime.UtcNow);
         var step = new PaymentVerificationStep(f.Db, f.Work.Object, clock.Object, NullLogger<PaymentVerificationStep>.Instance,
-            card.Object, factory, sender.Object, new Mock<IMediator>().Object, secrets.Object, configuration);
+            card.Object, factory, sender.Object, new Mock<IMediator>().Object, secrets.Object, configuration, new PaymentTestLock());
+        f.Db.SavingChanges += (_, _) => {
+            if (f.Db.ChangeTracker.Entries<SaasManager.Domain.Entities.Financial.PaymentMethod>().Any(e => e.State == EntityState.Added))
+            {
+                Assert.IsTrue(state.IsCompleted, "Payment metadata cannot commit before registration completion.");
+                Assert.AreEqual(DomainSubscriptionStatus.Active, f.Subscription.Status);
+            }
+        };
         await step.ValidateAsync(new RegistrationCommand { Data = new Dictionary<string,object> { ["cardHolderName"] = "Synthetic Owner",
             ["cardNumber"] = Card().Number, ["expireMonth"] = "09", ["expireYear"] = "34", ["cvc"] = "123" } }, default);
-        Assert.AreEqual(!rejectActivation, state.IsCompleted);
-        Assert.AreEqual(rejectActivation ? DomainSubscriptionStatus.AwaitingPayment : DomainSubscriptionStatus.Active, f.Subscription.Status);
-        Assert.AreEqual(rejectActivation ? 0 : 1, await f.Db.PaymentMethods.CountAsync());
-        queue.Verify(q => q.EnqueueAsync(It.IsAny<TenantProvisioningRequest>(), It.IsAny<CancellationToken>()), rejectActivation ? Times.Never() : Times.Once());
-        Assert.AreEqual(1, f.Api.Initializations); Assert.AreEqual(1, f.Api.Activations);
+        Assert.AreEqual(!rejectActivation && !unknownInitialization, state.IsCompleted);
+        Assert.AreEqual(rejectActivation || unknownInitialization ? DomainSubscriptionStatus.AwaitingPayment : DomainSubscriptionStatus.Active, f.Subscription.Status);
+        Assert.AreEqual(rejectActivation || unknownInitialization ? 0 : 1, await f.Db.PaymentMethods.CountAsync());
+        queue.Verify(q => q.EnqueueAsync(It.IsAny<TenantProvisioningRequest>(), It.IsAny<CancellationToken>()), rejectActivation || unknownInitialization ? Times.Never() : Times.Once());
+        Assert.AreEqual(1, f.Api.Initializations);
+        if (unknownInitialization)
+        {
+            f.Api.ThrowInitialize = false;
+            Assert.IsFalse((await step.ValidateAsync(new RegistrationCommand(), default)).IsValid);
+            Assert.AreEqual(1, f.Api.Initializations); Assert.AreEqual(0, f.Api.Activations);
+            card.Verify(c => c.ValidateAsync(It.IsAny<CardData>()), Times.Once());
+            return;
+        }
+        Assert.AreEqual(1, f.Api.Activations);
         if (!rejectActivation)
         {
             await step.ValidateAsync(new RegistrationCommand(), default);
@@ -209,7 +225,14 @@ public sealed class IyzicoSubscriptionTests
             Assert.AreEqual(1, await f.Db.PaymentMethods.CountAsync());
             queue.Verify(q => q.EnqueueAsync(It.IsAny<TenantProvisioningRequest>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
         }
-        else secrets.VerifyNoOtherCalls();
+        else
+        {
+            f.Api.RejectActivation = false;
+            Assert.IsTrue((await step.ValidateAsync(new RegistrationCommand(), default)).IsValid,
+                "A saved provider receipt must resume without receiving card data again.");
+            Assert.IsTrue(state.IsCompleted); Assert.AreEqual(1, f.Api.Initializations);
+            Assert.AreEqual(1, await f.Db.PaymentMethods.CountAsync());
+        }
     }
     private static CardData Card() => new() { Number = "1111222233334444", Cvv = "123", ExpiryMonth = "09", ExpiryYear = "34", CardHolderName = "Synthetic Owner" };
     internal sealed class Fixture : IAsyncDisposable

@@ -18,6 +18,7 @@ Standalone SaaS hosts use this private settings shape:
 {
   "Payments": {
     "Provider": "Iyzico",
+    "ExclusiveSessionConfirmed": true,
     "Iyzico": {
       "IsSandbox": true,
       "ApiKey": "YOUR_PRIVATE_MERCHANT_API_KEY",
@@ -27,6 +28,8 @@ Standalone SaaS hosts use this private settings shape:
   "CardProtection": { "Provider": "Platform" }
 }
 ```
+
+Paid registration additionally requires the shared `PlatformSecurity:ConnectionString` PostgreSQL database and encrypted tenant secret store. Every SaaS replica must use the same database, master encryption identity and merchant configuration. `ExclusiveSessionConfirmed=true` is an operator assertion that this connection goes directly to PostgreSQL or through a session pool; transaction/statement pooling is incompatible with the payment session lock. Leave it unset if that has not been verified. The generated Linux profile uses its own direct PostgreSQL service and sets it automatically. The payment lock does not depend on the SaaS relational database provider.
 
 Keep this file outside Git with owner-only permissions, or supply its corresponding `Payments__*` environment variables. Select the shared AesGcm or optional Azure card protector using the existing [SaaS provider configuration](SAAS_PROVIDERS.md). Explicit `Payments:Provider=Disabled` disables merchant credentials even if old values remain in the input. Development alone can still read legacy `Dev:Iyzico` credentials when no explicit provider was selected; Production/Staging never fall back to them. Sandbox selects the real sandbox API and requires its actual account/response; it is not a simulated successful payment.
 
@@ -40,13 +43,27 @@ Both sandbox and live modes follow the same SDK flow: read/check the merchant pl
 
 An active subscription with trial days may only have completed card authorization; it is not proof of a captured full subscription charge. See iyzico's [subscription behavior](https://docs.iyzico.com/en/products/subscription/subscription-implementation/subscription-transactions). A completed local payment-setup replay reconciles its original provisioning request without initializing another provider subscription. Replaying activation for an already active provider resource verifies it without a second activation call.
 
-The initialization call and local database commit are not one distributed transaction. A timeout/process loss before the local completion marker can leave a provider-side subscription whose outcome needs merchant reconciliation. Do not repeatedly resubmit initialization after an ambiguous outcome; inspect the merchant's subscription list and reconcile the saved state first. Automatic reconciliation of that ambiguous window, concurrent payment submissions, recurring-payment webhooks and real sandbox/live acceptance remain outstanding. Conversation IDs correlate requests; they are not claimed as provider idempotency keys. No real merchant API key or charge was used for the contract tests.
+## Distributed attempts and interruption recovery
+
+A dedicated PostgreSQL advisory session lock serializes payment work for each canonical business across SaaS processes. An overlapping request receives a busy response before card validation or initialization. Other businesses use different locks. A process disconnect releases the session; this is not a timestamp lease that silently expires while a merchant call is still running. The connection is checked before external calls, progress writes and local completion. No SQL transaction remains open during merchant HTTP calls.
+
+The shared encrypted tenant secret store retains `subscription-payment-<business-subscription-id>` with a versioned contract identity: business, registration owner, subscription, local/merchant plan, agreed amount, trial/period, provider ID, merchant mode and hashed API-key fingerprint. It never contains a raw PAN or CVV. Card metadata is protected by the configured card protector before it enters this encrypted record. Changing ownership, pricing reference, amount or merchant identity refuses automatic replay and requires explicit reconciliation. Do not delete these records to force another attempt. Include the original secret database and encryption material in backups.
+
+Progress is `Ready → Initializing → Initialized → Active`. The `Initializing` marker commits before the provider request. A complete known provider receipt commits before activation. Later requests with an existing receipt re-read/activate the same provider subscription without receiving the card again. The payment method, local subscription activation and registration completion then commit together in a single EF transaction. If that commit or subsequent queueing fails, the retained provider receipt or completed registration drives the next request.
+
+An explicit provider rejection with no created reference, or validation failure before submission, can return to `Ready` for corrected card input. A timeout, unexpected response, lost session, or process loss before the receipt was saved leaves `Initializing`. A later request refuses to initialize again. This deliberately favors manual recovery over an accidental duplicate subscription. Known activation failures retain their original receipt for retry.
+
+The initialization call and local database commit are not one distributed transaction. A timeout/process loss before the local completion marker can leave a provider-side subscription whose outcome needs merchant reconciliation. Do not repeatedly resubmit initialization after an ambiguous outcome; inspect the merchant's subscription list and reconcile the saved state first. There is no automatic adoption/reset of an ambiguous initialization: an operator must verify the original merchant account, request correlation, customer, pricing plan, subscription reference and any authorization/capture before an explicitly reviewed repair. No generic secret-edit endpoint or customer-controlled reference can approve that repair. A supported operator reconciliation command, recurring-payment webhooks and real sandbox/live acceptance remain outstanding. Conversation IDs correlate requests; they are not claimed as provider idempotency keys. No real merchant API key or charge was used for the contract tests.
 
 ## Checks without an external account
 
 ```sh
 (cd SaasManager && dotnet test ../tests/Registration.Security.Tests/Registration.Security.Tests.csproj -c Release)
 python3 -m unittest discover -s scripts -p 'test_production_*.py' -v
+# Requires the demo's already-running PostgreSQL; creates and drops only a unique fixture database.
+(cd SaasManager && dotnet run --project ../tests/Payments.Integration/Payments.Integration.csproj -c Release -- ../.local/saas.json)
 ```
 
 The tests use the real application/provider/registration handlers and replace only the iyzico SDK boundary. They verify server entitlement, pending-to-active transition, price/identity checks, explicit mode/configuration, provider failures, metadata without credential copies, and successful-payment replay into the ordinary provisioning handler. They do not prove SDK transport, merchant acceptance or recurring settlement. A configured real merchant and the complete actual SaaS signup/payment UI still need separate acceptance.
+
+The PostgreSQL integration fixture also runs independent .NET processes against a unique disposable database. It checks same-business exclusion, other-business independence, encrypted receipt recovery by a fresh process, normal session release and release after process termination. It performs no merchant HTTP requests. Contract tests alone do not establish this cross-process behavior; the CI integration step must pass too.
