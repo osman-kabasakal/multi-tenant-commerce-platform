@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Platform.Google;
 using Platform.Provisioning;
@@ -43,7 +44,7 @@ if(args.Length>1 && args[1]=="resume-worker")
     services.AddSingleton(new FirebaseAppDistribution(new GoogleRestClient(new HttpClient(childFixture.Server,disposeHandler:false),new AndroidToken()),childFixture.Google));
     services.AddScoped<AndroidReleasePipeline>();services.AddScoped<IProvisioningGuard,AndroidReleaseGuard>();services.AddScoped<IProvisioningStep,AndroidReleaseStep>();
     using var provider=services.BuildServiceProvider();
-    var worker=new ProvisioningWorker(childQueue,provider.GetRequiredService<IServiceScopeFactory>(),new(){LeaseDuration=TimeSpan.FromSeconds(3),MaxAttempts=1},NullLogger<ProvisioningWorker>.Instance);
+    var worker=new ProvisioningWorker(childQueue,provider.GetRequiredService<IServiceScopeFactory>(),new(){LeaseDuration=TimeSpan.FromSeconds(3),MaxAttempts=1},new IntegrationWorkerLogger());
     await worker.RunAsync(lease,default);var completed=(await childQueue.GetAsync(args[2]))!;
     Check(completed.State=="Succeeded" && builder.Builds==0,"An independent worker process finishes with the stored APK and no rebuild or in-memory signing/build state.");
     var result=Path.GetFullPath(args[3]);
@@ -86,13 +87,14 @@ ServiceProvider WorkerProvider(ITenantSecrets store,IAndroidReleaseBuilder build
 }
 async Task RunAsync(ServiceProvider provider,ProvisioningLease lease)
 {
-    var worker=new ProvisioningWorker(queue,provider.GetRequiredService<IServiceScopeFactory>(),new(){LeaseDuration=TimeSpan.FromSeconds(3),MaxAttempts=1},NullLogger<ProvisioningWorker>.Instance);
+    var worker=new ProvisioningWorker(queue,provider.GetRequiredService<IServiceScopeFactory>(),new(){LeaseDuration=TimeSpan.FromSeconds(3),MaxAttempts=1},new IntegrationWorkerLogger());
     await worker.RunAsync(lease,default);
 }
 await SeedAsync(request,fixture.Firebase,secrets);
 var builder1=new NativeFixtureBuilder(options){HoldBuild=true};fixture.Server.FailUploadOnce=true;
 using(var worker=WorkerProvider(secrets,builder1))await RunAsync(worker,await ClaimPreparedAsync(request,fixture.Firebase));
 var failed=(await queue.GetAsync(request.TenantId))!;
+Console.WriteLine($"Native worker outcome: state={failed.State}; error={failed.ErrorCode??"none"}; builds={builder1.Builds}; uploads={fixture.Server.Uploads}");
 Check(failed.State=="Failed" && failed.ErrorCode=="mobile-android-release:GoogleApiException","A real worker persists a safe retryable mobile failure after the synthetic provider outage.");
 Check(builder1.Builds==1 && !failed.Steps.ContainsKey("mobile-android-release"),"A long native signing fixture retains its three-second lease and never checkpoints a failed release.");
 var key1=await new TenantAndroidSigningKeys(secrets,new KeytoolAndroidSigningKeyFactory(options)).ReadAsync(request.TenantId,fixture.Firebase.AndroidPackageName,default);
@@ -171,6 +173,19 @@ internal sealed class NativeFixtureBuilder(AndroidReleaseOptions options) : IAnd
         foreach(var argument in arguments)start.ArgumentList.Add(argument);
         if(password!=null)start.Environment["PLATFORM_NATIVE_SIGNING_PASSWORD"]=password;
         using var process=Process.Start(start)!;var output=process.StandardOutput.ReadToEndAsync();var errors=process.StandardError.ReadToEndAsync();await process.WaitForExitAsync(ct);await output;await errors;
-        if(process.ExitCode!=0)throw new InvalidOperationException("Synthetic native fixture tool failed.");
+        if(process.ExitCode!=0)
+        {
+            var detail=(await output)+(await errors);
+            var category=new[]{"UnsupportedClassVersionError","GLIBC_","OutOfMemoryError","Permission denied","Unable to access jarfile","Failed to load signer","Error parsing"}.FirstOrDefault(value=>detail.Contains(value,StringComparison.Ordinal))??"Other";
+            Console.WriteLine($"Native tool failure: tool={Path.GetFileName(executable)}; version={new DirectoryInfo(Path.GetDirectoryName(executable)!).Name}; exit={process.ExitCode}; category={category}");
+            throw new InvalidOperationException("Synthetic native fixture tool failed.");
+        }
     }
+}
+
+internal sealed class IntegrationWorkerLogger : ILogger<ProvisioningWorker>
+{
+    public IDisposable? BeginScope<TState>(TState state)where TState:notnull=>null;
+    public bool IsEnabled(LogLevel level)=>true;
+    public void Log<TState>(LogLevel level,EventId eventId,TState state,Exception? error,Func<TState,Exception?,string> formatter)=>Console.WriteLine("Worker: "+formatter(state,error));
 }
