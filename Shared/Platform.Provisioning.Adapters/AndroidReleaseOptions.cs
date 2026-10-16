@@ -10,6 +10,13 @@ namespace Platform.Provisioning.Adapters;
 
 public sealed class AndroidReleaseOptions
 {
+    public const string BuildToolsVersion="35.0.0";
+    public string BuildToolPath(string tool)
+    {
+        if(tool is not ("aapt2" or "apksigner"))throw new ArgumentException("Unsupported Android verification tool.");
+        var suffix=OperatingSystem.IsWindows()?(tool=="apksigner"?".bat":".exe"):"";
+        return Path.Combine(AndroidSdkDirectory,"build-tools",BuildToolsVersion,tool+suffix);
+    }
     public bool AllowSigningKeyCreation { get; init; }
     public bool SharedArtifactsConfirmed { get; init; }
     public string SourceDirectory { get; init; } = "";
@@ -38,8 +45,8 @@ public sealed class AndroidReleaseOptions
         if (!Path.IsPathFullyQualified(SourceDirectory) || !File.Exists(Script) ||
             !File.Exists(Path.Combine(SourceDirectory,"Platforms/store_user_app/pubspec.lock")) ||
             !File.Exists(Path.Combine(SourceDirectory,"Platforms/store_user_app/lib/core/config/tenant_firebase_identity.dart")) ||
-            !Path.IsPathFullyQualified(AndroidSdkDirectory) || !Directory.Exists(Path.Combine(AndroidSdkDirectory,"build-tools")))
-            throw new InvalidOperationException("Configure the compatible mobile source checkout and installed Android SDK.");
+            !Path.IsPathFullyQualified(AndroidSdkDirectory) || !File.Exists(BuildToolPath("aapt2")) || !File.Exists(BuildToolPath("apksigner")))
+            throw new InvalidOperationException("Configure the compatible mobile source checkout and pinned Android build-tools 35.0.0.");
         MobileReleaseFiles.PrivateDirectory(WorkingDirectory);MobileReleaseFiles.PrivateDirectory(ArtifactDirectory);
         foreach(var path in new[]{WorkingDirectory,ArtifactDirectory})
             if (Path.GetFullPath(path)==Path.GetFullPath(SourceDirectory) || SourceDirectory.StartsWith(Path.GetFullPath(path)+Path.DirectorySeparatorChar,StringComparison.Ordinal))

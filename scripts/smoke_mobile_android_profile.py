@@ -20,8 +20,8 @@ def verify_apk_boundary(probe, tenant, sdk, environment, log_path):
     android_manifest = fixture / 'AndroidManifest.xml'
     android_manifest.write_text('<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.tenantapp" android:versionCode="23" android:versionName="1.0"><uses-sdk android:minSdkVersion="23"/><application android:label="Synthetic fixture"/></manifest>')
     sdk = Path(sdk)
-    platform_jars = sorted((sdk / 'platforms').glob('android-*/android.jar'), key=lambda p: int(p.parent.name.split('-')[-1]) if p.parent.name.split('-')[-1].isdigit() else 0, reverse=True)
-    if not platform_jars: raise ValueError('Install an Android SDK platform.')
+    platform_jars = [sdk / 'platforms/android-35/android.jar']
+    if not platform_jars[0].is_file(): raise ValueError('Install an Android SDK platform.')
     unsigned = fixture / 'unsigned.apk'; signed = fixture / 'signed.apk'; keystore = fixture / 'fixture.p12'
     signing_env = dict(environment, PLATFORM_SYNTHETIC_SIGNING_PASSWORD='synthetic-fixture-only')
     java_home = os.environ.get('JAVA_HOME')

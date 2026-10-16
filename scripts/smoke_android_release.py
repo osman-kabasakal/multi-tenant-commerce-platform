@@ -34,8 +34,8 @@ def main():
     parser.add_argument('--android-sdk', default=os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT'))
     parser.add_argument('--keytool', type=Path, default=Path(os.environ['JAVA_HOME']) / 'bin/keytool' if os.environ.get('JAVA_HOME') else Path(shutil.which('keytool') or ''))
     args = parser.parse_args()
-    if not args.android_sdk or not (Path(args.android_sdk) / 'build-tools').is_dir() or not args.keytool.is_file():
-        parser.error('Install Android build-tools/platforms and JDK keytool, then supply --android-sdk/--keytool.')
+    if not args.android_sdk or not (Path(args.android_sdk) / 'build-tools/35.0.0').is_dir() or not (Path(args.android_sdk) / 'platforms/android-35/android.jar').is_file() or not args.keytool.is_file():
+        parser.error('Install Android build-tools 35.0.0, platform android-35 and JDK keytool, then supply --android-sdk/--keytool.')
     os.umask(0o077)
     identity = uuid.uuid4().hex
     fixture = ROOT / '.local' / ('android-release-integration-' + identity[:10]); fixture.mkdir(parents=True, mode=0o700)

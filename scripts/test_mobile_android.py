@@ -61,6 +61,26 @@ class IdentityTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError): mobile.validate(manifest, client, android)
 
 
+class SdkToolTests(unittest.TestCase):
+    def test_verification_uses_the_pinned_build_tools_even_when_newer_versions_exist(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            sdk = Path(temporary)
+            for version in [mobile.BUILD_TOOLS_VERSION, '37.0.0']:
+                for name in ['aapt2', 'apksigner']:
+                    suffix = ('.bat' if name == 'apksigner' else '.exe') if os.name == 'nt' else ''
+                    path = sdk / 'build-tools' / version / (name + suffix)
+                    path.parent.mkdir(parents=True, exist_ok=True); path.write_text('Synthetic tool fixture')
+            for name in ['aapt2', 'apksigner']:
+                self.assertEqual(mobile.sdk_tool(sdk, name).parent.name, mobile.BUILD_TOOLS_VERSION)
+
+    def test_missing_pinned_tools_do_not_fall_back_to_an_unverified_version(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            sdk = Path(temporary)
+            path = sdk / 'build-tools/37.0.0/aapt2'; path.parent.mkdir(parents=True); path.write_text('Synthetic tool fixture')
+            with self.assertRaises(ValueError): mobile.sdk_tool(sdk, 'aapt2')
+            with self.assertRaises(ValueError): mobile.sdk_tool(sdk, '../foreign')
+
+
 class WorkspaceTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix='tenant-android-test-', dir=Path(tempfile.gettempdir()).resolve())

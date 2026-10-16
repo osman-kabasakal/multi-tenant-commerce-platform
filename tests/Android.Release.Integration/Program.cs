@@ -162,7 +162,7 @@ internal sealed class NativeFixtureBuilder(AndroidReleaseOptions options) : IAnd
             Console.WriteLine("Installed native build-tools versions: "+string.Join(",",tools.Select(Path.GetFileName)));
             foreach(var item in new[]{("apksigner",new[]{"verify","--verbose","--print-certs",path}),("aapt2",new[]{"dump","badging",path})})
             {
-                var start=new ProcessStartInfo(Path.Combine(tools[0],item.Item1)){UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true};
+                var start=new ProcessStartInfo(options.BuildToolPath(item.Item1)){UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true};
                 foreach(var argument in item.Item2)start.ArgumentList.Add(argument);
                 using var process=Process.Start(start)!;var output=process.StandardOutput.ReadToEndAsync();var errors=process.StandardError.ReadToEndAsync();
                 await process.WaitForExitAsync(ct);var text=(await output)+"\n"+(await errors);
@@ -180,13 +180,12 @@ internal sealed class NativeFixtureBuilder(AndroidReleaseOptions options) : IAnd
         var keystore=Path.Combine(root,"key.p12");await File.WriteAllBytesAsync(keystore,Convert.FromBase64String(key.KeyStoreBase64),ct);
         if(!OperatingSystem.IsWindows())File.SetUnixFileMode(keystore,UnixFileMode.UserRead|UnixFileMode.UserWrite);
         var manifest=Path.Combine(root,"AndroidManifest.xml");await File.WriteAllTextAsync(manifest,$"<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"{firebase.AndroidPackageName}\" android:versionCode=\"{plan.BuildNumber}\" android:versionName=\"1.0\"><uses-sdk android:minSdkVersion=\"23\"/><application android:label=\"Synthetic mobile queue fixture\"/></manifest>",ct);
-        var tools=Directory.GetDirectories(Path.Combine(options.AndroidSdkDirectory,"build-tools")).OrderByDescending(p=>p,StringComparer.Ordinal).First();
-        var androidJar=Directory.GetFiles(Path.Combine(options.AndroidSdkDirectory,"platforms"),"android.jar",SearchOption.AllDirectories).First();
+        var androidJar=Path.Combine(options.AndroidSdkDirectory,"platforms","android-35","android.jar");
         var unsigned=Path.Combine(root,"unsigned.apk");var signed=Path.Combine(root,"signed.apk");
         try
         {
-            await Run(Path.Combine(tools,"aapt2"),["link","-I",androidJar,"--manifest",manifest,"-o",unsigned],root,null,ct);
-            await Run(Path.Combine(tools,"apksigner"),["sign","--ks",keystore,"--ks-key-alias",key.KeyAlias,"--ks-pass","env:PLATFORM_NATIVE_SIGNING_PASSWORD","--key-pass","env:PLATFORM_NATIVE_SIGNING_PASSWORD","--out",signed,unsigned],root,key.Password,ct);
+            await Run(options.BuildToolPath("aapt2"),["link","-I",androidJar,"--manifest",manifest,"-o",unsigned],root,null,ct);
+            await Run(options.BuildToolPath("apksigner"),["sign","--ks",keystore,"--ks-key-alias",key.KeyAlias,"--ks-pass","env:PLATFORM_NATIVE_SIGNING_PASSWORD","--key-pass","env:PLATFORM_NATIVE_SIGNING_PASSWORD","--out",signed,unsigned],root,key.Password,ct);
             var bytes=await File.ReadAllBytesAsync(signed,ct);return new(signed,new(request.TenantId,firebase.AndroidPackageName,firebase.ProjectId,firebase.ProjectNumber,firebase.AndroidAppId,plan.StoreUrl,plan.BuildNumber,plan.SourceHash,key.CertificateSha256,Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()),root);
         }
         finally{File.Delete(keystore);}

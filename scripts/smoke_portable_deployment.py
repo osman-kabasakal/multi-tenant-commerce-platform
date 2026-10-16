@@ -46,6 +46,10 @@ def wait_process(process,predicate,label,seconds=90):
         time.sleep(.2)
     raise RuntimeError(label+' did not reach the expected state; inspect the private test logs.')
 
+def production_started(path):
+    text=path.read_text()
+    return 'Application started' in text and 'Hosting environment: Production' in text
+
 def stop(process):
     if process and process.poll() is None:
         os.killpg(process.pid,signal.SIGTERM)
@@ -135,7 +139,7 @@ def main():
             for name,path,port,dll in components:
                 directory=demo.LOCAL/'runtime'/name;log=root/(name+'.log');child_env=dict(env,ASPNETCORE_URLS=('https' if name in ('portable-gateway','saas') else 'http')+'://127.0.0.1:'+str(port),PlatformConfiguration__ConfigPath=str(path),Gateway__ConfigPath=str(path))
                 with log.open('w') as output:process=subprocess.Popen(['dotnet',str(directory/dll)],cwd=directory,env=child_env,stdout=output,stderr=subprocess.STDOUT,start_new_session=True)
-                children.append(process);wait_process(process,lambda path=log:'Application started' in path.read_text(),name+' Production host')
+                children.append(process);wait_process(process,lambda path=log:production_started(path),name+' Production host')
                 check('Hosting environment: Production' in log.read_text(),name+' confirms Production with LocalDemo disabled')
             native.stdin.write('provision\n');native.stdin.flush()
             if args.saas_enrollment:
@@ -188,7 +192,7 @@ def main():
             stop(children[1]);admin_log=root/'admin-restarted.log';admin_run=demo.LOCAL/'runtime/admin'
             admin_env=dict(env,ASPNETCORE_URLS='http://127.0.0.1:18183',PlatformConfiguration__ConfigPath=str(admin_path))
             with admin_log.open('w') as output:restarted=subprocess.Popen(['dotnet',str(admin_run/'Grand.Web.OnlyAdmin.dll')],cwd=admin_run,env=admin_env,stdout=output,stderr=subprocess.STDOUT,start_new_session=True)
-            children.append(restarted);wait_process(restarted,lambda:'Application started' in admin_log.read_text(),'Restarted Production administration')
+            children.append(restarted);wait_process(restarted,lambda:production_started(admin_log),'Restarted Production administration')
             code,_,page=request(result['adminUrl']);check(code==200 and 'logout' in page.lower(),'The authenticated tenant admin session survives an independent Production process restart')
             unknown='https://unknown-shop.shops.example.test:18444/_platform/ready';check(request(unknown)[0]==404,'Unknown public tenant hosts cannot fall back to a default database')
             second=result['second'];code,_,body=request(second['storeUrl']+'/_platform/ready');check(code==200 and json.loads(body)=={'tenantId':second['tenantId'],'storeId':second['storeId']},'Second public HTTPS host selects its own newly installed store')

@@ -86,7 +86,7 @@ python3 scripts/mobile_android.py /absolute/private/mobile/TENANT_SLUG.json \
 
 It prints a fresh ignored `.local/mobile-builds/<id>` workspace. `tenant-build.json` and `tenant.defines.json` contain public identifiers only; `google-services.json` stays in the workspace's `android/app/src/tenant/`. Android Google Services and Crashlytics plugins are applied only when `PLATFORM_TENANT_CONFIG` selects this profile. Ordinary demo resource builds have neither plugin's tasks enabled. No tenant flavor, signing key or SDK file is written into the source checkout.
 
-For a signed ARM64 APK, provide JDK 17 or newer, Flutter 3.44.6, Android SDK/NDK and at least 15 GiB free disk space. Put Java signing properties outside Git with owner-only permissions. The values are the real operator-selected key and passwords; use an absolute `storeFile` path. Keep this key and its backup for future updates of the application; this tool does not generate, rotate or recover signing keys.
+For a signed ARM64 APK, provide JDK 17 or newer, Flutter 3.44.6, Android SDK platform android-35/build-tools 35.0.0, NDK and at least 15 GiB free disk space. Put Java signing properties outside Git with owner-only permissions. The values are the real operator-selected key and passwords; use an absolute `storeFile` path. Keep this key and its backup for future updates of the application; this tool does not generate, rotate or recover signing keys.
 
 ```properties
 storeFile=/absolute/private/android-release.jks
@@ -127,7 +127,7 @@ Select `Provisioning:Mobile:Provider=AndroidAppDistribution` in **both** SaaS an
 
 Merge [android-release.example.json](../infra/portable/android-release.example.json) into the private worker configuration; it is a configuration fragment. Keep `Provisioning:Profile=Portable`, enable the explicit Google provider/write options, supply its parent/deployment/ADC configuration and a writable AesGcm or optional Azure secret store. The sample deliberately leaves `AllowSigningKeyCreation` and `SharedArtifactsConfirmed` false: enable them only after preparing the worker's tools and shared private artifact storage. SaaS needs the provider selection and matching deployment id, not SDK paths or signing credentials.
 
-The worker needs the pinned Flutter 3.44.6 revision, Python, JDK keytool, Android SDK/build-tools/NDK and at least 15 GiB free for an actual Flutter build. Use absolute configured tool paths. Its working directory is private to that node and should reside on protected ephemeral/encrypted storage; all nodes must mount the same durable artifact directory at the configured path, with compatible owner permissions. Confirm backups and restore behavior before setting `SharedArtifactsConfirmed=true`. A missing/changed committed APK causes failure and is never silently replaced under the same initial app version.
+The worker needs the pinned Flutter 3.44.6 revision, Python, JDK keytool, Android SDK platform android-35/build-tools 35.0.0, NDK and at least 15 GiB free for an actual Flutter build. Use absolute configured tool paths. Its working directory is private to that node and should reside on protected ephemeral/encrypted storage; all nodes must mount the same durable artifact directory at the configured path, with compatible owner permissions. Confirm backups and restore behavior before setting `SharedArtifactsConfirmed=true`. A missing/changed committed APK causes failure and is never silently replaced under the same initial app version.
 
 Package the public mobile sources for a container or remote worker without copying Git metadata or authentication configuration:
 
@@ -156,3 +156,5 @@ python3 scripts/smoke_android_release.py --android-sdk /absolute/path/to/Android
 ```
 
 It uses an isolated PostgreSQL container on loopback port 15441 and uniquely named test database. Real encrypted key storage, keytool/apksigner/AAPT2, short lease renewal, an upload failure, an independent process reading the key and a separate worker process completing the job are verified. It removes only that fixture's container, anonymous volume and temporary key/artifact files. No Azure account, live Google resources or Flutter compilation are required for this native workflow probe. See [VALIDATION.md](VALIDATION.md) for the exact evidence and remaining gates.
+
+APK signing/verification tools are pinned to Android build-tools 35.0.0. Install that version even when Android Studio or a CI image includes newer SDK tools; a different command-output format is not silently adopted. Install platform android-35 for the native acceptance fixtures as well.

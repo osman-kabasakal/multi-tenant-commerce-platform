@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_CONFIG_BYTES = 2 * 1024 * 1024
+BUILD_TOOLS_VERSION = '35.0.0'
 
 
 def read_json(path):
@@ -217,10 +218,13 @@ def prepare(manifest_path, firebase_directory, workspace, build_number, root=ROO
 
 
 def sdk_tool(sdk, tool):
-    candidates = sorted((Path(sdk) / 'build-tools').glob('*/' + tool), key=lambda p: tuple(int(n) for n in p.parent.name.split('.') if n.isdigit()), reverse=True)
-    if not candidates:
-        raise ValueError('Install Android SDK build-tools with aapt2 and apksigner.')
-    return candidates[0]
+    if tool not in ('aapt2', 'apksigner'):
+        raise ValueError('Choose a supported Android verification tool.')
+    suffix = ('.bat' if tool == 'apksigner' else '.exe') if os.name == 'nt' else ''
+    candidate = Path(sdk) / 'build-tools' / BUILD_TOOLS_VERSION / (tool + suffix)
+    if not candidate.is_file():
+        raise ValueError('Install the pinned Android SDK build-tools ' + BUILD_TOOLS_VERSION + ' with aapt2 and apksigner.')
+    return candidate
 
 
 def run_private(command, cwd, environment, log, timeout):

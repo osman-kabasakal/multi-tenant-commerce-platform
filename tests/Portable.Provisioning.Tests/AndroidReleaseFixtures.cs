@@ -102,7 +102,8 @@ internal sealed class AndroidFixture : IDisposable
         Directory.CreateDirectory(Root);Builder=new(Root);var source=Path.Combine(Root,"source");
         foreach(var path in new[]{"scripts/mobile_android.py","Platforms/store_user_app/pubspec.lock","Platforms/store_user_app/lib/core/config/tenant_firebase_identity.dart"})
         {var full=Path.Combine(source,path);Directory.CreateDirectory(Path.GetDirectoryName(full)!);File.WriteAllText(full,"Synthetic source fixture");}
-        var sdk=Path.Combine(Root,"sdk");Directory.CreateDirectory(Path.Combine(sdk,"build-tools"));
+        var sdk=Path.Combine(Root,"sdk");var buildTools=Path.Combine(sdk,"build-tools",AndroidReleaseOptions.BuildToolsVersion);Directory.CreateDirectory(buildTools);
+        foreach(var tool in new[]{"aapt2","apksigner"})File.WriteAllText(Path.Combine(buildTools,tool+(OperatingSystem.IsWindows()?(tool=="apksigner"?".bat":".exe"):"")),"Synthetic tool fixture");
         Options=new(){AllowSigningKeyCreation=true,SharedArtifactsConfirmed=true,SourceDirectory=source,WorkingDirectory=Path.Combine(Root,"work"),ArtifactDirectory=Path.Combine(Root,"artifacts"),
             PythonPath=Environment.ProcessPath!,FlutterPath=Environment.ProcessPath!,KeytoolPath=Environment.ProcessPath!,AndroidSdkDirectory=sdk};
         Directory.CreateDirectory(Options.WorkingDirectory);Directory.CreateDirectory(Options.ArtifactDirectory);
