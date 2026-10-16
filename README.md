@@ -1,12 +1,12 @@
 # Multi-tenant Commerce Platform
 
-[![Verify source and local demo](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/workflows/verify.yml)
+[![Verify source and local demo](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/workflows/verify.yml/badge.svg?branch=codex%2Flocal-demo)](https://github.com/osman-kabasakal/multi-tenant-commerce-platform/actions/workflows/verify.yml)
 
-Keycloak, .NET, Angular ve Flutter ile çok kiracılı bir e-ticaret platformu. Bu monorepo; mağaza motoru, mağaza yönetimi, SaaS yönetim katmanı ve bulut kurulum araçlarının ilişkisini görünür kılan bir **yerel demo sürümüdür**.
+Keycloak, .NET, Angular ve Flutter ile çok kiracılı bir e-ticaret platformu. Bu monorepo; mağaza motoru, mağaza yönetimi, SaaS yönetim katmanı ve bulut kurulum araçlarını bir araya getirir. Bulutsuz yerel demo, Linux + Docker Compose sunucu kurulumu ve açıkça seçilen Google/Firebase sağlayıcıları içerir.
 
 İki örnek mağazaya ek olarak SaaS üzerinden yeni yerel deneme işletmeleri oluşturulabilir. Her işletme ayrı MongoDB veritabanı, sınırlı veritabanı kullanıcısı ve Keycloak istemcisi kullanır. Gizli bilgiler kurulum sırasında üretilir. Azure, Google Cloud, Firebase veya ödeme hesabı olmadan web demosu çalıştırılabilir.
 
-> Bu sürüm geliştirme ve inceleme içindir. SaaS üzerinden yeni yerel deneme işletmesi, mağaza ve mobil debug ayarları hazırlanabilir. Gerçek ödeme, Google/Firebase kaynakları, genel DNS ve mobil yayın için bulut profili henüz tamamlanmamıştır. Üretim dağıtımı değildir. [Doğrulama durumu](docs/VALIDATION.md) ve [yayın yol haritası](docs/ROADMAP.md) gerçek sınırları açıklar.
+> Bu repo private inceleme sürümüdür. Temiz Linux CI’da bulutsuz Compose kurulumu, yeni tenant mağazaları/yönetici girişleri ve verileri koruyan yeniden başlatma doğrulandı; isteğe bağlı Android worker içinde gerçek imzalı Flutter APK derlendi. Gerçek Google/DNS/e-posta hesapları, cihaz bildirimi, Crashlytics raporu, App Distribution teslimi, ödeme ve yedekten geri dönüş için ayrıca kabul doğrulaması gerekir. Yeni tarayıcı kayıt/e-posta senaryosu da kendi CI sonucuyla takip edilir. [Doğrulama kaydı](docs/VALIDATION.md) ve [kalan işler](docs/PROVISIONING.md#remaining-work-and-acceptance-evidence).
 
 ## Hızlı başlangıç
 
@@ -19,10 +19,10 @@ Gerekenler:
 - İlk kurulum için internet, en az 10 GB boş disk alanı; Android araçları/derlemesi için ayrıca en az 15 GB önerilir.
 - Boş portlar: `18080`, `18081`, `18082`, `18083`, `18090`, `27028`, `15439`, `16389`.
 
-Repo şu anda **private**; klonlamak için GitHub erişimi gerekir. Erişimi olan bir hesapla:
+Repo şu anda **private**; klonlamak için GitHub erişimi gerekir. Güncel sürüm **`codex/local-demo`** dalındadır; `main` henüz bu çalışmaya birleştirilmemiştir. Erişimi olan bir hesapla:
 
 ```sh
-git clone https://github.com/osman-kabasakal/multi-tenant-commerce-platform.git
+git clone --branch codex/local-demo --single-branch https://github.com/osman-kabasakal/multi-tenant-commerce-platform.git
 cd multi-tenant-commerce-platform
 python3 scripts/demo.py check
 python3 scripts/demo.py up
@@ -97,6 +97,29 @@ Yeni tenant için servisleri yeniden başlatmanız gerekmez. Bildirimler `.local
 # İki yeni hesapla gerçek giriş, abonelik, mağaza, yönetim ve izolasyon kontrolü:
 python3 scripts/smoke_onboarding.py
 ```
+
+## Linux + Docker Compose kurulumu
+
+Yerel demodan farklı olarak bu yol, boş veritabanlarıyla Production ortamını ve gerçek uygulama konteynerlerini kurar. Linux üzerinde root olmayan, Docker erişimi olan bir hesap; Git, Python 3.10+, OpenSSL, Docker/Compose ve derleme için en az 20 GiB boş alan gerekir. .NET/Node SDK’ları imajın içinde kullanılır; sunucuya ayrıca kurulmaz.
+
+Önce portal ve kimlik alan adlarını, mağaza/yönetim wildcard DNS kayıtlarını ve bunları kapsayan TLS sertifikası/özel anahtarını hazırlayın. Örnek girdiyi özel bir dosyaya kopyalayıp alan adlarını, TLS dosyalarının mutlak yollarını, kullanılmayan Docker ağını ve sağlayıcıları düzenleyin:
+
+```sh
+mkdir -p .local
+cp infra/production/deployment.example.json .local/production-input.json
+# Özel girdideki örnek domain, TLS, ağ ve sağlayıcı ayarlarını düzenleyin.
+python3 scripts/production.py up --config .local/production-input.json --state .local/production
+python3 scripts/production.py verify --state .local/production
+python3 scripts/production.py stop --state .local/production
+```
+
+`up`, commit edilmiş kaynaklardan imajı derler; altyapıyı, veritabanı yetkilerini, Keycloak’ı ve HTTPS girişini hazırlar. Tekrarlı çalıştırmada aynı Docker veri birimleri ve özel state dizini kullanılarak veriler ve anahtarlar korunur. Bu komut örnek TLS/DNS değerleri değiştirilmeden çalıştırılacak bir genel sunucu demosu değildir. Ayrıntılı [Linux kurulum adımları ve doğrulama kapsamı](docs/LINUX_PRODUCTION.md).
+
+- Yeni kullanıcıların kendilerinin kaydolması için `infra/production/identity.example.json` içindeki `Identity` bölümünü özel girdiye ekleyip SMTP değerlerini doldurun. E-posta doğrulaması zorunludur; ayar güncellemesi mevcut realm üzerinde de uygulanır. Bu yeni kayıt akışının tam tarayıcı CI sonucu henüz bekleniyor.
+- Google projesi/Firebase ve FCM için [Google/Firebase yapılandırmasını](docs/GOOGLE_FIREBASE.md#enable-google-in-linux-compose) uygulayın. Proje oluşturucu kimliği ve bildirim gönderici kimliği ayrı tutulur; Google ve FCM sağlayıcıları varsayılan olarak kapalıdır.
+- Otomatik Android derlemesi/Crashlytics kaynakları/App Distribution için [isteğe bağlı Android worker](docs/LINUX_PRODUCTION.md#optional-android-worker) ayarını ekleyin. SDK izinleri, tenant imzalama kimliği ve artifact saklama koşulları açıkça onaylanır; Linux amd64 ve en az 30 GiB derleme alanı gerekir. Gerçek bulut dağıtımı ve cihazdan crash/bildirim teslimi henüz doğrulanmamıştır.
+
+Yeni işletmeleri ilgili sağlayıcıları etkinleştirdikten sonra oluşturun. Tamamlanmış tenant’lar, sonradan değişen küresel ayarlarla sessizce yeniden kurulmaz. `.local/production` gizli bilgiler içerir; Git’e eklenmez ve korunmalıdır.
 
 ## Mobil demo
 
