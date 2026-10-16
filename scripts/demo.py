@@ -165,8 +165,9 @@ def build(component=None):
             result=subprocess.run(command,cwd=ROOT/base,stdout=output,stderr=subprocess.STDOUT)
         if result.returncode:raise RuntimeError(f'{name} build failed; see {log}')
         (LOCAL/'runtime'/name/'Plugins').mkdir(exist_ok=True)
-        shutil.copytree(ROOT/'Ecommerce/src/Web/Grand.Web/App_Data/Resources/Installation',
-            LOCAL/'runtime'/name/'App_Data/Resources/Installation', dirs_exist_ok=True)
+        if name != 'installer':
+            shutil.copytree(ROOT/'Ecommerce/src/Web/Grand.Web/App_Data/Resources/Installation',
+                LOCAL/'runtime'/name/'App_Data/Resources/Installation', dirs_exist_ok=True)
         if name == 'saas':
             # Remove the obsolete static API snapshot from an older publish directory.
             (LOCAL/'runtime/saas/wwwroot/api/specification.json').unlink(missing_ok=True)

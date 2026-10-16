@@ -1,0 +1,11 @@
+<Project>
+  <!-- Runtime configuration and tenant keys are mounted separately from release artifacts. -->
+  <Target Name="ExcludePrivateTenantRuntimeFiles" BeforeTargets="CheckForDuplicateItems;AssignTargetPaths">
+    <ItemGroup>
+      <_PrivateTenantRuntimeFiles Include="App_Data/**/Settings.cfg;App_Data/**/appsettings.json;App_Data/**/appsettings.*.json;App_Data/**/DataProtectionKeys/**/*" />
+      <Content Remove="@(_PrivateTenantRuntimeFiles)" />
+      <None Remove="@(_PrivateTenantRuntimeFiles)" />
+      <EmbeddedResource Remove="@(_PrivateTenantRuntimeFiles)" />
+    </ItemGroup>
+  </Target>
+</Project>

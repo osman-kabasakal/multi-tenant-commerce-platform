@@ -32,6 +32,12 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Content Include="..\..\Web\Grand.Web\App_Data\Resources\Installation\**\*"
+                 Link="App_Data/Resources/Installation/%(RecursiveDir)%(Filename)%(Extension)"
+                 CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <Content Include="..\..\Web\Grand.Web\App_Data\Resources\supportedcollation.xml"
+                 Link="App_Data/Resources/supportedcollation.xml"
+                 CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <Content Include="App_Data\**" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" Exclude="App_Data\DataProtectionKeys\*.xml;" />
         <Content Include="Roslyn\**" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" Exclude="Roslyn\**\*.dll" />
         <Content Include="wwwroot\**" CopyToOutputDirectory="Always" CopyToPublishDirectory="Always" Exclude="wwwroot\assets\images\thumbs\*.jpeg;wwwroot\assets\images\thumbs\*.jpg;wwwroot\assets\images\thumbs\*.png" />

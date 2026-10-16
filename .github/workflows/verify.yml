@@ -69,6 +69,8 @@ jobs:
       - name: Check business registration security
         working-directory: SaasManager
         run: dotnet test ../tests/Registration.Security.Tests/Registration.Security.Tests.csproj -c Release --nologo
+      - name: Verify complete installer artifacts and private runtime file exclusions
+        run: python3 scripts/smoke_publish_boundaries.py
       - name: Verify fresh Production database bootstrap and read-only runtime startup
         run: python3 scripts/smoke_database_bootstrap.py
       - name: Verify durable readiness mail and the independent SMTP worker

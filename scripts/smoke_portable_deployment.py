@@ -82,6 +82,11 @@ def main():
     project=demo.ROOT/'tests/Portable.Provisioning.Integration/Portable.Provisioning.Integration.csproj'
     with (demo.LOCAL/'logs/build-portable-deployment-fixture.log').open('w') as log:subprocess.run(['dotnet','build',str(project),'-c','Release','--nologo'],cwd=demo.ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
     with (demo.LOCAL/'logs/build-portable-gateway.log').open('w') as log:subprocess.run(['dotnet','publish','tools/Platform.Gateway/Platform.Gateway.csproj','-c','Release','--nologo','-o',str(demo.LOCAL/'runtime/portable-gateway'),'-p:UseAppHost=false','--verbosity','quiet'],cwd=demo.ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
+    installer_runtime=root/'installer-runtime'
+    with (demo.LOCAL/'logs/build-portable-installer.log').open('w') as log:
+        subprocess.run(['dotnet','publish','src/Installer/Grand.Installer.Cli/Grand.Installer.Cli.csproj','-c','Release','--nologo','-o',str(installer_runtime),'-p:UseAppHost=false','--verbosity','quiet'],cwd=demo.ROOT/'Ecommerce',stdout=log,stderr=subprocess.STDOUT,check=True)
+    for relative in ['wwwroot/logo.png','App_Data/Resources/Installation/installation.en.xml','App_Data/Resources/Installation/installation.pl.xml','App_Data/Resources/supportedcollation.xml']:
+        check((installer_runtime/relative).is_file(),'The ordinary fresh installer publish contains '+relative)
     children=[];native=None;created=False;saas_created=False;portal="https://portal.example.test:18084";saas_database="portable_saas_test_"+tenant;second_tenant=uuid.uuid4().hex;trial_plan=uuid.uuid4().hex
     runtime_context_created=False;runtime_context_password=secrets.token_hex(32);runtime_context_log=root/'runtime-context.log'
     saas_runtime=root/'saas-runtime'
@@ -107,7 +112,7 @@ def main():
             for name in ('KeycloakAdminUsername','KeycloakAdminPassword','SecretDirectory'):settings.pop(name,None)
             for name in ('WorkingDirectory','TenantDirectory','RouteDirectory','NotificationDirectory','MobileDirectory'):settings[name]=str(root/name);(root/name).mkdir(mode=0o700)
             authority=identity['authority'].split('/realms/')[0]
-            settings.update(DeploymentId='portable-runtime-smoke',StoreBaseUrl='https://shops.example.test:18444',AdminBaseUrl='https://manage.example.test:18444',
+            settings.update(InstallerPath=str(installer_runtime/'Grand.Installer.Cli.dll'),DeploymentId='portable-runtime-smoke',StoreBaseUrl='https://shops.example.test:18444',AdminBaseUrl='https://manage.example.test:18444',
                 KeycloakAuthority=authority,KeycloakRealm='commerce-demo',KeycloakAdminRealm='commerce-demo',KeycloakAdminClientId=identity['provisioningClientId'],KeycloakAdminClientSecret=identity['provisioningClientSecret'],IdentityRootCertificateFile=str(identity['root']),IngressRootCertificateFile=str(identity['root']))
             commerce=copy.deepcopy(json.loads((demo.LOCAL/'commerce.json').read_text()))
             commerce.update(PlatformSecurity=security,LocalDemo={'Enabled':False},PlatformConfiguration={'Provider':'Environment'},Notifications={'Provider':'Disabled'},AllowedHosts='localhost;127.0.0.1;*.shops.example.test;*.manage.example.test',
