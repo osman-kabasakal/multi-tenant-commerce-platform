@@ -27,8 +27,6 @@ public class DeepLinksMiddleWare
     }
 
     public async Task InvokeAsync(HttpContext context,
-        IKeycloakClientService keycloakService,
-            KeycloakSettings keycloakSettings,
         ICacheBase cacheBase,
         ILogger<DeepLinksMiddleWare> logger,
         ITenantScopedServiceProvider<IMongoDatabase> tenantScopedServiceProvider
@@ -38,6 +36,8 @@ public class DeepLinksMiddleWare
         if (path != null && (path.StartsWith("/.well-known/apple-app-site-association") ||
                              path.StartsWith("/.well-known/assetlinks.json")))
         {
+            var keycloakSettings = context.RequestServices.GetRequiredService<KeycloakSettings>();
+            var keycloakService = context.RequestServices.GetRequiredService<IKeycloakClientService>();
             var keycloakClient = keycloakService.GetKeycloakClientAsync();
             var groups = await cacheBase.GetAsync("groups", async () =>
             {

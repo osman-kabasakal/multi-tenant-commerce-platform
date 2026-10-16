@@ -103,7 +103,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-diagnostics
-          path: .local/logs/build-*.log
+          path: |
+            .local/logs/build-*.log
+            .local/readiness-email-*/fixture.log
+            .local/database-bootstrap-*/fixture.log
           include-hidden-files: true
           retention-days: 3
       - name: Stop only this demo

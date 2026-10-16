@@ -68,7 +68,7 @@ def main():
                            env=environment, stdout=subprocess.DEVNULL, check=True)
             deadline = time.monotonic() + 60
             while time.monotonic() < deadline:
-                ready = subprocess.run(['docker', 'exec', container, 'pg_isready', '-U', 'commerce_probe', '-d', 'postgres'],
+                ready = subprocess.run(['docker', 'exec', container, 'pg_isready', '-h', '127.0.0.1', '-U', 'commerce_probe', '-d', 'postgres'],
                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if ready.returncode == 0: break
                 time.sleep(.5)

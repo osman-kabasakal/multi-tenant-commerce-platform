@@ -30,7 +30,7 @@ services:
     ports: ["127.0.0.1:15439:5432"]
     volumes: ["postgres-data:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U commerce_demo -d commerce_saas"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U commerce_demo -d commerce_saas"]
       interval: 5s
       timeout: 5s
       retries: 20
