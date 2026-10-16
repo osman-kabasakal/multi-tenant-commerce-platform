@@ -2,7 +2,7 @@
 
 The generated single-host Linux deployment has a cold data snapshot tool. It stops only that owned Compose project, captures private state and all three database volumes, verifies the archives, then restarts the services that were previously running. It uses the same deployment lock as startup. The original installation ID, credentials and master key are retained.
 
-**Current evidence:** nine filesystem/archive/ownership refusal tests pass locally. The complete cold database restoration gate has been added to clean Linux CI and is pending its own result. The separately verified full registration/restart baseline is recorded in [VALIDATION.md](VALIDATION.md#verified-real-registration-and-linux-restart-2026-10-16). Do not treat archive validation alone as a successful database restoration.
+**Current evidence:** ten archive/ownership/service-resume tests pass locally. The complete cold database restoration gate has been added to clean Linux CI and is pending its own result. The separately verified full registration/restart baseline is recorded in [VALIDATION.md](VALIDATION.md#verified-real-registration-and-linux-restart-2026-10-16). Do not treat archive validation alone as a successful database restoration.
 
 ## Snapshot a running installation
 

@@ -111,6 +111,27 @@ def statuses(deployment):
     return json.loads(output) if output.startswith('[') else [json.loads(line) for line in output.splitlines() if line]
 
 
+def services_ready(deployment, selected):
+    entries = [entry for entry in statuses(deployment) if entry['Service'] in selected]
+    return {entry['Service'] for entry in entries} == set(selected) and all(
+        entry['State'] == 'running' and entry.get('Health') in (None, '', 'healthy') for entry in entries)
+
+
+def resume_services(deployment, running):
+    # Older Compose releases have no start --wait; use portable start plus real readiness probes.
+    running = set(running)
+    databases = ('postgres', 'mongo', 'redis')
+    for group in (databases, ('keycloak',), tuple(sorted(running - set(databases) - {'keycloak'}))):
+        selected = [name for name in group if name in running]
+        if not selected: continue
+        deployment.run('start', *selected)
+        deployment.wait('original snapshot services', lambda selected=selected: services_ready(deployment, selected), 240)
+        if 'keycloak' in selected and 'postgres' in running:
+            deployment.wait('restored identity service', deployment.verify_identity, 240)
+    if {'postgres', 'mongo', 'redis', 'keycloak', 'edge', 'saas', 'commerce', 'admin', 'gateway', 'worker'} <= running:
+        deployment.verify_hosts()
+
+
 def volume_tar(image, name, output=None, source=None):
     operation = uuid.uuid4().hex
     helper = 'platform-data-snapshot-' + operation
@@ -213,7 +234,7 @@ def backup_state(state, backup):
         finally:
             # Release partial snapshot space before attempting to restart the original services.
             if stage.exists(): shutil.rmtree(stage)
-            if running: deployment.run('start', '--wait', '--wait-timeout', '240', *running)
+            if running: resume_services(deployment, running)
     finally:
         if stage.exists(): shutil.rmtree(stage)
     print('Consistent private data snapshot created; previously running services restarted: ' + str(backup), flush=True)

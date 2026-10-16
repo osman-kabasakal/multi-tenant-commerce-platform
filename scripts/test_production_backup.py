@@ -5,7 +5,7 @@ from pathlib import Path
 import tarfile
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import production_backup as snapshot
 import production_config as config
@@ -104,6 +104,27 @@ class ProductionBackupTests(unittest.TestCase):
         with patch.object(snapshot.production, 'Deployment') as deployment:
             with self.assertRaises(ValueError): snapshot.backup_state(state, state / 'snapshot')
             deployment.assert_not_called()
+
+    def test_resume_uses_portable_start_and_preserves_the_original_running_subset(self):
+        complete = {'postgres', 'mongo', 'redis', 'keycloak', 'edge', 'saas', 'commerce', 'admin', 'gateway', 'worker'}
+        for running in [{'postgres', 'mongo', 'keycloak', 'worker'}, complete]:
+            with self.subTest(running=running):
+                deployment = Mock(); active = set(); started = []
+                def start(action, *services):
+                    self.assertEqual('start', action)
+                    self.assertFalse(any(name.startswith('--') for name in services))
+                    if 'keycloak' in services: self.assertIn('postgres', active)
+                    if 'worker' in services: self.assertIn('keycloak', active)
+                    active.update(services); started.extend(services)
+                def wait(label, predicate, seconds): self.assertTrue(predicate())
+                deployment.run.side_effect = start; deployment.wait.side_effect = wait
+                deployment.verify_identity.return_value = True
+                with patch.object(snapshot, 'statuses', side_effect=lambda _: [
+                    {'Service': name, 'State': 'running', 'Health': 'healthy'} for name in active]):
+                    snapshot.resume_services(deployment, running)
+                self.assertEqual(running, set(started)); self.assertEqual(len(running), len(started))
+                self.assertEqual(1, deployment.verify_identity.call_count)
+                self.assertEqual(int(running == complete), deployment.verify_hosts.call_count)
 
     def test_private_keys_and_committed_artifacts_roundtrip_but_caches_are_empty(self):
         state = self.root / 'source'; state.mkdir(mode=0o700)
