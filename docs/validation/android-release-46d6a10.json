@@ -1,0 +1,41 @@
+{
+  "sourceCommit": "46d6a10b81dc1c4bb6ff717d2cd9d67df1356ba9",
+  "verifiedOn": "2026-10-16",
+  "execution": "macOS ARM64; isolated tracked mobile sources and fresh Gradle cache",
+  "mobileSourceSha256": "75e695637aae5dae8308b5afa196bc6217141c3c5f3a0071233f21787a99db4a",
+  "toolchain": {
+    "flutter": "3.44.6",
+    "flutterRevision": "ee80f08bbf97172ec030b8751ceab557177a34a6",
+    "dart": "3.12.2",
+    "java": "21.0.10",
+    "gradle": "8.11.1",
+    "androidGradlePlugin": "8.9.2",
+    "androidBuildTools": "35.0.0"
+  },
+  "artifact": {
+    "architecture": "arm64-v8a",
+    "buildNumber": 23,
+    "apkBytes": 33792010,
+    "sha256": "4613c0e0ebf4bf16876cbbbb2baf1a15ccaf78dfb0c513a0453dc909d91fb111"
+  },
+  "checks": {
+    "fullFlutterReleaseBuilt": true,
+    "ephemeralSigningCertificateMatched": true,
+    "tenantPackageAndVersionVerified": true,
+    "debuggableFlagAbsent": true,
+    "googleServicesResourcesMatchSelectedApp": true,
+    "crashlyticsMappingIdentityGenerated": true,
+    "compiledFlutterApplicationAndEnginePresent": true,
+    "gradleTaskCount": 1131,
+    "outboundCrashlyticsUploadDisabled": true,
+    "privateInputsAndArtifactRemoved": true
+  },
+  "scope": {
+    "identities": "synthetic tenant and Firebase identifiers; disposable RSA-3072 signing identity",
+    "cloudPublished": false,
+    "deviceExecutionVerified": false,
+    "crashDeliveryVerified": false,
+    "githubActions": "not executed by this probe",
+    "warnings": "Inherited Gradle/AGP/Kotlin future-support and Java 8 source/target warnings remain."
+  }
+}

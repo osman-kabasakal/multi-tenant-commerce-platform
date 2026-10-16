@@ -308,6 +308,9 @@ public class SubscriberHandlers
             var envVars = TypeToEnv(typeof(TenantStatusMessage),message);
             if (message.Firebase != null)
             {
+                var googleParent = Program.ServiceProvider.GetRequiredService<IConfiguration>()["Provisioning:Google:Parent"];
+                if (googleParent == null || !System.Text.RegularExpressions.Regex.IsMatch(googleParent, "^(folders|organizations)/[1-9][0-9]*$"))
+                    throw new InvalidOperationException("Configure Provisioning:Google:Parent before using legacy Firebase provisioning.");
 
                 var firebaseService = new FirebaseService();
                 if (await firebaseService.InitializeFirebaseAdminAsync())
@@ -320,28 +323,13 @@ public class SubscriberHandlers
                             ProjectId = message.Firebase!.ProjectId,
                             // Name = projectName,
                             // DisplayName = message.StoreName,
-                            Parent = "organizations/143401777215"
+                            Parent = googleParent
                         });
 
                         if (gCloudProject == null)
                         {
                             Console.WriteLine("Failed to create project");
                             return;
-                        }
-                        else
-                        {
-                            //proje ismi güncellenmiyor
-                            // gCloudProject = await firebaseService.CreateProjectAsync(new Project
-                            // {
-                            //     ProjectId = message.Firebase!.ProjectId,
-                            //     Name = message.StoreName,
-                            //     Parent = "organizations/143401777215"
-                            // });
-                            // if (gCloudProject == null)
-                            // {
-                            //     Console.WriteLine("Failed to create project");
-                            //     return;
-                            // }
                         }
                     }
                     

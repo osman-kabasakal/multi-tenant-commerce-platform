@@ -532,3 +532,18 @@ python3 scripts/smoke_production_compose.py --image commerce-platform:validation
 ```
 
 Google setup is intentionally waiting for the operator's organization decision. No alternative user OAuth flow was added and no Google configuration/resource was changed during this validation.
+
+
+## Current Android release and live Google project acceptance — 2026-10-16
+
+The unchanged mobile sources at commit `46d6a10b81dc1c4bb6ff717d2cd9d67df1356ba9` produced a real signed **ARM64 tenant Flutter release APK** on macOS using Flutter 3.44.6, Dart 3.12.2, JDK 21.0.10, Gradle 8.11.1, AGP 8.9.2 and Android build-tools 35.0.0. The [machine-readable Android result](validation/android-release-46d6a10.json) records its source fingerprint, artifact hash and scope.
+
+- The actual APK was 33,792,010 bytes. Its tenant package, build number 23, non-debuggable flag, SHA-256 and exact disposable RSA-3072 signer were verified. Compiled ARM64 Flutter application and engine libraries were present.
+- Generated Google Services project/sender/app resources matched the synthetic Firebase input, and the real Crashlytics mapping identity was present. The 1,131-task Gradle graph included the ordinary release and Firebase resource tasks; outbound Crashlytics upload was disabled only in the probe's private Gradle configuration.
+- The test did not start the application or contact App Distribution. It removed its copied sources, Gradle cache, SDK exports, signing key/password and APK. Small private diagnostics remain. Existing toolchain future-support and Java 8 source/target warnings were not suppressed.
+
+Separately, the newly supplied operator service account passed permission checks on the explicitly selected organization. A real Resource Manager create operation completed, and a follow-up read confirmed an **ACTIVE** project under that organization with the exact tenant/deployment ownership labels. The [Google project result](validation/google-project-20261016.json) contains no operator account, domain, organization ID or credential path. The created project is retained for subsequent acceptance; no billing link or tester invitation was changed.
+
+The Google wait recorded in the preceding section is now lifted for this operator-selected organization and credential. This is project-creation evidence, not completed execution of the application's Firebase/apps/IAM/App Distribution provisioning step. A separate limited FCM sender is not configured yet; the supplied broad provisioning account is not used as a runtime notification identity. Positive device FCM/APNs delivery, Crashlytics reports, App Distribution installation, Apple signing and the other recorded production/public-release gates remain unfinished.
+
+The final source check also found a remaining operator organization literal in the retained legacy TenantManager Firebase branch. That branch now requires `Provisioning:Google:Parent` before cloud access and uses the explicit organization/folder value. Obsolete commented project-creation code was removed. An actual TenantManager .NET 9 Release build passed from a clean staged-source copy excluding the unrelated commerce project/solution edits; inherited compiler warnings remain.

@@ -1,0 +1,22 @@
+{
+  "verifiedOn": "2026-10-16",
+  "execution": "Real Google Resource Manager v3 using the operator-selected service account and organization",
+  "checks": {
+    "credentialProjectOrganizationMatched": true,
+    "targetProjectCreatePermissionGranted": true,
+    "createOperationCompleted": true,
+    "createdProjectState": "ACTIVE",
+    "createdProjectParentMatched": true,
+    "tenantAndDeploymentOwnershipLabelsMatched": true
+  },
+  "scope": {
+    "projectIdentifiers": "retained only in private operator diagnostics",
+    "projectRetained": true,
+    "billingLinkChanged": false,
+    "testerInvitationSent": false,
+    "applicationFirebaseProvisionerExecuted": false,
+    "firebaseAppsAndDistribution": "awaiting the separate notification-sender setup",
+    "notificationSenderAccountAndKeyCreated": false,
+    "deviceDeliveryVerified": false
+  }
+}

@@ -155,3 +155,12 @@ dotnet test tests/Google.Provisioning.Tests/Google.Provisioning.Tests.csproj -c 
 HTTP contract tests exercise the real provisioning, secret adapter, publication, FCM and App Distribution code against isolated in-memory HTTP responses. They cover replay, partial failure, async operations, ownership mismatch, IAM concurrency/conditions, billing conflicts, pagination, config validation, per-tenant FCM routing and binary upload/distribution. They never load ADC or call live Google services. A configured live project, device notification and signed release still need separate verification.
 
 Official API references: [Firebase management](https://firebase.google.com/docs/projects/api/workflow_set-up-and-manage-project), [FCM HTTP v1 and cross-project authorization](https://firebase.google.com/docs/cloud-messaging/send/v1-api), [App Distribution upload](https://firebase.google.com/docs/reference/app-distribution/rest/v1/upload.v1.projects.apps.releases/upload), [tester groups](https://firebase.google.com/docs/reference/app-distribution/rest/v1/projects.groups/batchJoin), [Flutter Crashlytics setup](https://firebase.google.com/docs/crashlytics/flutter/get-started).
+
+
+## Live organization project creation verified
+
+On 2026-10-16, the operator selected a new service-account credential and an organization explicitly. The parent permission check passed; the real project-creation operation completed; a subsequent read confirmed the active project, intended parent and exact tenant/deployment ownership labels. This supersedes the earlier credential's organization-access failure. Operator identifiers and key paths remain private. See the [scoped verification record](validation/google-project-20261016.json).
+
+The project is retained for Firebase acceptance. No billing link or tester invitation was changed. Separate limited FCM sender setup, application Firebase provisioning, device notification/crash reports and App Distribution installation are not established by project creation alone. The supplied broad provisioning credential must remain separate from the runtime notification sender.
+
+The retained legacy TenantManager Firebase branch also requires an explicit `Provisioning:Google:Parent` organization/folder value before cloud access. No operator organization is embedded in that source. Keep the real target in private deployment configuration.
