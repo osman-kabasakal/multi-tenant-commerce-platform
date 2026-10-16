@@ -315,6 +315,7 @@ def compose(p, state, record, image, ip, identity):
             for directory in ('mobile-work', 'mobile-artifacts', 'mobile-cache'):
                 mounts.append(bind(directory, '/var/lib/commerce/' + directory, False))
         settings = service(role, number, image=image + '-android' if mobile_worker else image, command=[role], environment=environment, volumes=mounts,
+                           tmpfs=['/run/platform-runtime:rw,nosuid,noexec,size=16m,uid=' + str(record['Uid']) + ',gid=' + str(record['Gid']) + ',mode=0700'],
                            security_opt=['no-new-privileges:true'], cap_drop=['ALL'])
         if role == 'bootstrap': settings.update(profiles=['initialize'], restart='no', command=['bootstrap', 'initialize', '--config', '/run/secrets/config.json'])
     return {'name': 'commerce-prod-' + p['DeploymentId'], 'services': services,

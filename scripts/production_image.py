@@ -35,6 +35,10 @@ def build(image, platform, uid, gid):
 
 def verify(image):
     # Real container execution verifies both runtimes, artifact layout and the non-root entrypoint.
+    user = subprocess.check_output(['docker', 'image', 'inspect', '--format', '{{.Config.User}}', image], text=True).strip()
+    identity = re.fullmatch(r'([1-9][0-9]*):([1-9][0-9]*)', user)
+    if not identity: raise ValueError('The image must use an explicit non-root numeric user/group.')
+    runtime = '/run/platform-runtime:rw,noexec,nosuid,size=16m,uid=' + identity[1] + ',gid=' + identity[2] + ',mode=0700'
     probe = r'''
 set -eu
 [ "$(id -u)" -ne 0 ]
@@ -47,10 +51,12 @@ for file in commerce/Grand.Web.MultiTenant.dll admin/Grand.Web.OnlyAdmin.dll gat
 done
 for directory in commerce/Plugins admin/Plugins installer/Plugins; do test -d "/app/$directory"; done
 test -z "$(find /app -name Settings.cfg -o -name DataProtectionKeys -o -name service-account.json -o -name google-services.json -o -name appsettings.Production.json)"
+dotnet /app/runtime-probe8/Platform.RuntimeProbe.dll
+dotnet /app/runtime-probe9/Platform.RuntimeProbe.dll
 /usr/local/bin/platform bootstrap --help
 '''
     subprocess.run(['docker', 'run', '--rm', '--network', 'none', '--read-only', '--cap-drop', 'ALL',
-                    '--security-opt', 'no-new-privileges:true', '--tmpfs', '/tmp:rw,noexec,nosuid,size=16m',
+                    '--security-opt', 'no-new-privileges:true', '--tmpfs', '/tmp:rw,noexec,nosuid,size=16m', '--tmpfs', runtime,
                     '--entrypoint', '/bin/sh', image, '-ec', probe], check=True)
     invalid = subprocess.run(['docker', 'run', '--rm', '--network', 'none', image, 'unknown-role'], capture_output=True)
     if invalid.returncode != 64 or b'Unknown platform role.' not in invalid.stderr:

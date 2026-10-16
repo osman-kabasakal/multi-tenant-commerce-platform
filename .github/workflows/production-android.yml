@@ -8,6 +8,7 @@ on:
       - 'Shared/**'
       - 'Platforms/**'
       - 'tools/Platform.Bootstrap/**'
+      - 'tools/Platform.RuntimeProbe/**'
       - 'tools/Platform.Gateway/**'
       - 'infra/production/**'
       - 'scripts/production*.py'
@@ -25,6 +26,7 @@ on:
       - 'Shared/**'
       - 'Platforms/**'
       - 'tools/Platform.Bootstrap/**'
+      - 'tools/Platform.RuntimeProbe/**'
       - 'tools/Platform.Gateway/**'
       - 'infra/production/**'
       - 'scripts/production*.py'
@@ -38,7 +40,7 @@ permissions:
   contents: read
 concurrency:
   group: production-android-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   android-runtime:
     runs-on: ubuntu-24.04

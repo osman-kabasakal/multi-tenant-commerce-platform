@@ -66,6 +66,9 @@ class ProductionConfigTests(unittest.TestCase):
         self.assertIn(worker['WorkingDirectory'], mounts); self.assertIn(worker['ArtifactDirectory'], mounts)
         self.assertIn('/var/lib/commerce/mobile-cache', mounts)
         self.assertEqual(worker['SourceDirectory'], '/app/mobile-source')
+        for role in ('saas', 'worker', 'gateway', 'commerce', 'admin', 'bootstrap'):
+            runtime = compose['services'][role]['tmpfs']
+            self.assertTrue(any(item.startswith('/run/platform-runtime:') and 'mode=0700' in item for item in runtime))
         (state / 'mobile-artifacts').rmdir()
         with self.assertRaises(ValueError): config.prepare(self.android_plan(), state, 'commerce-platform:fixture')
         self.assertEqual((state / 'secrets/platform-master-key').read_text(), original['MasterKey'])

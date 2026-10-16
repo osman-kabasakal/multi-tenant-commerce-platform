@@ -69,6 +69,7 @@ def main():
                            input=sql, text=True, stdout=log, stderr=subprocess.STDOUT, check=True)
             prefix = ['docker', 'run', '--rm', '--network', network, '--read-only', '--cap-drop', 'ALL',
                       '--security-opt', 'no-new-privileges:true', '--tmpfs', '/tmp:rw,nosuid,size=64m',
+                      '--tmpfs', '/run/platform-runtime:rw,nosuid,noexec,size=16m,uid=' + str(os.getuid()) + ',gid=' + str(os.getgid()) + ',mode=0700',
                       '--mount', 'type=bind,src=' + str(private.resolve()) + ',dst=/run/platform,readonly', args.image, 'bootstrap']
             for action in ('initialize', 'verify', 'initialize', 'verify'):
                 subprocess.run(prefix + [action, '--config', '/run/platform/bootstrap.json'], stdout=log, stderr=subprocess.STDOUT, check=True, timeout=180)
