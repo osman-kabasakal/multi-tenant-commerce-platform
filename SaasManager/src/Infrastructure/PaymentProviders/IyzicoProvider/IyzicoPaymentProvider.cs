@@ -11,7 +11,7 @@ using Iyzipay.Request.V2.Subscription;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.VisualBasic;
+using SaasManager.Infrastructure.PaymentProviders.IyzicoProvider;
 using SaasManager.Application.Common.Interfaces.Data;
 using SaasManager.Application.Common.Interfaces.Identity;
 using SaasManager.Application.Common.Interfaces.PaymentProviders;
@@ -31,12 +31,24 @@ public class IyzicoPaymentProvider : IPaymentProvider
     private readonly string _apiKey;
     private readonly string _secretKey;
     private readonly bool _isSandbox;
+    private readonly IIyzicoSubscriptionApi _subscriptions;
 
     private Guid? _providerId { get; set; }
 
-    public Guid Id => (Guid)(_providerId.HasValue
-        ? _providerId!.Value
-        : (_providerId = _context.PaymentProviders.First(x => x.Code == Code).Id));
+    public Guid Id
+    {
+        get
+        {
+            if (_providerId.HasValue) return _providerId.Value;
+            var query = _context.PaymentProviders.Where(x => x.Code == Code && x.IsActive && !x.IsDeleted);
+            if (!string.IsNullOrEmpty(_configuration.ProviderId))
+            {
+                var selected = Guid.Parse(_configuration.ProviderId);
+                query = query.Where(x => x.Id == selected);
+            }
+            return (_providerId = query.Select(x => x.Id).First()).Value;
+        }
+    }
 
     public string Name => "iyzico";
     public string CardUserKeyName => "ucsToken";
@@ -48,7 +60,8 @@ public class IyzicoPaymentProvider : IPaymentProvider
         IApplicationDbContext context,
         IWorkContext workContext,
         IOptions<IyzicoConfiguration> configuration,
-        ILogger<IyzicoPaymentProvider> logger)
+        ILogger<IyzicoPaymentProvider> logger,
+        IIyzicoSubscriptionApi? subscriptions = null)
     {
         _configuration = configuration.Value;
         _context = context;
@@ -57,6 +70,7 @@ public class IyzicoPaymentProvider : IPaymentProvider
         _apiKey = _configuration.ApiKey;
         _secretKey = _configuration.SecretKey;
         _isSandbox = _configuration.IsSandbox;
+        _subscriptions = subscriptions ?? new IyzicoSubscriptionApi();
     }
 
     public async Task<CardTokenResponse> CreateCardTokenAsync(CardData request)
@@ -120,137 +134,61 @@ public class IyzicoPaymentProvider : IPaymentProvider
         }
     }
 
+    private Options MerchantOptions()
+    {
+        if (string.IsNullOrWhiteSpace(_apiKey) || string.IsNullOrWhiteSpace(_secretKey))
+            throw new InvalidOperationException("Configure the selected iyzico merchant account.");
+        return new Options { ApiKey = _apiKey, SecretKey = _secretKey,
+            BaseUrl = _isSandbox ? "https://sandbox-api.iyzipay.com" : "https://api.iyzipay.com" };
+    }
+    private static bool Success(string? status) => string.Equals(status, "success", StringComparison.OrdinalIgnoreCase);
+    private static bool Reference(string? value) => Guid.TryParseExact(value, "D", out var id) && id != Guid.Empty;
+    private static PaymentResponse Rejected() => new() { IsSuccess = false, ErrorMessage = "Subscription payment could not be verified." };
+
     public async Task<PaymentResponse> ProcessPaymentAsync(BusinessSubscription subscription, CardData cardModel)
     {
         try
         {
-            Iyzipay.Options options = new Iyzipay.Options
-            {
-                ApiKey = _apiKey,
-                SecretKey = _secretKey,
-                BaseUrl = _isSandbox ? "https://sandbox-api.iyzipay.com" : "https://api.iyzipay.com"
+            var options = MerchantOptions();
+            var guest = _workContext.GuestRegistration;
+            if (guest == null || guest.ConvertedBusinessId != subscription.BusinessId || subscription.Period != PaymentPeriod.Monthly)
+                return Rejected();
+            var plan = await _context.SubscriptionPlans.SingleOrDefaultAsync(p => p.Id == subscription.PlanId && p.IsActive && !p.IsDeleted);
+            var business = await _context.Businesses.SingleOrDefaultAsync(b => b.Id == subscription.BusinessId && b.CreatedByGuestId == guest.Id && !b.IsDeleted);
+            // Merchant pricing is configured once. Never invent a provider reference or silently create a differently priced plan at checkout.
+            if (business == null || plan == null || !Reference(plan.Code) || plan.Price <= 0 || plan.Price != subscription.Amount)
+                return Rejected();
+            var pricing = _subscriptions.ReadPlan(new RetrievePlanRequest { Locale = "tr", PricingPlanReferenceCode = plan.Code }, options);
+            var remote = pricing.Data;
+            if (!Success(pricing.Status) || remote == null || remote.ReferenceCode != plan.Code || remote.Status != "ACTIVE" ||
+                remote.CurrencyCode != "TRY" || remote.PaymentInterval != "MONTHLY" || remote.PaymentIntervalCount != 1 ||
+                remote.PlanPaymentType != "RECURRING" || (remote.TrialPeriodDays ?? 0) != plan.TrialDays ||
+                !decimal.TryParse(remote.Price, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var price) || price != plan.Price)
+                return Rejected();
+            var year = cardModel.ExpiryYear;
+            if (year.Length == 2) year = "20" + year;
+            var request = new SubscriptionInitializeRequest {
+                Locale = "tr", ConversationId = subscription.Id.ToString("D"), PricingPlanReferenceCode = plan.Code,
+                SubscriptionInitialStatus = "PENDING",
+                Customer = new CheckoutFormCustomer {
+                    Email = guest.Email, Name = guest.Firstname, Surname = guest.Lastname,
+                    GsmNumber = business.Phone, IdentityNumber = business.TaxNumber,
+                    BillingAddress = CreateAddress(business), ShippingAddress = CreateAddress(business)
+                },
+                PaymentCard = new CardInfo { CardNumber = cardModel.Number, CardHolderName = cardModel.CardHolderName,
+                    ExpireMonth = cardModel.ExpiryMonth, ExpireYear = year, Cvc = cardModel.Cvv, RegisterConsumerCard = true }
             };
-            // var paymentMethod =
-            //     await _context.PaymentMethods.AsNoTracking().FirstOrDefaultAsync(x =>
-            //         x.BusinessId == subscription.BusinessId! && x.ProviderId == Id && x.IsDefault);
-            // if (paymentMethod == null)
-            // {
-            //     throw new Exception("Ödeme yöntemi bulunamadı");
-            // }
-            var subscriptionPlan =
-                await _context.SubscriptionPlans.AsNoTracking().FirstOrDefaultAsync(x => x.Id == subscription.PlanId);
-
-            var business = await _context.Businesses.AsNoTracking().FirstAsync(x => x.Id == subscription.BusinessId);
-
-            var iyziPayProduct = Iyzipay.Model.V2.Subscription.Product.Retrieve(
-                new RetrieveProductRequest()
-                {
-                    Locale = Locale.TR.ToString(), ProductReferenceCode = subscription.PlanId.ToString(),
-                }, options);
-
-            if (iyziPayProduct.Status != Status.SUCCESS.ToString() && !_isSandbox)
-            {
-                CreateProductRequest request = new CreateProductRequest
-                {
-                    Description = subscriptionPlan!.Description,
-                    Locale = Locale.TR.ToString(),
-                    Name = subscriptionPlan!.Name,
-                };
-
-                iyziPayProduct = Iyzipay.Model.V2.Subscription.Product.Create(request, options);
-
-                CreatePlanRequest planRequest = new CreatePlanRequest()
-                {
-                    Locale = Locale.TR.ToString(),
-                    Name = $"{subscriptionPlan.Name} - Aylık Ödeme Planı",
-                    TrialPeriodDays = subscriptionPlan.TrialDays,
-                    Price = subscriptionPlan.Price.ToString(),
-                    CurrencyCode = Currency.TRY.ToString(),
-                    PaymentInterval = PaymentInterval.MONTHLY.ToString(),
-                    RecurrenceCount = 12,
-                    PaymentIntervalCount = 1,
-                    PlanPaymentType = PlanPaymentType.RECURRING.ToString(),
-                    ProductReferenceCode = iyziPayProduct.Data.ReferenceCode
-                };
-
-                ResponseData<PlanResource> response = Plan.Create(planRequest, options);
-
-                subscriptionPlan.UpdateCode(response.Data.ReferenceCode);
-                _context.SubscriptionPlans.Update(subscriptionPlan);
-                await _context.SaveChangesAsync(default);
-
-                SubscriptionInitializeRequest subscriptionInitializeRequest = new SubscriptionInitializeRequest
-                {
-                    Locale = Locale.TR.ToString(),
-                    Customer = new CheckoutFormCustomer
-                    {
-                        Email = _workContext.GuestRegistration!.Email,
-                        Name = _workContext.GuestRegistration.Firstname,
-                        Surname = _workContext.GuestRegistration.Lastname,
-                        BillingAddress = new Address
-                        {
-                            City = business.City,
-                            Country = "Türkiye",
-                            Description = business.Address,
-                            ContactName = business.OwnerName,
-                            ZipCode = business.PostalCode,
-                        },
-                        ShippingAddress = new Address
-                        {
-                            City = business.City,
-                            Country = "Türkiye",
-                            Description = business.Address,
-                            ContactName = business.OwnerName,
-                            ZipCode = business.PostalCode,
-                        },
-                        GsmNumber = business.Phone,
-                        IdentityNumber = business.TaxNumber
-                    },
-                    PaymentCard = new CardInfo
-                    {
-                        CardNumber = cardModel.Number,
-                        CardHolderName = cardModel.CardHolderName,
-                        ExpireMonth = cardModel.ExpiryMonth,
-                        ExpireYear = cardModel.ExpiryMonth,
-                        Cvc = cardModel.Cvv,
-                        RegisterConsumerCard = true
-                    },
-                    PricingPlanReferenceCode = subscriptionPlan!.Code
-                };
-
-                ResponseData<SubscriptionCreatedResource> subscriptionCreateResponse =
-                    Subscription.Initialize(subscriptionInitializeRequest, options);
-
-                return new PaymentResponse
-                {
-                    IsSuccess = subscriptionCreateResponse.Status == Status.SUCCESS.ToString(),
-                    PaymentId = subscriptionCreateResponse.Data.ReferenceCode,
-                    ErrorMessage = subscriptionCreateResponse.ErrorMessage,
-                    RawResult = JsonSerializer.Serialize(subscriptionCreateResponse.Data)
-                };
-            }
-            else
-            {
-                subscriptionPlan!.UpdateCode(PasswordGenerator.GenerateRandomPassword());
-                _context.SubscriptionPlans.Update(subscriptionPlan);
-                await _context.SaveChangesAsync(default);
-                
-                return new PaymentResponse
-                {
-                    IsSuccess = true,
-                    PaymentId = PasswordGenerator.GenerateRandomPassword(),
-                    ErrorMessage = null,
-                    RawResult = JsonSerializer.Serialize(new{Debug=true})
-                };
-            }
+            var response = _subscriptions.Initialize(request, options);
+            var data = response.Data;
+            if (!Success(response.Status) || data == null || !Reference(data.ReferenceCode) ||
+                data.PricingPlanReferenceCode != plan.Code || data.SubscriptionStatus != "PENDING" || !Reference(data.CustomerReferenceCode))
+                return Rejected();
+            return new PaymentResponse { IsSuccess = true, PaymentId = data.ReferenceCode, RawResult = JsonSerializer.Serialize(data) };
         }
-        catch (Exception ex)
+        catch (Exception error)
         {
-            _logger.LogError(ex, "Error processing payment with iyzico");
-            return new PaymentResponse
-            {
-                IsSuccess = _isSandbox, ErrorMessage = _isSandbox ?null: "Payment processing failed", RawResult = _isSandbox ?JsonSerializer.Serialize(new{Debug=true}): ex.ToString()
-            };
+            _logger.LogError("Iyzico subscription initialization failed ({ErrorType}).", error.GetType().Name);
+            return Rejected();
         }
     }
 
@@ -290,49 +228,47 @@ public class IyzicoPaymentProvider : IPaymentProvider
     {
         try
         {
-            Options options = new Options
-            {
-                ApiKey = _apiKey,
-                SecretKey = _secretKey,
-                BaseUrl = _isSandbox ? "https://sandbox-api.iyzipay.com" : "https://api.iyzipay.com"
-            };
-
-            RetrieveBinNumberRequest binRequest = new RetrieveBinNumberRequest()
-            {
-                Locale = Locale.TR.ToString(),
-                ConversationId = Guid.NewGuid().ToString(),
-                BinNumber = request.Number?.Substring(0, 6)
-            };
-
-            BinNumber binNumber = await BinNumber.Retrieve(binRequest, options);
-
-            return binNumber.Status == "success";
+            if (request.Number == null || request.Number.Length < 6) return false;
+            var bin = await _subscriptions.ReadBinAsync(new RetrieveBinNumberRequest {
+                Locale = "tr", ConversationId = Guid.NewGuid().ToString("D"), BinNumber = request.Number[..6]
+            }, MerchantOptions());
+            return Success(bin.Status);
         }
-        catch (Exception ex)
+        catch (Exception error)
         {
-            _logger.LogError(ex, "Error validating card with iyzico");
-            return _isSandbox;
+            _logger.LogError("Iyzico card validation failed ({ErrorType}).", error.GetType().Name);
+            return false;
         }
     }
 
-    public Task<bool> ActivateSubscriptionAsync(PaymentResponse paymentDetail)
+    public Task<bool> ActivateSubscriptionAsync(PaymentResponse payment)
     {
-        if(_isSandbox)
-            return Task.FromResult<bool>(true);
-        
-        ActivateSubscriptionRequest request = new ActivateSubscriptionRequest
+        try
         {
-            Locale = Locale.TR.ToString(), SubscriptionReferenceCode = paymentDetail.PaymentId
-        };
-        Options options = new Options
+            if (!payment.IsSuccess || !Reference(payment.PaymentId) || string.IsNullOrWhiteSpace(payment.RawResult))
+                return Task.FromResult(false);
+            var expected = JsonSerializer.Deserialize<SubscriptionCreatedResource>(payment.RawResult);
+            if (expected == null || expected.ReferenceCode != payment.PaymentId || !Reference(expected.PricingPlanReferenceCode) ||
+                !Reference(expected.CustomerReferenceCode) || expected.SubscriptionStatus != "PENDING") return Task.FromResult(false);
+            var options = MerchantOptions();
+            var query = new RetrieveSubscriptionRequest { Locale = "tr", SubscriptionReferenceCode = payment.PaymentId };
+            bool Matches(ResponseData<SubscriptionResource> value) => Success(value.Status) && value.Data != null &&
+                value.Data.ReferenceCode == payment.PaymentId && value.Data.PricingPlanReferenceCode == expected.PricingPlanReferenceCode &&
+                value.Data.CustomerReferenceCode == expected.CustomerReferenceCode;
+            var before = _subscriptions.ReadSubscription(query, options);
+            if (!Matches(before)) return Task.FromResult(false);
+            if (before.Data.SubscriptionStatus == "ACTIVE") return Task.FromResult(true);
+            if (before.Data.SubscriptionStatus != "PENDING") return Task.FromResult(false);
+            var activation = _subscriptions.Activate(new ActivateSubscriptionRequest { Locale = "tr", SubscriptionReferenceCode = payment.PaymentId }, options);
+            if (!Success(activation.Status)) return Task.FromResult(false);
+            var after = _subscriptions.ReadSubscription(query, options);
+            return Task.FromResult(Matches(after) && after.Data.SubscriptionStatus == "ACTIVE");
+        }
+        catch (Exception error)
         {
-            ApiKey = _apiKey,
-            SecretKey = _secretKey,
-            BaseUrl = _isSandbox ? "https://sandbox-api.iyzipay.com" : "https://api.iyzipay.com"
-        };
-        IyzipayResourceV2 response = Subscription.Activate(request, options);
-
-        return Task.FromResult(response.Status == Status.SUCCESS.ToString());
+            _logger.LogError("Iyzico subscription activation failed ({ErrorType}).", error.GetType().Name);
+            return Task.FromResult(false);
+        }
     }
 
     private Buyer CreateBuyerInfo(Business business)

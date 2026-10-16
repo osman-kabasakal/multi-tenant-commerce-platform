@@ -130,10 +130,14 @@ public class PaymentVerificationStep(
                     subscriptionPlan.Id
                 join businessSubscription in _context.BusinessSubscriptions on subscriptionPlan.Id equals
                     businessSubscription.PlanId
-                where subscriptionSelectionState.IsActive &&
+                where subscriptionSelectionState.GuestId == _workContext.GuestRegistration!.Id &&
+                      subscriptionSelectionState.IsActive &&
                       subscriptionSelectionState.CompletedAt.HasValue &&
                       !subscriptionSelectionState.IsDeleted &&
-                      businessSubscription.BusinessId == _workContext.GuestRegistration!.ConvertedBusinessId
+                      businessSubscription.BusinessId == _workContext.GuestRegistration!.ConvertedBusinessId &&
+                      !businessSubscription.IsDeleted && businessSubscription.IsActive &&
+                      businessSubscription.Status == SubscriptionStatus.AwaitingPayment &&
+                      subscriptionPlan.IsActive && !subscriptionPlan.IsDeleted
                 select businessSubscription
             ).FirstAsync(cancellationToken);
             
@@ -175,6 +179,8 @@ public class PaymentVerificationStep(
             // Başarılı ön yetkilendirmeyi kaydet
             _logger.LogInformation("Setting pre-auth details and completing registration state for GuestId: {GuestId}", _workContext.GuestId);
             savedState.SetPreAuthDetails(1.0m, subscriptionPayment.PaymentId!);
+            savedBusinessSubscription.UpdateStatus(SubscriptionStatus.Active);
+            _context.BusinessSubscriptions.Update(savedBusinessSubscription);
             savedState.Complete();
             _context.RegistrationStates.Update(savedState);
             await _context.SaveChangesAsync(cancellationToken);

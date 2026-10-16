@@ -1,6 +1,7 @@
 using SaasManager.Application.Common.Utilities;
 using SaasManager.Application.Common.Interfaces.Identity;
 using Platform.Security;
+using SaasManager.Application.Stores.Provisioning;
 using Platform.Provisioning;
 using System.Text.Json;
 using Core.Models.Responses;
@@ -94,13 +95,14 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
         if(mobileProfile is not ("Disabled" or "AndroidAppDistribution") || mobileProfile=="AndroidAppDistribution" &&
             (!_configuration.GetValue<bool>("Provisioning:Enabled") || _configuration["Provisioning:Profile"]!="Portable" || string.IsNullOrWhiteSpace(_configuration["Provisioning:DeploymentId"])))
             throw new InvalidOperationException("Signed Android enrollment requires an explicit durable Portable deployment.");
+        if (!string.Equals(request.OwnerEmail, _workContext.GuestRegistration?.Email, StringComparison.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException("The store owner email must match the registered business owner.");
+        await TenantProvisioningEntitlement.RequireAsync(_context, _workContext, _configuration, business.Id, cancellationToken);
         var tenantId = request.BusinessId.ToString("N");
         await _tenantSecrets.ProvisionAsync(tenantId, request.StoreSubDomain, cancellationToken);
         if (_configuration.GetValue<bool>("Provisioning:Enabled"))
         {
             if (_provisioning == null) throw new InvalidOperationException("Register the durable provisioning queue.");
-            if (!string.Equals(request.OwnerEmail, _workContext.GuestRegistration?.Email, StringComparison.OrdinalIgnoreCase))
-                throw new UnauthorizedAccessException("The store owner email must match the registered business owner.");
             var businessAppForProvisioning = await _context.BusinessApps.FirstOrDefaultAsync(x => x.BusinessId == request.BusinessId, cancellationToken);
             // Save once before enqueueing; a replay must not rotate credentials used by an in-flight installer.
             await _tenantSecrets.GetOrCreateAsync(tenantId, TenantSecretNames.InitialPassword,

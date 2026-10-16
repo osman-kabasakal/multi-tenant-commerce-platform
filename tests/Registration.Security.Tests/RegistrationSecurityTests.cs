@@ -20,6 +20,8 @@ using SaasManager.Application.Stores.Commands.RegisterStore;
 using SaasManager.Domain.Entities.IdentityManagement;
 using SaasManager.Domain.Entities.Organization;
 using SaasManager.Domain.Entities.Registration;
+using SaasManager.Domain.Entities.Billing;
+using SaasManager.Domain.Enums;
 using SaasManager.Infrastructure.Data;
 using StackExchange.Redis;
 
@@ -38,13 +40,24 @@ public class RegistrationSecurityTests
         work.SetupProperty(x=>x.GuestRegistration,guest);
         return work;
     }
+    private static void GrantPaidEntitlement(ApplicationDbContext db, GuestRegistration guest, Business business)
+    {
+        guest.ConvertToBusiness(business);
+        var plan = new SubscriptionPlan("Paid fixture", "fixture-plan", 10, 10, 2, 100, false, false,
+            JsonDocument.Parse("{}"), 0, "Contract fixture", 0, true, 0, 1, 0);
+        db.SubscriptionPlans.Add(plan);
+        db.BusinessSubscriptions.Add(new BusinessSubscription(business.Id, plan.Id, DateTime.UtcNow.AddDays(-1),
+            DateTime.UtcNow.AddDays(30), 10, PaymentPeriod.Monthly));
+        var payment = new PaymentSetupState(guest); payment.SetPreAuthDetails(1, "fixture-provider-reference"); payment.Complete();
+        db.PaymentSetupStates.Add(payment);
+    }
     [DataTestMethod]
     [DataRow("Disabled")][DataRow("AndroidAppDistribution")]
     public async Task SaasQueuesTheSelectedMobilePolicyWithTheDeploymentAndCanonicalBusiness(string mobile)
     {
         await using var db=Context();var guest=new GuestRegistration("owner@example.test","synthetic-token"){Id=Guid.NewGuid()};
         var business=new Business("Test Shop","Owner",guest.Email!,"000","123","Test","Street","City","District","00000","Test Ltd",guest.Id);
-        db.GuestRegistrations.Add(guest);db.Businesses.Add(business);await db.SaveChangesAsync();
+        db.GuestRegistrations.Add(guest);db.Businesses.Add(business);GrantPaidEntitlement(db, guest, business);await db.SaveChangesAsync();
         TenantProvisioningRequest? captured=null;var queue=new Mock<IProvisioningQueue>();
         queue.Setup(x=>x.EnqueueAsync(It.IsAny<TenantProvisioningRequest>(),It.IsAny<CancellationToken>()))
             .Callback<TenantProvisioningRequest,CancellationToken>((request,_)=>captured=request)
@@ -121,7 +134,7 @@ public class RegistrationSecurityTests
         await using var db=Context();
         var guest=new GuestRegistration("owner@example.test","synthetic-token") {Id=Guid.NewGuid()};
         var business=new Business("Test Shop","Owner",guest.Email!,"000","123","Test","Street","City","District","00000","Test Ltd",guest.Id);
-        db.GuestRegistrations.Add(guest);db.Businesses.Add(business);await db.SaveChangesAsync();
+        db.GuestRegistrations.Add(guest);db.Businesses.Add(business);GrantPaidEntitlement(db, guest, business);await db.SaveChangesAsync();
         var work=Work(guest);
         var secrets=new Mock<ITenantSecrets>();
         var mongo=new Mock<IMongoAtlasManager>(MockBehavior.Strict);
@@ -141,7 +154,7 @@ public class RegistrationSecurityTests
         Assert.IsNull(response.Data!.MongoConnectionString);Assert.IsNull(response.Data.Password);
         secrets.Verify(x=>x.GetOrCreateAsync(business.Id.ToString("N"),TenantSecretNames.InitialPassword,It.IsAny<Func<string>>(),It.IsAny<CancellationToken>()),Times.Once);
         mongo.VerifyNoOtherCalls();redis.VerifyNoOtherCalls();
-        var status=new ProvisioningStatusHandler(db,work.Object,queue.Object);
+        var status=new ProvisioningStatusHandler(db,work.Object,queue.Object,config);
         Assert.IsTrue(await status.Handle(new RetryProvisioning(business.Id),default));
         request.OwnerEmail="different@example.test";
         await Assert.ThrowsExceptionAsync<UnauthorizedAccessException>(()=>handler.Handle(request,default));
@@ -157,7 +170,7 @@ public class RegistrationSecurityTests
         await using var db=Context();
         var guest=new GuestRegistration("owner@example.test","synthetic-token") {Id=Guid.NewGuid()};
         var business=new Business("Test Shop","Owner",guest.Email!,"000","123","Test","Street","City","District","00000","Test Ltd",guest.Id);
-        db.GuestRegistrations.Add(guest);db.Businesses.Add(business);await db.SaveChangesAsync();
+        db.GuestRegistrations.Add(guest);db.Businesses.Add(business);GrantPaidEntitlement(db, guest, business);await db.SaveChangesAsync();
         var work=Work(guest);var secrets=new Mock<ITenantSecrets>();var mongo=new Mock<IMongoAtlasManager>();var redis=new Mock<ISubscriber>();
         mongo.Setup(x=>x.CreateDatabaseUserByStoreAsync(It.IsAny<RegisterStoreCommand>(),It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TenantStatusMessage {StoreSubDomain="test-shop",MongoConnectionString="synthetic-private-connection",Password="synthetic-private-password"});
@@ -165,7 +178,7 @@ public class RegistrationSecurityTests
         redis.Setup(x=>x.PublishAsync(It.IsAny<RedisChannel>(),It.IsAny<RedisValue>(),It.IsAny<CommandFlags>()))
             .Callback<RedisChannel,RedisValue,CommandFlags>((_,body,_)=>published=body.ToString()).ReturnsAsync(1);
         var handler=new RegisterStoreCommandHandler(db,mongo.Object,redis.Object,new ConfigurationBuilder().Build(),secrets.Object,work.Object);
-        var request=new RegisterStoreCommand {BusinessId=business.Id,StoreSubDomain="test-shop"};
+        var request=new RegisterStoreCommand {BusinessId=business.Id,StoreSubDomain="test-shop",OwnerEmail=guest.Email!};
         var response=await handler.Handle(request,default);
         Assert.IsNotNull(published);
         Assert.IsFalse(published.Contains("synthetic-private"));

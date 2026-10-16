@@ -27,6 +27,7 @@
     "Google": {"Provider": "Disabled"},
     "ReadinessEmail": {"Provider": "Disabled"},
     "Notifications": {"Provider": "Disabled"},
+    "Payments": {"Provider": "Disabled"},
     "Mobile": {"Provider": "Disabled"}
   }
 }

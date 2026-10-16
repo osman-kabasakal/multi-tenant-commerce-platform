@@ -49,32 +49,25 @@ public class PaymentProviderFactory : IPaymentProviderFactory
 
     public IPaymentProvider GetDefaultProvider()
     {
-        // Varsayılan provider'ı veritabanından al
-        var defaultProvider = _context.PaymentProviders
-            .FirstOrDefault(p => p.IsActive);
-
+        if (string.IsNullOrWhiteSpace(_iyzicoConf.ApiKey) || string.IsNullOrWhiteSpace(_iyzicoConf.SecretKey))
+            throw new InvalidOperationException("Configure the selected payment merchant before paid enrollment.");
+        Guid? selectedId = null;
+        if (!string.IsNullOrEmpty(_iyzicoConf.ProviderId))
+            selectedId = Guid.TryParse(_iyzicoConf.ProviderId, out var id) && id != Guid.Empty
+                ? id : throw new InvalidOperationException("The configured payment provider id is invalid.");
+        var defaultProvider = _context.PaymentProviders.FirstOrDefault(p => p.IsActive && !p.IsDeleted &&
+            (selectedId == null ? p.Code == "IYZICO" : p.Id == selectedId.Value));
         if (defaultProvider == null)
         {
-            _logger.LogError("No default payment provider configured");
-            var defaultP=_providers.First();
-            var paymentProvider = new PaymentProvider(
-                defaultP.Value.Name,
-                defaultP.Key,
-                defaultP.Value.Type,
-                JsonDocument.Parse(JsonSerializer.Serialize(_iyzicoConf)),
-                apiKey: _iyzicoConf.ApiKey,
-                apiSecret: _iyzicoConf.SecretKey,
-                baseUrl: "https://api.iyzipay.com",
-                isSandbox: true,
-                0m,
-                0m,
-                ["TRY", "USD"],
-                30
-            );
-            paymentProvider.UpdateHealthStatus(true);
-            _context.PaymentProviders.Add(paymentProvider);
-            _context.SaveChangesAsync(default).ConfigureAwait(true).GetAwaiter().GetResult();
-            throw new InvalidOperationException("No default payment provider configured");
+            if (selectedId != null) throw new InvalidOperationException("The configured payment provider is unavailable.");
+            var provider = GetProvider("IYZICO");
+            // Merchant secrets live in private runtime configuration, never another plaintext database copy.
+            defaultProvider = new PaymentProvider(provider.Name, provider.Code, provider.Type,
+                JsonDocument.Parse("{\"credentialSource\":\"runtime-configuration\"}"), string.Empty, string.Empty,
+                _iyzicoConf.IsSandbox ? "https://sandbox-api.iyzipay.com" : "https://api.iyzipay.com", _iyzicoConf.IsSandbox,
+                0m, 0m, ["TRY"], 30);
+            _context.PaymentProviders.Add(defaultProvider);
+            _context.SaveChangesAsync(default).GetAwaiter().GetResult();
         }
 
         return GetProvider(defaultProvider.Code);

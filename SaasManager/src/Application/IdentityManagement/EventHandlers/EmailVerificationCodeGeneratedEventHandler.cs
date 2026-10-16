@@ -174,10 +174,8 @@ public class PaymentPreAuthCompletedEventHandler
         var domainEvent = notification;
         
         _logger.LogInformation(
-            "Payment pre-auth completed for guest {GuestId}. Amount: {Amount}, AuthCode: {AuthCode}",
-            domainEvent.GuestId,
-            domainEvent.Amount,
-            domainEvent.AuthorizationCode);
+            "Payment setup completed for guest {GuestId}.",
+            domainEvent.GuestId);
         //
         // // Pre-auth logunu kaydet
         // var log = new PaymentAuthorizationLog

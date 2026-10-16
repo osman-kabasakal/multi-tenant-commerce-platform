@@ -1,0 +1,12 @@
+{
+  "Providers": {
+    "Payments": {
+      "Provider": "Disabled",
+      "Iyzico": {
+        "IsSandbox": true,
+        "ApiKey": "",
+        "SecretKey": ""
+      }
+    }
+  }
+}

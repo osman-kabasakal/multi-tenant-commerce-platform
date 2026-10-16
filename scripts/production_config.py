@@ -5,6 +5,7 @@ import copy
 import hashlib
 import ipaddress
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -66,6 +67,18 @@ def validate(plan):
         raise ValueError('Explicitly select Disabled or Smtp readiness delivery.')
     if providers.get('Notifications', {}).get('Provider') not in ('Disabled', 'Fcm'):
         raise ValueError('Explicitly select Disabled or Fcm notifications.')
+    payments = providers.get('Payments', {'Provider': 'Disabled'})
+    if not isinstance(payments, dict) or payments.get('Provider') not in ('Disabled', 'Iyzico'):
+        raise ValueError('Explicitly select Disabled or Iyzico subscription payments.')
+    if payments['Provider'] == 'Iyzico':
+        merchant = payments.get('Iyzico', {})
+        if not isinstance(merchant, dict) or type(merchant.get('IsSandbox')) is not bool or any(
+                not isinstance(merchant.get(key), str) or not merchant[key].strip() for key in ('ApiKey', 'SecretKey')):
+            raise ValueError('Configure the private iyzico merchant keys and an explicit sandbox/live selection.')
+        try: pricing = uuid.UUID(plan['TrialPlan']['Code'])
+        except (KeyError, ValueError, TypeError): raise ValueError('Paid enrollment requires the actual merchant pricing-plan reference in TrialPlan.Code.')
+        if pricing.int == 0 or type(plan['TrialPlan'].get('Price')) not in (int, float) or not math.isfinite(plan['TrialPlan']['Price']) or plan['TrialPlan']['Price'] <= 0:
+            raise ValueError('Paid enrollment requires a nonempty merchant pricing reference and a positive matching plan price.')
     mobile = providers.get('Mobile', {'Provider': 'Disabled'})
     if mobile.get('Provider') not in ('Disabled', 'AndroidAppDistribution'):
         raise ValueError('Explicitly select Disabled or AndroidAppDistribution mobile provisioning.')
@@ -212,6 +225,8 @@ def render(p, state, record, image):
         Web={'AllowedOrigins': [portal], 'DataProtectionKeyDirectory': '/var/lib/commerce/saas-cookie-keys', 'DataProtectionApplicationName': ident},
         GuestAuth={'Issuer': portal, 'Audience': portal, 'SecretKey': c['guest']}, redispublisher='redis:6379,password=' + c['redis'],
         Proxy=proxy([ip(10)]), Diagnostics={'DatabaseQueries': {'Enabled': False}})
+    saas['Payments'] = copy.deepcopy(p['Providers'].get('Payments', {'Provider': 'Disabled'}))
+    if saas['Payments']['Provider'] == 'Iyzico': saas['CardProtection'] = {'Provider': 'Platform'}
     if ca: saas['AuthConfiguration']['AuthorityRootCertificateFile'] = ca
     worker = copy.deepcopy(base)
     worker.update(PlatformSecurity=security('worker'), Provisioning={'Enabled': True, 'InitializeSchema': False, 'Profile': 'Portable',

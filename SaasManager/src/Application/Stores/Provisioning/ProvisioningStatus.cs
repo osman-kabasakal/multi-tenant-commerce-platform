@@ -1,4 +1,5 @@
 using Platform.Provisioning;
+using Microsoft.Extensions.Configuration;
 using SaasManager.Application.Common.Interfaces.Data;
 using SaasManager.Application.Common.Interfaces.Identity;
 using SaasManager.Application.Common.Security;
@@ -10,7 +11,7 @@ public sealed record GetProvisioningStatus(Guid BusinessId) : IRequest<Provision
 [Authorize]
 public sealed record RetryProvisioning(Guid BusinessId) : IRequest<bool>;
 
-public sealed class ProvisioningStatusHandler(IApplicationDbContext db, IWorkContext work, IProvisioningQueue queue)
+public sealed class ProvisioningStatusHandler(IApplicationDbContext db, IWorkContext work, IProvisioningQueue queue, IConfiguration config)
     : IRequestHandler<GetProvisioningStatus, ProvisioningJob?>, IRequestHandler<RetryProvisioning, bool>
 {
     private async Task AuthorizeAsync(Guid id, CancellationToken ct)
@@ -27,6 +28,7 @@ public sealed class ProvisioningStatusHandler(IApplicationDbContext db, IWorkCon
     public async Task<bool> Handle(RetryProvisioning request, CancellationToken cancellationToken)
     {
         await AuthorizeAsync(request.BusinessId, cancellationToken);
+        await TenantProvisioningEntitlement.RequireAsync(db, work, config, request.BusinessId, cancellationToken);
         return await queue.RetryAsync(request.BusinessId.ToString("N"), cancellationToken);
     }
 }

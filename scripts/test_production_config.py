@@ -88,6 +88,31 @@ class ProductionConfigTests(unittest.TestCase):
             self.assertEqual((state / 'secrets' / name).stat().st_mode & 0o777, 0o600)
 
 
+    def test_payment_merchant_requires_real_plan_and_secrets_only_reach_saas(self):
+        plan = copy.deepcopy(self.plan)
+        plan['Providers']['Payments'] = {'Provider': 'Iyzico', 'Iyzico': {
+            'ApiKey': 'synthetic-merchant-key', 'SecretKey': 'synthetic-merchant-secret', 'IsSandbox': True}}
+        with self.assertRaises(ValueError): config.validate(plan)
+        plan['TrialPlan']['Code'] = '22222222-2222-2222-2222-222222222222'
+        state = self.root / 'payment-state'; original = config.prepare(plan, state, 'commerce-platform:fixture')
+        saas = json.loads((state / 'config/saas.json').read_text())
+        self.assertEqual(saas['Payments'], plan['Providers']['Payments'])
+        self.assertEqual(saas['CardProtection']['Provider'], 'Platform')
+        self.assertEqual((state / 'config/saas.json').stat().st_mode & 0o777, 0o600)
+        for file in (state / 'config').iterdir():
+            if file.name != 'saas.json': self.assertNotIn('synthetic-merchant-', file.read_text())
+        self.assertNotIn('synthetic-merchant-', (state / 'compose.json').read_text())
+        replay = config.prepare(plan, state, 'commerce-platform:fixture')
+        self.assertEqual(original['MasterKey'], replay['MasterKey']); self.assertEqual(original['Credentials'], replay['Credentials'])
+        for price in (True, float('nan'), float('inf'), 0, -1, '299'):
+            with self.subTest(price_type=type(price).__name__):
+                changed = copy.deepcopy(plan); changed['TrialPlan']['Price'] = price
+                with self.assertRaises(ValueError): config.validate(changed)
+        for mutation in ({'IsSandbox': 'false'}, {'ApiKey': ''}, {'SecretKey': None}):
+            with self.subTest(mutation=tuple(mutation)):
+                changed = copy.deepcopy(plan); changed['Providers']['Payments']['Iyzico'].update(mutation)
+                with self.assertRaises(ValueError): config.validate(changed)
+
     def test_identity_registration_requires_explicit_smtp_and_keeps_original_secrets(self):
         for identity in ({'RegistrationAllowed': 'false'}, {'RegistrationAllowed': True},
                          {'RegistrationAllowed': True, 'Smtp': {'host': 'smtp.example.test', 'port': 587, 'from': 'accounts@example.test'}}):

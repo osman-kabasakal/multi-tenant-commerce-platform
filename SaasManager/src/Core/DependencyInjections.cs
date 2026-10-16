@@ -21,11 +21,19 @@ public static class DependencyInjections
         applicationBuilder.Services.StartupConfig<CacheConfig>(applicationBuilder.Configuration.GetSection("Cache"));
         applicationBuilder.Services.StartupConfig<GuestAuthConfiguration>(applicationBuilder.Configuration.GetSection("GuestAuth"));
 
-        applicationBuilder.Services.Configure<IyzicoConfiguration>((a) =>
+        var paymentProvider = applicationBuilder.Configuration["Payments:Provider"];
+        if (paymentProvider is not (null or "Disabled" or "Iyzico"))
+            throw new InvalidOperationException("Choose Disabled or Iyzico payment configuration.");
+        applicationBuilder.Services.Configure<IyzicoConfiguration>(a =>
         {
-            a.ApiKey = applicationBuilder.Configuration["Dev:Iyzico:ApiKey"]??string.Empty;
-            a.SecretKey = applicationBuilder.Configuration["Dev:Iyzico:SecretKey"]??string.Empty;
-            a.IsSandbox = true;
+            var enabled = paymentProvider == "Iyzico";
+            var legacyDevelopment = paymentProvider == null && applicationBuilder.Environment.IsDevelopment();
+            a.ApiKey = (enabled ? applicationBuilder.Configuration["Payments:Iyzico:ApiKey"] :
+                legacyDevelopment ? applicationBuilder.Configuration["Dev:Iyzico:ApiKey"] : null) ?? string.Empty;
+            a.SecretKey = (enabled ? applicationBuilder.Configuration["Payments:Iyzico:SecretKey"] :
+                legacyDevelopment ? applicationBuilder.Configuration["Dev:Iyzico:SecretKey"] : null) ?? string.Empty;
+            a.ProviderId = enabled ? applicationBuilder.Configuration["Payments:Iyzico:ProviderId"] ?? string.Empty : string.Empty;
+            a.IsSandbox = !enabled || applicationBuilder.Configuration.GetValue("Payments:Iyzico:IsSandbox", true);
         });
     }
 }

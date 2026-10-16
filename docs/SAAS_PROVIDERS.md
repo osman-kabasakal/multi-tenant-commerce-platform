@@ -70,3 +70,6 @@ Use .NET SDK 9 and Node.js 22/npm on the build machine. A normal publish now res
 Run the resulting `SaasManager.Web.dll` from that directory with the private Production configuration described above. No Node/npm process is required on the running server. Publish into a new versioned directory and switch the service to it after validation; do not overwrite a running application's files. This command builds an application artifact; it does not create the infrastructure, database schema, identity clients, DNS or certificates. Follow the owner bootstrap and provider runbooks for those prerequisites.
 
 Only the local demo explicitly sets `BuildSaasFrontend=false`, because it supplies its separate demo frontend afterwards. A publish without the Production frontend must not be treated as a complete deployment package. The Production enrollment probe uses a new isolated normal publish directory and verifies that `/register` and its compiled JavaScript/styles are actually served over HTTPS before exercising enrollment. It still does not execute the entire Angular form in a browser.
+
+
+Paid subscription entitlement, explicit merchant configuration and the real provider-response checks are documented in [PAYMENTS.md](PAYMENTS.md). The default deployment keeps merchant payments disabled and uses the configured free-trial path.
