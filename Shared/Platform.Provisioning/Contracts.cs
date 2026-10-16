@@ -58,3 +58,16 @@ public interface IProvisioningGuard
 {
     Task ValidateAsync(TenantProvisioningRequest request,IReadOnlyDictionary<string,ProvisioningStepResult> completed,CancellationToken cancellationToken);
 }
+
+/// <summary>A durable dependency wait; release the worker without consuming a failed attempt.</summary>
+public sealed class ProvisioningDeferredException : Exception
+{
+    public string ReasonCode { get; }
+    public TimeSpan RetryAfter { get; }
+    public ProvisioningDeferredException(string reasonCode, TimeSpan retryAfter) : base("A required provisioning dependency is still pending.")
+    {
+        if (!Regex.IsMatch(reasonCode, "^[A-Za-z0-9_.:-]{1,160}\\z") || retryAfter < TimeSpan.FromSeconds(10) || retryAfter > TimeSpan.FromMinutes(5))
+            throw new ArgumentException("Use a bounded dependency-wait interval and safe public reason code.");
+        ReasonCode = reasonCode; RetryAfter = retryAfter;
+    }
+}

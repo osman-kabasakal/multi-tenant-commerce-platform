@@ -271,3 +271,19 @@ Three account identifiers have different purposes: the **Developer Portal Team I
 For the planned automatic App ID/capability/profile stage, obtain an App Store Connect **team API key**. In App Store Connect, the Account Holder requests API access if it is not enabled. Then open **Users and Access > Integrations > App Store Connect API > Team Keys**, generate a key, record its **Key ID** and **Issuer ID**, and download its `.p8` file once to a private directory outside Git. Certificate management requires appropriate account permissions; Apple limits creating distribution certificates to the Account Holder or Admin. Choose permissions for the intended operations rather than assuming an App Manager key can create certificates. A team key applies across the account's applications. See [Apple's API-key setup](https://developer.apple.com/help/app-store-connect/get-started/app-store-connect-api) and [certificate roles](https://developer.apple.com/help/account/certificates/certificates-overview).
 
 Supply only the local `.p8` file path, Key ID and Issuer ID when configuring the future provisioner; never put the key contents or account password in source, logs or chat. An App Store Connect API key authenticates portal API calls; it is not the distribution certificate/private key that signs the IPA and it is not an APNs authentication key. Automatic portal provisioning and shared Mac-worker scheduling remain unimplemented, and this document does not claim live portal access. Firebase APNs configuration and real device acceptance are additional prerequisites for working notifications.
+
+
+## Durable Mac queue foundation
+
+The owner-applied provisioning schema now includes `platform_provisioning.ios_release_jobs`, keyed to an existing tenant onboarding job. Its immutable public plan binds the deployment, tenant bundle, Apple team, certificate, source fingerprint, build version, Firebase SDK hash and distribution app. Signing keys and tester UDIDs are excluded. A worker can claim only a plan matching its deployment/team/certificate/source identity. Expiring claim tokens prevent an interrupted process from renewing, failing or completing a job reclaimed by another process. Completed receipts cannot be replaced; a receipt for another version, SDK, certificate or Firebase app is rejected.
+
+The parent worker also supports a durable dependency wait: it releases its claim, preserves earlier failure counts, retains checkpoints and makes another business eligible while the dependency is pending. Waiting does not report success or spend an additional failure attempt. The isolated integration fixture verifies this behavior and reads an iOS completion receipt from a separate process:
+
+```sh
+dotnet run --project tests/Provisioning.Integration/Provisioning.Integration.csproj \
+  -c Release -- /absolute/private/saas-runtime-test.json
+```
+
+Use a test PostgreSQL owner connection with permission to create the fixture's uniquely named database; the fixture removes only that database. Existing local-demo CI already runs this command against its disposable environment. Schema installation remains an owner operation. Existing deployments must reapply owner initialization and the documented table grants before an iOS runtime is enabled.
+
+**This is the queue foundation, not an enabled automatic iOS provider.** SaaS still accepts only `Disabled` or `AndroidAppDistribution`. The iOS enqueue step, Mac host/build consumer, Apple bundle/profile provisioner, parent completion guard and user-facing retry/status wiring remain to be connected. The standalone manual signing command above remains separate. Positive Apple signing and device/cloud delivery are still required acceptance gates.

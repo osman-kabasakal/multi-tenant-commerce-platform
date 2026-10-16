@@ -146,13 +146,15 @@ public sealed class PortableDatabaseBootstrap(PortableBootstrapOptions options,I
     }
     private static async Task RequireUnusedSharedDatabaseAsync(NpgsqlConnection connection,CancellationToken ct)
     {
-        if(await HasUserRelationsAsync(connection,["platform_security.secrets","platform_security.tenants","platform_security.aliases","platform_provisioning.jobs","platform_provisioning.readiness_deliveries","platform_provisioning.schema_versions","platform_bootstrap.queue_state"],ct))throw new InvalidOperationException("The shared bootstrap target contains unrelated application tables.");
+        if(await HasUserRelationsAsync(connection,["platform_security.secrets","platform_security.tenants","platform_security.aliases","platform_provisioning.jobs","platform_provisioning.readiness_deliveries","platform_provisioning.ios_release_jobs","platform_provisioning.schema_versions","platform_bootstrap.queue_state"],ct))throw new InvalidOperationException("The shared bootstrap target contains unrelated application tables.");
         if(await TableAsync(connection,"platform_security.tenants",ct) && await ScalarAsync<bool>(connection,"SELECT EXISTS(SELECT 1 FROM platform_security.tenants)",ct))
             throw new InvalidOperationException("The unowned security store already contains tenants.");
         if(await TableAsync(connection,"platform_security.secrets",ct) && await ScalarAsync<bool>(connection,"SELECT EXISTS(SELECT 1 FROM platform_security.secrets WHERE NOT(scope='system' AND name='deployment-probe'))",ct))
             throw new InvalidOperationException("The unowned security store already contains secret data.");
         if(await TableAsync(connection,"platform_provisioning.readiness_deliveries",ct) && await ScalarAsync<bool>(connection,"SELECT EXISTS(SELECT 1 FROM platform_provisioning.readiness_deliveries)",ct))
             throw new InvalidOperationException("The unowned provisioning database already contains readiness deliveries.");
+        if(await TableAsync(connection,"platform_provisioning.ios_release_jobs",ct) && await ScalarAsync<bool>(connection,"SELECT EXISTS(SELECT 1 FROM platform_provisioning.ios_release_jobs)",ct))
+            throw new InvalidOperationException("The unowned provisioning database already contains iOS releases.");
         if(await TableAsync(connection,"platform_provisioning.jobs",ct) && await ScalarAsync<bool>(connection,"SELECT EXISTS(SELECT 1 FROM platform_provisioning.jobs)",ct))
             throw new InvalidOperationException("The unowned provisioning database already contains jobs.");
     }

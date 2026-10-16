@@ -143,17 +143,23 @@ jobs:
           print(f'Android runner free disk: {free:.1f} GiB')
           assert free >= 20, 'Android CI requires at least 20 GiB free before SDK installation'
           PYTHON
-      - name: Install the required Android platforms before Gradle
+      - name: Install and verify the pinned Android SDK and NDK before Gradle
         shell: bash
         run: |
           for attempt in 1 2 3; do
             if "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
-              "platforms;android-31" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0"; then break; fi
+              "platforms;android-31" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "ndk;28.2.13676358" && \
+              test -x "$ANDROID_HOME/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin/clang"; then break; fi
             if [ "$attempt" -eq 3 ]; then exit 1; fi
           done
           test -s "$ANDROID_HOME/platforms/android-31/android.jar"
           test -s "$ANDROID_HOME/platforms/android-35/android.jar"
           test -s "$ANDROID_HOME/platforms/android-36/android.jar"
+          python3 - <<'PYTHON'
+          import os, pathlib, re
+          source = pathlib.Path(os.environ['ANDROID_HOME']) / 'ndk/28.2.13676358/source.properties'
+          assert re.search(r'^Pkg\.Revision\s*=\s*28\.2\.13676358\s*$', source.read_text(), re.MULTILINE), 'Pinned NDK metadata is missing or inconsistent'
+          PYTHON
       - name: Bound Gradle memory for the private hosted runner
         shell: bash
         run: |

@@ -61,6 +61,11 @@ public sealed class ProvisioningWorker(PostgresProvisioningQueue queue, IService
         }
         catch (OperationCanceledException) when (owned.IsCancellationRequested) { /* Restart safely after lease expiry. */ }
         catch (ProvisioningLeaseLostException) { }
+        catch (ProvisioningDeferredException waiting)
+        {
+            try { await queue.DeferAsync(lease, waiting, ct); }
+            catch (ProvisioningLeaseLostException) { }
+        }
         catch (Exception exception)
         {
             var code = currentStep + ":" + exception.GetType().Name;

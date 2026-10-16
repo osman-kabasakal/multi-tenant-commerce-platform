@@ -123,6 +123,11 @@ try
     await Sql(foreignOptions.SecurityConnection,"DROP TABLE platform_security.unrelated_data");
     await Cli("initialize",foreign);await Cli("verify",foreign);
     Check(true,"Security and queue may share one explicitly named database");
+    var foreignIos=await FreshPair("foreign-ios");var foreignIosOptions=PortableBootstrapOptions.Read(Config(foreignIos),true);
+    await Sql(foreignIosOptions.QueueConnection,"CREATE SCHEMA platform_provisioning; CREATE TABLE platform_provisioning.ios_release_jobs(id integer); INSERT INTO platform_provisioning.ios_release_jobs VALUES(1)");
+    await Cli("initialize",foreignIos,success:false);
+    Check(await Relations(foreignIosOptions.SaasConnection)==0 && await Scalar<long>(foreignIosOptions.QueueConnection,"SELECT count(*) FROM platform_provisioning.ios_release_jobs")==1,
+        "An unowned populated iOS queue is preserved and rejected before SaaS reservation");
     var unowned=await FreshPair("unowned");var unownedOptions=PortableBootstrapOptions.Read(Config(unowned),true);
     await Sql(unownedOptions.SaasConnection,"CREATE TABLE public.unrelated_application(id integer)");
     await Cli("initialize",unowned,success:false);

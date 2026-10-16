@@ -65,6 +65,7 @@ public sealed class PostgresProvisioningQueue : IProvisioningQueue, IAsyncDispos
             """, connection, transaction);
         await cmd.ExecuteNonQueryAsync(ct);
         await ReadinessDeliverySchema.InitializeAsync(connection,transaction,ct);
+        await PostgresIosReleaseQueue.InitializeAsync(connection,transaction,ct);
         await transaction.CommitAsync(ct);
     }
 
@@ -156,6 +157,16 @@ public sealed class PostgresProvisioningQueue : IProvisioningQueue, IAsyncDispos
         cmd.Parameters.AddWithValue(maxAttempts);
         cmd.Parameters.AddWithValue(TimeSpan.FromSeconds(Math.Min(300, Math.Pow(2, Math.Min(lease.Job.Attempts, 8)))));
         cmd.Parameters.AddWithValue(errorCode);
+        await RequireOwnedAsync(cmd, ct);
+    }
+
+    public async Task DeferAsync(ProvisioningLease lease, ProvisioningDeferredException waiting, CancellationToken ct = default)
+    {
+        await using var cmd = OwnedCommand("""
+            state='Pending',attempts=GREATEST(attempts-1,0),available_at=now()+$3,error_code=$4,
+            claim_token=NULL,lease_until=NULL,updated_at=now()
+            """, lease);
+        cmd.Parameters.AddWithValue(waiting.RetryAfter); cmd.Parameters.AddWithValue(waiting.ReasonCode);
         await RequireOwnedAsync(cmd, ct);
     }
 

@@ -19,6 +19,7 @@ static async Task Reject<T>(Func<Task> action, string description) where T : Exc
 }
 using var config = JsonDocument.Parse(await File.ReadAllTextAsync(args[0]));
 var configuredConnection = config.RootElement.GetProperty("PlatformSecurity").GetProperty("ConnectionString").GetString()!;
+if (args.Length > 1 && args[1] == "ios-child") return await IosReleaseQueueFixture.ReadChildAsync(configuredConnection,args[2]);
 if (args.Length > 1 && args[1] == "child")
 {
     await using var childQueue = new PostgresProvisioningQueue(configuredConnection);
@@ -110,6 +111,7 @@ try
     var rejected=(await queue.GetAsync(guardedRequest.TenantId))!;
     Check(guard.Calls==1 && completedStep.Calls==0 && rejected.State=="Failed" && rejected.ErrorCode=="pipeline:InvalidOperationException",
         "Deployment guards run before checkpoint-only replay and prevent false completion");
+    await IosReleaseQueueFixture.RunAsync(queue,test.ConnectionString,childConfigPath,request);
     Console.WriteLine("Durable provisioning integration checks passed.");
 }
 finally
