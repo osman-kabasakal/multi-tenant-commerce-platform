@@ -1,0 +1,11 @@
+{
+  "Provisioning": {
+    "Mobile": {
+      "Ios": {
+        "DevelopmentTeam": "",
+        "FlutterPath": "",
+        "MinimumFreeGiB": 20
+      }
+    }
+  }
+}

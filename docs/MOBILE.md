@@ -173,3 +173,29 @@ python3 scripts/smoke_android_release.py --android-sdk /absolute/path/to/Android
 It uses an isolated PostgreSQL container on loopback port 15441 and uniquely named test database. Real encrypted key storage, keytool/apksigner/AAPT2, short lease renewal, an upload failure, an independent process reading the key and a separate worker process completing the job are verified. It removes only that fixture's container, anonymous volume and temporary key/artifact files. No Azure account, live Google resources or Flutter compilation are required for this native workflow probe. See [VALIDATION.md](VALIDATION.md) for the exact evidence and remaining gates.
 
 APK signing/verification tools are pinned to Android build-tools 35.0.0. Install that version even when Android Studio or a CI image includes newer SDK tools; a different command-output format is not silently adopted. Install platform android-35 for the native acceptance fixtures as well.
+
+
+## Prepare a Mac for tenant iOS releases
+
+Linux cannot compile or sign an iOS IPA. Keep a Mac with full Xcode available for the iOS build worker; the Linux deployment still hosts the shared tenant services. iOS is in scope, but the automatic Mac worker, tenant IPA build/signing and live distribution are not implemented or verified by the Android pipeline. The preparation command below only identifies local prerequisites and must not be interpreted as a completed mobile release.
+
+Install the repository's pinned Flutter **3.44.6** SDK, CocoaPods and full Xcode. Open Xcode to finish its first-launch setup and accept the relevant terms yourself. In Xcode Settings > Accounts, add the Apple account with your Apple Developer Program membership. Find the Team ID in the membership details, and prepare a valid distribution signing identity for that team using Xcode's certificate management. An Apple ID or development certificate alone does not prove that an ad hoc distribution IPA can be signed. No certificate is created/imported/revoked by this repository's preparation check.
+
+Copy [preflight.example.json](../infra/ios/preflight.example.json) to an absolute private location, set its permissions to `600`, and fill `Provisioning:Mobile:Ios:DevelopmentTeam` with the actual ten-character Team ID. Set `FlutterPath` to the actual SDK's absolute `bin/flutter` path when it is not on PATH or is selected by a version-manager shim. Do not put account passwords, signing keys or service-account JSON into this file or Git. These are preparation settings, not an enabled iOS provisioning provider.
+
+```sh
+python3 scripts/mobile_ios_preflight.py --config /absolute/private/ios-preflight.json \
+  --work-directory /absolute/existing/ios-build-work
+```
+
+The build-work argument only selects the existing filesystem whose free space is measured; it creates no directory. It defaults to the repository directory. The operational guard is at least **20 GiB** free on that filesystem, configurable upward; SDK downloads and dependencies may need more. This is this project's initial safety margin, not an Apple minimum-storage specification. Unused Simulator runtimes can be removed through [Xcode's component management](https://developer.apple.com/documentation/xcode/downloading-and-installing-additional-xcode-components), preserving versions still needed for compatibility tests. Simulator runtimes are not the device SDK used to compile an IPA.
+
+The command checks macOS, selected Xcode/first-launch completion, iPhoneOS SDK, free space, pinned Flutter SDK metadata, CocoaPods availability, selected team and matching local distribution identities. It does not execute Flutter or CocoaPods, download dependencies, accept licenses, import keys, change keychains, call Google/Apple cloud APIs or start a build. Certificate subjects/fingerprints and private configuration paths are omitted from the JSON output. Exit codes: `0` means the local checks passed, `2` means preparation gaps remain, and `1` means configuration could not be read/validated. `readyForBuildAttempt=true` is only permission to attempt a later build; `signedIpaBuilt` and `distributed` remain false.
+
+A real tenant release must additionally bind the tenant's Firebase iOS app and bundle identifier, configure APNs delivery, provision the application/notification extension entitlements, sign and independently verify the IPA, upload the matching Crashlytics symbols and confirm App Distribution delivery. For ad hoc distribution, each tester device UDID must be in the signed provisioning profile; registering a later device requires updating the profile and distributing a newly signed IPA. See [Apple's registered-device distribution guide](https://developer.apple.com/documentation/xcode/distributing-your-app-to-registered-devices), [Firebase device registration](https://firebase.google.com/docs/app-distribution/register-additional-devices), and [Flutter iOS deployment](https://docs.flutter.dev/deployment/ios).
+
+Cloud-free gate tests run on Linux without Apple executables, account access or signing keys:
+
+```sh
+python3 -m unittest discover -s scripts -p test_mobile_ios_preflight.py -v
+```
