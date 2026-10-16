@@ -176,7 +176,7 @@ The real adapter stored the tenant Firebase record through the portable AES-GCM/
 
 Effective-permission checks using the separate sender confirmed tenant FCM send permission and the absence of the selected IAM-write, Firebase-app-create and API-enable permissions. None of the requested send/admin permissions was granted on the sender/credential project. Replaying the same tenant preserved project/app/group/checkpoint identities and issued zero project, app or group create requests. The temporary PostgreSQL container, network and minimal reader directory were removed; encrypted snapshots and the live Google resources remain private for subsequent checks.
 
-This proves the Google provider and shared encrypted storage against real services. It does not prove SaaS registration with the live provider, a device FCM/APNs send, a readable Crashlytics device report, a binary upload/tester installation or signed iOS delivery. Those acceptance gates remain open. The previous Android release evidence used synthetic Firebase identity; it is not a live SDK/device claim.
+This component run proves the Google provider and shared encrypted storage against real services. A subsequent [combined Linux/SaaS acceptance](VALIDATION.md#actual-saas-registration-with-live-google-and-restored-linux-state) verified three actual SaaS registrations with distinct live Google/Firebase projects, cold restoration and independent encrypted readers. Device FCM/APNs delivery, readable Crashlytics device reports, binary upload/tester installation and signed iOS delivery remain open. The previous Android release evidence used synthetic Firebase identity; it is not a live SDK/device claim.
 
 
 ## Console owner access
@@ -198,3 +198,8 @@ After the normal tenant/deployment/parent ownership checks, one project IAM upda
 On 2026-10-17 (operator local date), the operator explicitly chose Owner access for organization administrator users on the existing Firebase test tenant and future tenants. The actual provider added the single eligible human account, preserved all other IAM grants and kept the FCM sender restricted. The operator confirmed that the Firebase Console and both app registrations became accessible. A second live execution performed zero IAM writes and zero project/app/group creates. The [scoped verification record](validation/google-organization-owners-20261017.json) excludes operator identities and credentials.
 
 Official references: [Firebase Console access](https://firebase.google.com/docs/projects/iam/overview), [organization roles](https://docs.cloud.google.com/resource-manager/docs/access-control-org), [project IAM update and ownership restrictions](https://docs.cloud.google.com/resource-manager/reference/rest/v3/projects/setIamPolicy).
+
+
+## Live Android distribution follow-up
+
+The actual production Android release pipeline subsequently built a signed tenant APK, uploaded it to live App Distribution and verified the provider download against the local binary. A completed replay reused the key and binary with zero adapter writes. This used an in-memory mobile profile in a private harness for an existing SaaS tenant; its original Mobile Disabled queue request was unchanged. Fresh mobile-enabled enrollment and device/Crashlytics/notification acceptance remain pending. See the [scoped validation record](validation/android-live-pipeline-d6e25d0.json).

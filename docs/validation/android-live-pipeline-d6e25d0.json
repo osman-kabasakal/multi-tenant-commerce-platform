@@ -1,0 +1,42 @@
+{
+  "sourceCommit": "d6e25d0e5d46ee0cf03ad421d655d517348eb00f",
+  "verifiedOnOperatorDate": "2026-10-17",
+  "completedAtUtc": "2026-10-16T21:57:08.531998+00:00",
+  "execution": "Actual production AndroidReleasePipeline in a private Mac harness against one retained real SaaS tenant, encrypted PostgreSQL store and live Firebase App Distribution",
+  "productionSourcesModified": false,
+  "scope": {
+    "originalSaasQueueProfile": "Disabled",
+    "queuedRequestModified": false,
+    "mobileProfileSelectedInMemoryForHarness": true,
+    "freshMobileEnabledEnrollmentVerified": false,
+    "deviceInstallVerified": false,
+    "deviceCrashlyticsReportVerified": false,
+    "deviceNotificationDeliveryVerified": false,
+    "signedIosReleaseVerified": false,
+    "storeUrl": "Synthetic HTTPS fixture; not a public mobile endpoint",
+    "testerInvitationsSent": false,
+    "liveReleaseAndPrivateStateRetained": true
+  },
+  "artifact": {
+    "bytes": 33792566,
+    "sha256": "42408876e73fe715b30c87cc63ed631313e3150fcf966391d224fa404c70736e",
+    "sourceHash": "75e695637aae5dae8308b5afa196bc6217141c3c5f3a0071233f21787a99db4a",
+    "buildNumber": 1,
+    "actualReleaseSignatureVerified": true,
+    "signingKeyStoredThroughSharedEncryptedTenantStore": true
+  },
+  "checks": {
+    "signedFlutterApkBuilt": true,
+    "liveAppDistributionUploadAndExistingEmptyGroupDistribution": true,
+    "providerReleaseIdentityAndVersionReadBack": true,
+    "signedProviderDownloadMatchesArtifact": true,
+    "replay": {
+      "adapterCloudWrites": 0,
+      "flutterBuildsInvoked": 0,
+      "signingKeysCreated": 0
+    },
+    "transientSigningFilesRemoved": true,
+    "ownedTestServicesStopped": true
+  },
+  "diagnostics": "Private operator receipts retain an initial pre-build harness guard failure and the successful subsequent build/upload/readback; resource identifiers, private paths and signed download URLs are omitted."
+}

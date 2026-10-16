@@ -1,0 +1,9 @@
+{
+  "deployment_id": "commerce-test",
+  "region": "eu-frankfurt-1",
+  "compartment_ocid": "ocid1.compartment.oc1..replace_with_your_compartment",
+  "availability_domain": "REPLACE:EU-FRANKFURT-1-AD-1",
+  "image_ocid": "ocid1.image.oc1.eu-frankfurt-1.replace_with_official_ubuntu_2404_arm64_image",
+  "ssh_public_key": "ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY",
+  "ssh_source_cidr": "192.0.2.10/32"
+}

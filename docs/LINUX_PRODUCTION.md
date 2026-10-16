@@ -1,6 +1,8 @@
 # Linux + Docker Compose deployment
 
-Linux Docker Engine plus Docker Compose is the selected Production target. Clean Linux CI has verified the complete cloud-free baseline: fresh infrastructure, actual SaaS enrollment, two new tenant storefronts and administrator logins, and a restart preserving data, keys and sessions. This uses isolated synthetic DNS and valid private-CA HTTPS; consistent cold database/private-state restoration also passed its full Linux gate. Live public DNS/cloud/device delivery still requires separate verification. The existing local demo is also a ready-to-run cloud-free entry point.
+[GitHub Actions gerektirmeyen Oracle kurulum ve dağıtım adımları](ORACLE_DEPLOYMENT.md). Oracle hesabı ve özel girdiler bir kez hazırlanır; uygulama dağıtımı Mac veya mevcut CI üzerinden aynı araçla çalıştırılır.
+
+Linux Docker Engine plus Docker Compose is the selected Production target. Clean Linux CI has verified the complete cloud-free baseline: fresh infrastructure, actual SaaS enrollment, two new tenant storefronts and administrator logins, and a restart preserving data, keys and sessions. This uses isolated synthetic DNS and valid private-CA HTTPS; consistent cold database/private-state restoration also passed its full Linux gate. The subsequent [live Google acceptance](VALIDATION.md#actual-saas-registration-with-live-google-and-restored-linux-state) also verified three actual SaaS registrations, distinct Google/Firebase projects and restored encrypted Linux readers. Public DNS/TLS, mobile binary/device delivery and external email still require separate verification. The existing local demo is also a ready-to-run cloud-free entry point.
 
 For the Turkish operator setup and each new owner's registration, mobile delivery and acceptance steps, follow [Yeni işletme ekleme rehberi](YENI_ISLETME_EKLEME.md).
 
@@ -12,6 +14,8 @@ Use a non-root Linux deployment account with Docker access, Git, Python 3.10+ an
 python3 scripts/production_image.py build --image commerce-platform:local --platform linux/amd64
 python3 scripts/production_image.py verify --image commerce-platform:local
 ```
+
+The server supports Linux AMD64 and ARM64. The packaged Android build worker currently requires Linux AMD64; the standard Compose startup rejects an Android publication policy on ARM64 before starting infrastructure. Choose AMD64 for a single-host deployment that also builds Android. The durable Mac worker described in [MOBILE.md](MOBILE.md) handles iOS; it does not supply a separate Android queue.
 
 On ARM64 Linux use `--platform linux/arm64`. The helper sets the image UID/GID to the current non-root operator; private 0700 directories and 0600 configuration/key bind mounts must belong to that account. The fresh PostgreSQL container probe can be run on Linux without host SDKs:
 
@@ -49,6 +53,8 @@ The verified Compose baseline prepares infrastructure and private configuration,
 The new `scripts/production.py` generates a private Compose definition, per-component settings, stable credentials and the master key. It starts PostgreSQL/MongoDB/Redis, creates separate schema-owner/SaaS/worker/reader/identity accounts, runs the existing owner bootstrap, grants runtime row privileges, and starts optimized PostgreSQL-backed Keycloak plus the actual application containers and Caddy HTTPS ingress. Only HTTP/HTTPS ingress ports are published. Backend proxy trust uses the explicit gateway/edge IPs in the dedicated Docker network. The complete cloud-free two-owner path passed the exact Linux Compose run linked above; the real browser/self-registration gate also passed the exact-source verification recorded below.
 
 Before startup, configure DNS for the portal/identity names and both tenant wildcard parents. Supply an existing valid certificate/full chain and matching private key covering all four targets. Choose an unused private Docker /24 subnet. Copy the example to ignored private configuration and edit its values; confirm wildcard DNS only after creating it:
+
+For an ordinary Cloudflare zone using its nameservers, Universal SSL covers the apex and first-level subdomains; it does not cover a tenant such as `tenant.shops.example.com`. A free deployment can use **DNS-only** tenant wildcard records with a publicly trusted origin certificate covering `*.shops.example.com` and `*.manage.example.com`, plus the portal/identity names. A [Cloudflare Origin CA certificate](https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/) alone is not trusted by browsers connecting directly. Obtain and renew the wildcard certificate using an ACME DNS-01 flow, then supply its full chain/private key through `Tls`; certificate issuance/renewal is still an operator responsibility. See [Cloudflare certificate limits](https://developers.cloudflare.com/ssl/edge-certificates/universal-ssl/limitations/) and [Let's Encrypt DNS-01](https://letsencrypt.org/docs/challenge-types/#dns-01-challenge).
 
 ```sh
 mkdir -p .local

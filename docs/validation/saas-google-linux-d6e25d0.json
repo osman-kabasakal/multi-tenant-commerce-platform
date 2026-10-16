@@ -1,0 +1,66 @@
+{
+  "sourceCommit": "d6e25d0e5d46ee0cf03ad421d655d517348eb00f",
+  "verifiedOnOperatorDate": "2026-10-17",
+  "completedAtUtc": "2026-10-16T21:31:56.078350+00:00",
+  "execution": "Linux ARM64 containers on Docker Desktop for macOS, real SaaS registration and live Google/Firebase APIs",
+  "applicationImage": {
+    "id": "sha256:16ebbe20ab46e8195721e441ab2a03109f6f7838549f8e2690ec369523d0916a",
+    "architecture": "arm64",
+    "os": "linux",
+    "runtimeUserIsNonRoot": true
+  },
+  "fixture": {
+    "baseScript": "scripts/smoke_production_compose.py",
+    "browserAndBackupRestoreEnabled": true,
+    "privateAdaptations": [
+      "Explicit operator Google/FCM/APNs configuration and fixed-host Google OAuth/API proxy allowlist",
+      "Longer provisioning deadlines and saved tenant identities before enrollment",
+      "Preserved owned state and final independent Google verification"
+    ],
+    "adaptedComposeScriptSha256": "9ff2ed9b504896eb9302f9fdbf71aa5ed973d3508a3fff0634fdaf141bace54c",
+    "adaptedBrowserScriptSha256": "b29633e3e98db0142702ff697ccbbc437a3acd811c9a34f82d6b2ea48bf72983",
+    "productionSourcesModified": false,
+    "originalControllerExitCode": 1,
+    "originalFailure": "The final private observer runner had no dotnet executable after the Compose and SDK export checks completed.",
+    "resumedObserver": {
+      "sameSavedTenants": true,
+      "runtime": "Current server image containing .NET 8",
+      "exitCode": 0,
+      "cloudWrites": false
+    }
+  },
+  "checks": {
+    "composeChecksPassed": 117,
+    "distinctLiveTenants": 3,
+    "authenticatedApiEnrollments": 2,
+    "realFirefoxAngularEnrollment": 1,
+    "realPrivateSmtpEmailVerification": true,
+    "tenantOwnershipIsolationAndAntiforgery": true,
+    "realStorefrontsAndOwnerAdminSessions": true,
+    "preservedRestart": true,
+    "coldDatabaseAndPrivateStateRestore": true,
+    "ownerSessionsSurviveRestore": true,
+    "restrictedRuntimeDatabaseRoles": true,
+    "separateSelectOnlyLinuxSdkReadersPassed": 3,
+    "liveGoogleProjectAndFirebaseIdentityMatches": 3,
+    "androidAndIosAppIdsMatchEncryptedReader": true,
+    "organizationAdminHumanOwnerVerified": true,
+    "runtimeSenderLimitedToTestedFcmPermissions": true,
+    "ownedServicesStopped": true
+  },
+  "scope": {
+    "dns": "Synthetic names and private-CA HTTPS; no public DNS change",
+    "email": "Private SMTP receiver; no external inbox delivery",
+    "mobileProvider": "Disabled in these enrollment requests; Google creates mobile app registrations, not binaries",
+    "billingLinked": false,
+    "testerInvitationsSent": false,
+    "deviceNotificationDeliveryVerified": false,
+    "deviceCrashlyticsReportVerified": false,
+    "binaryUploadedOrInstalled": false,
+    "signedIosReleaseVerified": false,
+    "publicLinuxHostVerified": false,
+    "cleanRemoteCiVerified": false,
+    "liveProjectsAndPrivateStateRetained": true,
+    "resourceIdentifiersAndCredentialPaths": "Private operator diagnostics only"
+  }
+}

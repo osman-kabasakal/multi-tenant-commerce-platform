@@ -1,0 +1,67 @@
+{
+  "verifiedOnOperatorDate": "2026-10-17",
+  "completedAtUtc": "2026-10-16T22:48:13.304605+00:00",
+  "baseCommit": "d6e25d0e5d46ee0cf03ad421d655d517348eb00f",
+  "sourceFilesSha256": {
+    "scripts/oracle.py": "3a3fb3ca878c88bc22ceda737ec583d5200d144f2945b03ebfea5dd459990629",
+    "scripts/oracle_remote.py": "e276d6bc9a5e132a6fb6cbcfc1eb9fa2597de6833e964939c74d6c6a9d64c4a0",
+    "scripts/test_oracle.py": "2bf7418af4aa1fa49f5576fc3a6a17c9f7942589571f5d0687854be142442a0c",
+    "infra/oracle/main.tf": "ec5b0ab96b001fafccef9699dd96bea882bad22116942910a9755f5410c29e60",
+    "infra/oracle/cloud-init.yaml": "2541e809e0cfdd1042325cde6420b8dd13e7fe8af5c6f6a83580fa45a08f2031",
+    "infra/oracle/.terraform.lock.hcl": "461fa24dd97792bf1411ff986fbba553eab0c739de6838c1ac3d27cb057bc5ba"
+  },
+  "execution": "Actual OCI CLI and Oracle Resource Manager Terraform plan; no GitHub Actions execution",
+  "toolchain": {
+    "terraform": "1.5.7",
+    "resourceManagerVersion": "1.5.x",
+    "ociProvider": "7.23.0",
+    "ociCli": "3.95.0"
+  },
+  "offlineChecks": {
+    "unitTestsPassed": 20,
+    "receiverUsesRealGitButStubsCloudInitDockerAndApplication": true,
+    "terraformFmtInitValidatePassed": true,
+    "providerLocks": [
+      "linux_amd64",
+      "linux_arm64",
+      "darwin_arm64"
+    ],
+    "cloudInitYamlAndFirewallShellSyntaxPassed": true
+  },
+  "liveChecks": {
+    "apiAuthenticationSucceeded": true,
+    "homeRegionVerified": "eu-frankfurt-1",
+    "initialActiveInstances": 0,
+    "initialBootVolumes": 0,
+    "initialVcns": 0,
+    "resourceManagerPlanExitCode": 0,
+    "resourceManagerPlanState": "SUCCEEDED",
+    "plannedAdd": 6,
+    "plannedChange": 0,
+    "plannedDestroy": 0,
+    "capacityReportsSucceeded": 3,
+    "capacityStatuses": [
+      "OUT_OF_HOST_CAPACITY",
+      "OUT_OF_HOST_CAPACITY",
+      "OUT_OF_HOST_CAPACITY"
+    ],
+    "samePlanReplaySucceeded": true,
+    "postPlanActiveInstances": 0,
+    "postPlanBootVolumes": 0,
+    "postPlanVcns": 0
+  },
+  "scope": {
+    "requestedShape": "VM.Standard.A1.Flex",
+    "ocpus": 2,
+    "memoryGiB": 12,
+    "bootVolumeGiB": 100,
+    "applyRequested": false,
+    "vmCreated": false,
+    "guestBootstrapVerified": false,
+    "publicHttpsRolloutVerified": false,
+    "continuousPushTriggerInstalled": false,
+    "githubActionsRequired": false,
+    "packagedAndroidWorkerRunsOnThisArmHost": false,
+    "resourceIdentifiersPublicKeysCredentialsAndPrivatePaths": "Retained only in private operator state"
+  }
+}

@@ -1,8 +1,10 @@
 # Yeni işletme ekleme rehberi
 
+[GitHub Actions gerektirmeyen Oracle kurulum ve dağıtım adımları](ORACLE_DEPLOYMENT.md). Oracle hesabı ve özel girdiler bir kez hazırlanır; uygulama dağıtımı Mac veya mevcut CI üzerinden aynı araçla çalıştırılır.
+
 Bu rehber, repoyu ilk kez kuran platform işletmecisini ve SaaS üzerinden mağaza açan işletme sahibini aynı akışta buluşturur. **A bölümü her kurulum için bir kez**, **B bölümü her yeni işletme için** uygulanır. C bölümü yerel deneme içindir; D bölümü sorunları ve son kabul kontrollerini açıklar.
 
-**Sürüm durumu — 16 Ekim 2026:** bulutsuz web kurulumu ve yeni işletme akışı doğrulandı. Gerçek Google sağlayıcısıyla tenant projesi, Firebase Android/iOS kayıtları, dağıtım grubu, ayrı FCM gönderici yetkisi ve şifreli yapılandırmanın Linux okuyucusunda açılması doğrulandı; tekrar çalıştırmada kaynaklar çoğalmadı. Bu canlı sağlayıcıyla SaaS kaydının birlikte kabulü, imzalı iOS dağıtımı, uygulama dağıtımı/kurulumu ve gerçek cihazdaki bildirim/crash teslimi henüz tamamlanmadı. Doğrudan APNs kodu ve ayar üretimi eklendi; gerçek imzasız ARM64 iOS derlemesi ve yerel sözleşme kontrolleri geçti. İmzalı cihaz teslimi henüz doğrulanmadı. Bu belge, tüm bulut ve cihaz kontrollerinin geçtiği anlamına gelmez. Her sürümün kanıtları [VALIDATION.md](VALIDATION.md) altında tutulur.
+**Sürüm durumu — 17 Ekim 2026:** gerçek SaaS kaydı ile Google/Firebase kurulumu birlikte doğrulandı. İkisi kimliği doğrulanmış API, biri gerçek Firefox/Angular kaydıyla açılan üç işletmenin ayrı mağazaları, veritabanları, kimlikleri, Google/Firebase projeleri ve Android/iOS uygulama kayıtları oluştu. Linux üzerinde yeniden başlatma ve soğuk yedekten geri yükleme geçti; bağımsız salt okunur süreçler tenant yapılandırmalarını ortak şifreli depodan açabildi. İnsan proje sahipliği ve sınırlı FCM gönderici yetkisi de doğrulandı. DNS/TLS ve e-posta bu testte özel test altyapısını kullandı. İmzalı mobil dağıtım/kurulum, gerçek cihazdaki bildirim/crash teslimi ve herkese açık Linux kurulumu henüz tamamlanmadı. Bu testte mobil yayınlama kapalıydı; Firebase uygulama kaydı, APK/IPA üretildiği anlamına gelmez. Ayrıntılar ve son test aracının düzeltilerek tamamlanan kontrolü [VALIDATION.md](VALIDATION.md#actual-saas-registration-with-live-google-and-restored-linux-state) altında tutulur.
 
 ## A. Platform işletmecisinin bir kez yapacağı kurulum
 
@@ -30,6 +32,8 @@ mkdir -p .local
 cp infra/production/deployment.example.json .local/production-input.json
 ```
 
+Sunucu uygulamaları Linux AMD64 ve ARM64 üzerinde çalışır. Hazır otomatik Android derleme imajı şu anda **Linux AMD64** gerektirir; standart Compose kurulumu ARM64 üzerinde Android yayınlama seçimini reddeder. Tek sunucuda web ve otomatik Android için AMD64 seçin. ARM64, web/Google kabulü için kullanılabilir. Mevcut ayrı Mac kuyruğu iOS içindir.
+
 Linux hesabı root olmamalı ve Docker erişimine sahip olmalıdır. Git, Python 3.10+, OpenSSL ve Docker Compose v2 gerekir. Sunucu imajı için en az 20 GiB; Android imajı derlemesi için en az 30 GiB boş alan ayırın. Ayrıntılar: [Linux kurulumu](LINUX_PRODUCTION.md).
 
 Özel girdideki örnek değerleri gerçek kurulumunuzla değiştirin:
@@ -40,6 +44,8 @@ Linux hesabı root olmamalı ve Docker erişimine sahip olmalıdır. Git, Python
 4. Portal, kimlik ve iki wildcard adı kapsayan geçerli TLS sertifika zinciri ile özel anahtarın mutlak dosya yollarını `Tls` bölümüne yazın.
 5. Kullanılmayan bir Docker `/24` ağı seçin. Wildcard kayıtlarını gerçekten hazırladıktan sonra `Providers:Domains:WildcardConfigured=true` yapın. Bu sağlayıcı DNS API çağrısı yapmaz.
 6. `TrialPlan` bölümünü deneme planınızla doldurun. Bu akış yeni işletmeye sıfır tutarlı deneme kaydı açar; kart çekimi yapmaz.
+
+Cloudflare’in standart nameserver kurulumunda ücretsiz Universal SSL, `tenant.shops.example.com` gibi ikinci seviye tenant adlarını kapsamaz. Ücretsiz kurulum için tenant wildcard kayıtlarını **DNS only** tutup sunucuya bu adları kapsayan, tarayıcıların güvendiği bir sertifika verin. Wildcard sertifikası DNS-01 ile alınabilir; yenilemesini de planlayın. Yalnızca Cloudflare Origin CA sertifikası doğrudan tarayıcı bağlantısına yetmez. [DNS/TLS ayrıntıları](LINUX_PRODUCTION.md#complete-compose-entry-point).
 
 Cloudflare ile ayrı DNS kaydı oluşturmayı tercih ederseniz [domain sağlayıcısı ayarlarını](PORTABLE_PROVISIONING.md#domain-providers) uygulayın. Tenant alan adlarını tek tek kaynak koduna yazmayın.
 

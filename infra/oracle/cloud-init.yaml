@@ -1,0 +1,37 @@
+#cloud-config
+# Only public bootstrap configuration. Credentials and TLS keys arrive over verified SSH.
+package_update: true
+packages:
+  - docker.io
+  - docker-compose-v2
+  - git
+  - python3
+  - openssl
+ssh_pwauth: false
+disable_root: true
+write_files:
+  - path: /usr/local/sbin/commerce-web-firewall
+    permissions: '0755'
+    content: |
+      #!/bin/sh
+      set -eu
+      for port in 80 443; do
+        iptables -C INPUT -p tcp --dport "$port" -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p tcp --dport "$port" -j ACCEPT
+      done
+  - path: /etc/systemd/system/commerce-web-firewall.service
+    content: |
+      [Unit]
+      Description=Commerce HTTP and HTTPS guest firewall rules
+      After=network-online.target
+      Before=docker.service
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/commerce-web-firewall
+      RemainAfterExit=yes
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, commerce-web-firewall.service]
+  - [systemctl, enable, --now, docker]
+  - [usermod, -aG, docker, ubuntu]

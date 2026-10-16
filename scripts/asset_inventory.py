@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.ttf', '.otf', '.woff', '.woff2', '.eot', '.mp3', '.mp4', '.pdf', '.xlsx', '.xls', '.zip'}
-MANIFESTS = {'package.json', 'package-lock.json', 'pubspec.yaml', 'pubspec.lock', 'Podfile.lock', 'Podfile', 'compose.yaml'}
+MANIFESTS = {'package.json', 'package-lock.json', 'pubspec.yaml', 'pubspec.lock', 'Podfile.lock', 'Podfile', 'compose.yaml', '.terraform.lock.hcl'}
 
 def category(name):
     if '/assets/fonts/urbanist/' in name:
@@ -43,7 +43,7 @@ def main():
         if not path.is_file():
             continue
         is_asset = path.suffix.lower() in ASSETS or '/assets/lottie/' in name
-        is_input = path.name in MANIFESTS or path.suffix in {'.csproj', '.props', '.podspec'} or path.name.endswith(('.gradle', '.gradle.kts')) or 'license' in path.name.lower() or 'notice' in path.name.lower()
+        is_input = path.name in MANIFESTS or path.suffix in {'.csproj', '.props', '.podspec', '.tf'} or path.name.endswith(('.gradle', '.gradle.kts')) or 'license' in path.name.lower() or 'notice' in path.name.lower()
         if not (is_asset or is_input) or name.startswith('docs/licenses/'):
             continue
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
