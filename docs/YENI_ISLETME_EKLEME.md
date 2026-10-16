@@ -2,7 +2,7 @@
 
 Bu rehber, repoyu ilk kez kuran platform işletmecisini ve SaaS üzerinden mağaza açan işletme sahibini aynı akışta buluşturur. **A bölümü her kurulum için bir kez**, **B bölümü her yeni işletme için** uygulanır. C bölümü yerel deneme içindir; D bölümü sorunları ve son kabul kontrollerini açıklar.
 
-**Sürüm durumu — 16 Ekim 2026:** bulutsuz web kurulumu ve yeni işletme akışı doğrulandı. Google/Firebase kaynakları, imzalı iOS dağıtımı ve gerçek cihazdaki bildirim/crash teslimi ayrıca canlı kabul gerektiriyor. Doğrudan APNs kodu ve ayar üretimi eklendi; gerçek imzasız ARM64 iOS derlemesi ve yerel sözleşme kontrolleri geçti. İmzalı cihaz teslimi henüz doğrulanmadı. Bu belge, tüm bulut ve cihaz kontrollerinin geçtiği anlamına gelmez. Her sürümün kanıtları [VALIDATION.md](VALIDATION.md) altında tutulur.
+**Sürüm durumu — 16 Ekim 2026:** bulutsuz web kurulumu ve yeni işletme akışı doğrulandı. Gerçek Google sağlayıcısıyla tenant projesi, Firebase Android/iOS kayıtları, dağıtım grubu, ayrı FCM gönderici yetkisi ve şifreli yapılandırmanın Linux okuyucusunda açılması doğrulandı; tekrar çalıştırmada kaynaklar çoğalmadı. Bu canlı sağlayıcıyla SaaS kaydının birlikte kabulü, imzalı iOS dağıtımı, uygulama dağıtımı/kurulumu ve gerçek cihazdaki bildirim/crash teslimi henüz tamamlanmadı. Doğrudan APNs kodu ve ayar üretimi eklendi; gerçek imzasız ARM64 iOS derlemesi ve yerel sözleşme kontrolleri geçti. İmzalı cihaz teslimi henüz doğrulanmadı. Bu belge, tüm bulut ve cihaz kontrollerinin geçtiği anlamına gelmez. Her sürümün kanıtları [VALIDATION.md](VALIDATION.md) altında tutulur.
 
 ## A. Platform işletmecisinin bir kez yapacağı kurulum
 

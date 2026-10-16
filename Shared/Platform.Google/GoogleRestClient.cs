@@ -87,7 +87,8 @@ public sealed class GoogleRestClient(HttpClient http, IGoogleAccessTokenSource t
                     return operation["response"] as JsonObject ?? new JsonObject();
                 }
                 var name = Text(operation, "name");
-                if (!Regex.IsMatch(name, "^(operations|projects/[A-Za-z0-9:_-]+/apps/[A-Za-z0-9:_-]+/releases/[A-Za-z0-9_-]+/operations)/[A-Za-z0-9._~-]+$"))
+                if (!Regex.IsMatch(name, @"\A(operations|projects/[A-Za-z0-9:_-]+/apps/[A-Za-z0-9:_-]+/releases/[A-Za-z0-9_-]+/operations)/[A-Za-z0-9._~-]+\z") &&
+                    !(api == GoogleApi.Firebase && Regex.IsMatch(name, @"\Aoperations/workflows/[A-Za-z0-9._~-]+\z")))
                     throw new InvalidOperationException("Invalid Google operation resource.");
                 await Task.Delay(TimeSpan.FromSeconds(options.PollIntervalSeconds), deadline.Token);
                 operation = await SendAsync(api, HttpMethod.Get, version + "/" + name, null, deadline.Token)

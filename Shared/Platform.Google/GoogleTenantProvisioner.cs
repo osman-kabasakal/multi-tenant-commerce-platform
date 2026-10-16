@@ -48,7 +48,13 @@ public sealed class GoogleTenantProvisioner(GoogleRestClient api, GoogleCloudOpt
     private async Task<JsonObject> EnsureProjectAsync(string id, GoogleTenantSpec spec, CancellationToken ct)
     {
         var path = "v3/projects/" + id;
-        var project = await api.SendAsync(GoogleApi.ResourceManager, HttpMethod.Get, path, null, ct, true);
+        JsonObject? project = null;
+        try { project = await api.SendAsync(GoogleApi.ResourceManager, HttpMethod.Get, path, null, ct, true); }
+        catch (GoogleApiException error) when (error.StatusCode == HttpStatusCode.Forbidden)
+        {
+            // Resource Manager also hides nonexistent projects with 403. An explicit create
+            // can reconcile that ambiguity; conflicts still require a readable, owned project.
+        }
         if (project == null)
         {
             try

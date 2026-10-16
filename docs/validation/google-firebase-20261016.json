@@ -1,0 +1,67 @@
+{
+  "verifiedAtUtc": "2026-10-16T20:46:14.276198+00:00",
+  "sourceParentCommit": "2310b421ba15a512af2634129b2f191001f90359",
+  "sourceFilesSha256": {
+    "Shared/Platform.Google/GoogleTenantProvisioner.cs": "1b6282af188d9a33db4e30743a1246a62d698e617f287cd703db18609f1ff658",
+    "Shared/Platform.Google/GoogleRestClient.cs": "18a502a2a1ada21911354187d49c735e3a72dc2c296cd8e013dc2d63f162f942",
+    "tests/Google.Provisioning.Tests/GoogleProvisioningTests.cs": "8de76d6dc2c0ce96e65b4b0608609b79cbdd521a5bee83136475c687374ffdc1"
+  },
+  "execution": "Actual GoogleTenantStep and live Google APIs with an explicitly selected organization and provisioning identity",
+  "checks": {
+    "activeOwnedProjectCreatedAndReconciled": true,
+    "firebaseAddedAndRequiredApisEnabled": true,
+    "androidAndIosAppsCreatedAndSdkIdentityValidated": true,
+    "androidAndIosSdkApiKeyPresent": true,
+    "firebaseWorkflowOperationsPolled": true,
+    "separateSenderAccountAndOwnerOnlyKeyCreated": true,
+    "tenantSenderMessagingPermissionGranted": true,
+    "testedSenderIamAppAndServiceAdminPermissionsAbsent": true,
+    "testedSenderPermissionsAbsentOnCredentialProject": true,
+    "distributionGroupCreated": true,
+    "actualPostgresEncryptedTenantConfigurationRecovered": true,
+    "separateNonAdminSelectOnlyReaderPassed": true,
+    "isolatedNonRootLinuxReaderPassed": true,
+    "replayPreservedResourceIdentities": true,
+    "replayProjectAppAndGroupCreateRequests": 0,
+    "ownedTemporaryDatabaseAndNetworkRemoved": true
+  },
+  "linuxReader": {
+    "runtimeImageId": "sha256:41aecf34101b49a43481b39e5041a75b374df645b3eb03f49a9738b7ae5c1c8c",
+    "currentHelperBinariesMountedReadOnly": true,
+    "privateStateFilesMounted": [
+      "master-key",
+      "reader-settings.json"
+    ],
+    "googleOrDatabaseOwnerOrWriterCredentialsMounted": false,
+    "readOnlyRootFilesystem": true,
+    "allCapabilitiesDropped": true,
+    "newFullProductionImageVerified": false
+  },
+  "scope": {
+    "resourceIdentifiersAndCredentialPaths": "private operator diagnostics only",
+    "liveProjectsRetained": true,
+    "billingLinkChanged": false,
+    "testerInvitationSent": false,
+    "saasRegistrationWithLiveGoogleVerified": false,
+    "deviceNotificationDeliveryVerified": false,
+    "deviceCrashlyticsReportVerified": false,
+    "binaryUploadedOrInstalled": false,
+    "signedIosReleaseVerified": false,
+    "cleanRemoteCiVerified": false
+  },
+  "cleanLocalSourceChecks": {
+    "completedAtUtc": "2026-10-16T20:48:48.333219+00:00",
+    "googleContractTestsPassed": 50,
+    "portableProvisioningTestsPassed": 118,
+    "testsFailedOrSkipped": 0,
+    "cloudToolAndIosWorkerBuildsPassed": true,
+    "toolBuildWarnings": 0,
+    "licenseInputsUnchanged": 164,
+    "trackedSourceGuardFiles": 13024,
+    "operatorIdentifiersAbsent": true,
+    "gitleaksFindings": 0,
+    "unrelatedUserChangesExcluded": true,
+    "temporarySourceCopyRemoved": true,
+    "remoteCi": false
+  }
+}

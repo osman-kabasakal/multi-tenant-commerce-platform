@@ -37,6 +37,63 @@ public sealed class GoogleProvisioningTests
     }
 
     [TestMethod]
+    public async Task MissingProjectForbiddenLookupCanCreateAndReconcileTheOwnedProject()
+    {
+        using var server = new GoogleServer { MissingProjectStatus = HttpStatusCode.Forbidden };
+        var options = Options(); var spec = Tenant();
+        var config = await new GoogleTenantProvisioner(server.Client(), options).EnsureAsync(spec, default);
+        Assert.AreEqual(options.ProjectId(spec.TenantId), config.ProjectId);
+        Assert.AreEqual(1, server.ProjectCreates); Assert.AreEqual(2, server.AppCreates);
+        Assert.AreEqual(spec.TenantId, server.Projects[config.ProjectId]["labels"]!["platform-tenant"]!.GetValue<string>());
+    }
+
+    [DataTestMethod]
+    [DataRow(HttpStatusCode.Unauthorized)]
+    [DataRow(HttpStatusCode.TooManyRequests)]
+    [DataRow(HttpStatusCode.InternalServerError)]
+    public async Task OtherProjectLookupFailuresDoNotAttemptResourceCreation(HttpStatusCode status)
+    {
+        using var server = new GoogleServer { ProjectLookupFailure = status };
+        var error = await Assert.ThrowsExceptionAsync<GoogleApiException>(() =>
+            new GoogleTenantProvisioner(server.Client(), Options()).EnsureAsync(Tenant(), default));
+        Assert.AreEqual(status, error.StatusCode);
+        Assert.AreEqual(1, server.Paths.Count); Assert.AreEqual(0, server.Writes);
+    }
+
+    [TestMethod]
+    public async Task ForbiddenProjectAfterCreateConflictCannotReachFirebaseOrIamWrites()
+    {
+        using var server = new GoogleServer { ProjectLookupFailure = HttpStatusCode.Forbidden };
+        var options = Options(); var spec = Tenant(); var id = options.ProjectId(spec.TenantId);
+        server.Projects[id] = new JsonObject { ["projectId"] = id };
+        var error = await Assert.ThrowsExceptionAsync<GoogleApiException>(() =>
+            new GoogleTenantProvisioner(server.Client(), options).EnsureAsync(spec, default));
+        Assert.AreEqual(HttpStatusCode.Forbidden, error.StatusCode);
+        Assert.AreEqual(3, server.Paths.Count); Assert.AreEqual(1, server.Writes);
+        Assert.AreEqual(0, server.ProjectCreates); Assert.AreEqual(0, server.AppCreates);
+        Assert.AreEqual(0, server.PolicyWrites); Assert.AreEqual(0, server.GroupCreates);
+        Assert.IsTrue(server.Paths.All(path => path.StartsWith("cloudresourcemanager.googleapis.com/", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public async Task ProjectRevealedAfterForbiddenLookupAndConflictStillRequiresTenantOwnership()
+    {
+        using var server = new GoogleServer { HideProjectOnce = true };
+        var options = Options(); var spec = Tenant(); var id = options.ProjectId(spec.TenantId);
+        server.Projects[id] = new JsonObject {
+            ["projectId"] = id, ["name"] = "projects/600001", ["state"] = "ACTIVE", ["parent"] = options.Parent,
+            ["labels"] = new JsonObject { ["platform-tenant"] = Guid.NewGuid().ToString("N"), ["platform-deployment"] = options.DeploymentId }
+        };
+        var original = server.Projects[id].ToJsonString();
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() =>
+            new GoogleTenantProvisioner(server.Client(), options).EnsureAsync(spec, default));
+        Assert.AreEqual(original, server.Projects[id].ToJsonString());
+        Assert.AreEqual(3, server.Paths.Count); Assert.AreEqual(1, server.Writes);
+        Assert.AreEqual(0, server.ProjectCreates); Assert.AreEqual(0, server.AppCreates);
+        Assert.AreEqual(0, server.PolicyWrites); Assert.AreEqual(0, server.GroupCreates);
+    }
+
+    [TestMethod]
     public async Task ApnsProvisioningExportsOnlyPublicTransportAndTeamForTheOwnedAppleApp()
     {
         using var server = new GoogleServer();
@@ -105,6 +162,47 @@ public sealed class GoogleProvisioningTests
         var error = await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => server.Client().WaitAsync(GoogleApi.Firebase, "v1beta1",
             new JsonObject { ["done"] = true, ["error"] = new JsonObject { ["message"] = "private-provider-detail" } }, Options(), default));
         Assert.IsFalse(error.ToString().Contains("private-provider-detail"));
+    }
+
+    [TestMethod]
+    public async Task FirebaseSetupPollsTheNestedWorkflowOperationName()
+    {
+        using var server = new GoogleServer { PendingFirebaseSetup = true };
+        var spec = Tenant();
+        var config = await new GoogleTenantProvisioner(server.Client(), Options()).EnsureAsync(spec, default);
+        Assert.AreEqual(spec.TenantId, config.TenantId);
+        Assert.IsTrue(server.Paths.Contains("firebase.googleapis.com/v1beta1/operations/workflows/setup-contract"));
+    }
+
+    [DataTestMethod]
+    [DataRow("https://example.invalid/operations/foreign")]
+    [DataRow("operations/workflows/../foreign")]
+    [DataRow("operations/workflows/a/b")]
+    [DataRow("operations/workflows/setup?token=value")]
+    [DataRow("operations//setup")]
+    [DataRow("operations/workflows/%2e%2e")]
+    [DataRow("operations/setup\n")]
+    [DataRow("operations/workflows/setup\n")]
+    public async Task UnsafeOperationResourceCannotReachTheNetwork(string name)
+    {
+        using var server = new GoogleServer();
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => server.Client().WaitAsync(
+            GoogleApi.Firebase, "v1beta1", new JsonObject { ["name"] = name }, Options(), default));
+        Assert.AreEqual(0, server.Paths.Count);
+    }
+
+    [DataTestMethod]
+    [DataRow(GoogleApi.ResourceManager)]
+    [DataRow(GoogleApi.ServiceUsage)]
+    [DataRow(GoogleApi.Billing)]
+    [DataRow(GoogleApi.Distribution)]
+    [DataRow(GoogleApi.Messaging)]
+    public async Task FirebaseWorkflowNamesCannotSelectOtherApiHosts(GoogleApi api)
+    {
+        using var server = new GoogleServer();
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => server.Client().WaitAsync(
+            api, "v1", new JsonObject { ["name"] = "operations/workflows/setup-contract" }, Options(), default));
+        Assert.AreEqual(0, server.Paths.Count);
     }
 
     [TestMethod]
@@ -227,6 +325,9 @@ internal sealed class GoogleServer : HttpMessageHandler
     public JsonObject? LastPolicy; public string[] JoinedEmails = []; public List<string> EnabledServices = []; public List<string> Paths = [];
     public int ProjectCreates, AppCreates, GroupCreates, PolicyWrites, Writes, BillingWrites, Distributes;
     public bool DenyAll, FailEnableOnce, PendingCreate, PolicyConflict, Paginate, WrongConfig, WrongRelease;
+    public bool HideProjectOnce, PendingFirebaseSetup;
+    public HttpStatusCode MissingProjectStatus = HttpStatusCode.NotFound;
+    public HttpStatusCode? ProjectLookupFailure;
     public string? BillingAccount, UploadProtocol, DistributedGroup; public byte[]? UploadBytes;
     public ContractTokens Tokens = new();
     public GoogleRestClient Client() => new(new HttpClient(this, disposeHandler: false), Tokens);
@@ -247,7 +348,9 @@ internal sealed class GoogleServer : HttpMessageHandler
         {
             if (path == "v3/projects" && post)
             {
-                var id = body["projectId"]!.GetValue<string>(); var p = body.DeepClone().AsObject();
+                var id = body["projectId"]!.GetValue<string>();
+                if (Projects.ContainsKey(id)) return Reply(new { }, HttpStatusCode.Conflict);
+                var p = body.DeepClone().AsObject();
                 p["name"] = "projects/" + (600000 + ++ProjectCreates); p["state"] = "ACTIVE"; Projects[id] = p;
                 return Reply(PendingCreate ? new JsonObject { ["name"] = "operations/create-contract" } : Done());
             }
@@ -258,8 +361,10 @@ internal sealed class GoogleServer : HttpMessageHandler
                 if (PolicyConflict) return Reply(new { }, HttpStatusCode.Conflict);
                 PolicyWrites++; LastPolicy = body["policy"]!.DeepClone().AsObject(); Policy = LastPolicy.DeepClone().AsObject(); return Reply(Policy);
             }
+            if (HideProjectOnce) { HideProjectOnce = false; return Reply(new { }, HttpStatusCode.Forbidden); }
+            if (ProjectLookupFailure is { } failure) return Reply(new { }, failure);
             if (Projects.TryGetValue(parts[2],out var project)) return Reply(project);
-            return Reply(new { }, HttpStatusCode.NotFound);
+            return Reply(new { }, MissingProjectStatus);
         }
         if (uri.Host == "cloudbilling.googleapis.com")
         {
@@ -273,8 +378,13 @@ internal sealed class GoogleServer : HttpMessageHandler
         }
         if (uri.Host == "firebase.googleapis.com")
         {
+            if (path == "v1beta1/operations/workflows/setup-contract") return Reply(Done());
             var id = parts[2].Replace(":addFirebase", ""); var number = Projects[id]["name"]!.GetValue<string>().Split('/')[1];
-            if (path.EndsWith(":addFirebase")) { firebase.Add(id); return Reply(Done()); }
+            if (path.EndsWith(":addFirebase"))
+            {
+                firebase.Add(id);
+                return Reply(PendingFirebaseSetup ? new JsonObject { ["name"] = "operations/workflows/setup-contract" } : Done());
+            }
             if (parts.Length == 3) return firebase.Contains(id) ? Reply(new { projectId=id, projectNumber=number }) : Reply(new { },HttpStatusCode.NotFound);
             var kind = parts[3]; var key = id + "/" + kind;
             if (!apps.ContainsKey(key)) apps[key] = [];
