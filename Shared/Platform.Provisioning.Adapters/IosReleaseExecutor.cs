@@ -48,6 +48,7 @@ public sealed class IosReleaseExecutor(IosReleaseOptions options, GoogleCloudOpt
         FirebaseConfigValidator.Validate(firebase);
         if (firebase.TenantId != plan.TenantId || firebase.ProjectId != google.ProjectId(plan.TenantId) || firebase.ProjectId != plan.ProjectId ||
             firebase.ProjectNumber != plan.ProjectNumber || firebase.IosAppId != plan.IosAppId || firebase.IosBundleId != plan.IosBundleId ||
+            firebase.IosPushTransport != plan.PushTransport || firebase.IosPushTransport == "Apns" && firebase.IosDevelopmentTeam != plan.DevelopmentTeam ||
             firebase.AndroidPackageName != (request.AndroidPackageName ?? "com.example.tenant" + plan.TenantId) ||
             firebase.DistributionGroupAlias != google.DistributionGroupAlias || IosReleaseOptions.SdkHash(firebase) != plan.FirebaseSdkSha256 ||
             cloud.Resources.GetValueOrDefault("projectId") != plan.ProjectId || cloud.Resources.GetValueOrDefault("iosAppId") != plan.IosAppId)

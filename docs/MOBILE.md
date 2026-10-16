@@ -335,6 +335,8 @@ Only the worker’s sanitized tenant/state/error-type events are logged. Lease r
 
 ## Automatic Android and iOS publication from a SaaS subscription
 
+The Turkish [new-business guide](YENI_ISLETME_EKLEME.md) combines the one-time operator prerequisites with owner registration, automatic setup, tester installation, notifications and retry. It labels the live acceptance checks still pending.
+
 Select `Provisioning:Mobile:Provider=AndroidIosAppDistribution` in both SaaS and the Portable Linux worker. Trial and paid registration use the same durable request policy. An explicit deployment id and Apple-compatible iOS bundle identifier are required. Keep the Android tools, signing consent, Google provider/write policy and shared encrypted secret store configured as above. A local-demo worker cannot accept this policy.
 
 Before enabling the policy, upgrade the Linux and Mac application binaries to the same release, apply current queue/security initialization with the schema owner, and apply the runtime grants. Return runtime `InitializeSchema` settings to false. The owner installs `enforce_ios_release_v1` in addition to the existing parent completion guards. New combined enrollment refuses a missing/disabled protocol. The Linux installer performs owner initialization and grants during ordinary startup; existing standalone deployments must apply the equivalent changes explicitly. Never grant schema-owner credentials to SaaS, Linux workers or the Mac node.
@@ -359,3 +361,18 @@ The owner-authorized SaaS status endpoint exposes only iOS state, attempt count 
 The Linux Compose fragment is [android-ios.example.json](../infra/production/android-ios.example.json); merge it into the existing private deployment input and use ordinary `production.py up`. Its confirmations default to false and must be completed intentionally. The installer selects the real Android toolchain image for either signed mobile policy and grants SaaS only iOS reads plus the columns needed for a failed retry. It cannot overwrite a child plan or receipt. The Mac uses a separately configured persistent node; Compose does not start or emulate Xcode. See [LINUX_PRODUCTION.md](LINUX_PRODUCTION.md#optional-combined-android-and-ios-worker).
 
 Keep Mac artifact storage and the build user's signing keychain recoverable separately from the Linux database/state backup. The Linux backup does not include a laptop keychain or Mac workspaces. Changing the selected source/certificate/build while an initial release is queued is rejected; later application upgrades need a separate workflow. Real Apple-signed IPA export, Firebase tester installation, Crashlytics device reports and APNs remain acceptance gates in [VALIDATION.md](VALIDATION.md).
+
+## Direct APNs tenant builds
+
+Set `Provisioning:Google:IosPushTransport=Apns` and `IosDevelopmentTeam` to the selected signing team on the Mac, matching the Linux-generated Google metadata. Keep the same immutable source/certificate/version policy. The queue binds the push transport, native preparation verifies that binding before signing, and the parent database guard requires matching APNs queue, delivery and Google notification-provider evidence before readiness. The App Store Connect key remains only in the Mac's private Apple configuration; the operator APNs key remains only on commerce/admin. Existing FCM plans keep their legacy twelve-field format and are not silently upgraded.
+
+The isolated project probe supports both modes:
+
+```sh
+python3 scripts/smoke_mobile_ios.py
+python3 scripts/smoke_mobile_ios.py --push-transport Apns
+# macOS + Xcode + pinned Flutter, 20 GiB free; synthetic Firebase inputs, no signing/cloud writes:
+python3 scripts/smoke_mobile_ios.py --push-transport Apns --compile-unsigned
+```
+
+The APNs ARM64 device application and notification extension compiled successfully on the validation Mac. The probe checks the real Xcode target graph, native/Dart transport and team settings, disabled automatic FCM registration, embedded Firebase identity and ARM64 device executable. Its result explicitly keeps `signedIpaBuilt=false`, `distributed=false` and `symbolsUploaded=false`. Flutter channel tests use a simulated native endpoint, not a real device. Positive signing, tester installation, notification/tap/image behavior and readable device Crashlytics reports remain required. See [notification setup](NOTIFICATIONS.md#direct-apns-for-ios) and the [new-business walkthrough](YENI_ISLETME_EKLEME.md).

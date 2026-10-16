@@ -7,9 +7,10 @@ void main() {
     String id = tenant,
     String project = 'tenant-project',
     String app = '1:12345:android:abc123',
+    String package = 'com.example.tenantapp',
   }) => TenantFirebaseIdentity(
     tenantId: id,
-    packageName: 'com.example.tenantapp',
+    packageName: package,
     projectId: project,
     projectNumber: '12345',
     appId: app,
@@ -70,6 +71,25 @@ void main() {
     'rejects an app for another platform',
     () => expect(() => verify(identity(), platform: 'ios'), throwsStateError),
   );
+  test('accepts an Apple bundle identifier containing a hyphen', () {
+    verify(
+      identity(app: '1:12345:ios:abc123', package: 'com.example.tenant-app'),
+      app: '1:12345:ios:abc123',
+      package: 'com.example.tenant-app',
+      platform: 'ios',
+    );
+  });
+  test('rejects an underscore in an Apple bundle identifier', () {
+    expect(
+      () => verify(
+        identity(app: '1:12345:ios:abc123', package: 'com.example.tenant_app'),
+        app: '1:12345:ios:abc123',
+        package: 'com.example.tenant_app',
+        platform: 'ios',
+      ),
+      throwsStateError,
+    );
+  });
   for (final id in [
     '',
     '00000000000000000000000000000000',

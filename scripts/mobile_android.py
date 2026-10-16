@@ -57,12 +57,17 @@ def validate(manifest, client, android):
     for key in ('projectId', 'projectNumber', 'androidAppId', 'iosAppId'):
         if not client.get(key) or client[key] != cloud.get(key):
             raise ValueError('Firebase export belongs to another published tenant app.')
+    transport = client.get('iosPushTransport', 'Fcm')
+    team = client.get('iosDevelopmentTeam')
+    if transport not in ('Fcm', 'Apns') or transport == 'Apns' and (not isinstance(team, str) or not re.fullmatch(r'[A-Z0-9]{10}', team)):
+        raise ValueError('Select a valid iOS push transport and Apple team for APNs.')
     project, number = client['projectId'], client['projectNumber']
     if not re.fullmatch(r'[a-z][a-z0-9-]{4,28}[a-z0-9]', project) or not re.fullmatch(r'[1-9][0-9]*', number):
         raise ValueError('Invalid Firebase project identity.')
     for key, field, platform in [('androidApplicationId', 'androidPackageName', 'android'), ('iosBundleId', 'iosBundleId', 'ios')]:
         package = manifest.get(key, '')
-        if package != client.get(field) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+', package):
+        pattern = r'[A-Za-z][A-Za-z0-9-]*(\.[A-Za-z][A-Za-z0-9-]*)+' if platform == 'ios' else r'[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+'
+        if package != client.get(field) or not re.fullmatch(pattern, package):
             raise ValueError('The native package does not match its Firebase export.')
         if not re.fullmatch('1:' + re.escape(number) + ':' + platform + r':[A-Za-z0-9]+', client[platform + 'AppId']):
             raise ValueError('The Firebase app does not match its project and platform.')
@@ -80,6 +85,7 @@ def validate(manifest, client, android):
         'displayName': manifest['displayName'], 'deepLinkHost': uri.hostname,
         'projectId': project, 'projectNumber': number, 'androidAppId': client['androidAppId'],
         'iosAppId': client['iosAppId'], 'storeUrl': manifest['baseUrl'].rstrip('/'),
+        'iosPushTransport': transport, 'iosDevelopmentTeam': team,
     }
 
 
@@ -213,6 +219,7 @@ def prepare(manifest_path, firebase_directory, workspace, build_number, root=ROO
         'PACKAGE_NAME_IOS': client['iosBundleId'], 'FIREBASE_PROJECT_ID': tenant['projectId'],
         'FIREBASE_PROJECT_NUMBER': tenant['projectNumber'], 'FIREBASE_ANDROID_APP_ID': tenant['androidAppId'],
         'FIREBASE_IOS_APP_ID': tenant['iosAppId'],
+        'IOS_PUSH_TRANSPORT': tenant['iosPushTransport'], 'IOS_DEVELOPMENT_TEAM': tenant['iosDevelopmentTeam'] or '',
     })
     return workspace, tenant
 

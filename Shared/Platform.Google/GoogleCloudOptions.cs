@@ -16,11 +16,16 @@ public sealed class GoogleCloudOptions
     public string DistributionGroupAlias { get; init; } = "tenant-testers";
     public string[] TesterEmails { get; init; } = [];
     public bool IncludeOwnerAsTester { get; init; }
+    public string IosPushTransport { get; init; } = "Fcm";
+    public string? IosDevelopmentTeam { get; init; }
     public int PollIntervalSeconds { get; init; } = 3;
     public int OperationTimeoutSeconds { get; init; } = 600;
 
     public void Validate()
     {
+        if (IosPushTransport is not ("Fcm" or "Apns") || IosPushTransport == "Apns" &&
+            (IosDevelopmentTeam == null || !Regex.IsMatch(IosDevelopmentTeam, "^[A-Z0-9]{10}\\z")))
+            throw new InvalidOperationException("Select the iOS push transport and an explicit Apple team for APNs.");
         if (!AllowCloudWrites) throw new InvalidOperationException("Google provisioning requires explicit AllowCloudWrites.");
         if (!Regex.IsMatch(Parent, "^(folders|organizations)/[1-9][0-9]*$"))
             throw new InvalidOperationException("Configure the Google resource parent explicitly.");
@@ -55,4 +60,6 @@ public sealed record TenantFirebaseConfiguration(string TenantId, string Project
     string IosBundleId, string AndroidConfigJson, string IosConfigPlist, string DistributionGroupAlias)
 {
     public const string SecretName = "firebase-configuration";
+    public string IosPushTransport { get; init; } = "Fcm";
+    public string? IosDevelopmentTeam { get; init; }
 }

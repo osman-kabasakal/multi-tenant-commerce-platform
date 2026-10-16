@@ -33,6 +33,8 @@ The provisioning identity needs these capabilities on the configured parent/new 
 
 The runtime sender is a separate, narrower identity. Configure it as `SenderServiceAccount`; enable the Firebase Cloud Messaging API in its sender project too. Run the eventual commerce sender using that identity's ADC credentials. It needs the per-target FCM role above, not project creation, IAM administration or service-account key creation. Commerce now uses this shared tenant sender. Select `Notifications:Provider=Fcm` on the commerce/admin hosts; runtime delivery uses the sender identity and does not require provisioning write options. See [NOTIFICATIONS.md](NOTIFICATIONS.md) for local capture, consent and verification limits.
 
+For direct native iOS delivery, choose the composite `FcmApns` notification provider instead of FCM-only and configure the shared Apple team/transport as described in [NOTIFICATIONS.md](NOTIFICATIONS.md#direct-apns-for-ios). Google still provisions both platform apps for Crashlytics and App Distribution. The APNs private key is never uploaded to Firebase or included in its public SDK export.
+
 ## When the existing project shows No organization
 
 A standalone credential/sender project is not an organization parent. Google explicitly prohibits service accounts from creating projects outside an organization resource; an explicit organization/folder parent is required. Granting Project Creator on the existing credential project does not solve this requirement. Do not infer a valid target from an old repository's organization ID, omit the parent to bypass it, or collapse tenants into the existing shared Firebase project.

@@ -24,6 +24,10 @@ internal static class IosReleaseCompletionSchema
                 delivered:=NEW.steps->'mobile-ios-release'->'Resources';
                 IF COALESCE(NEW.steps->'mobile-ios-enqueue'->>'Provider','')<>'IosQueue' OR
                    COALESCE(NEW.steps->'mobile-ios-release'->>'Provider','')<>'IosAppDistribution' OR
+                   COALESCE(ios_plan->>'iosPushTransport','Fcm') NOT IN ('Fcm','Apns') OR
+                   (COALESCE(ios_plan->>'iosPushTransport','Fcm')='Apns' AND (
+                       COALESCE(enqueued->>'iosPushTransport','')<>'Apns' OR COALESCE(delivered->>'iosPushTransport','')<>'Apns' OR
+                       COALESCE(NEW.steps->'google-firebase'->'Resources'->>'notificationProvider','')<>'FcmApns')) OR
                    COALESCE(ios_plan->>'tenantId','')<>NEW.tenant_id OR
                    COALESCE(ios_plan->>'deploymentId','')<>COALESCE(NEW.request->>'DeploymentId','') OR
                    COALESCE(ios_plan->>'iosBundleId','')<>COALESCE(NEW.request->>'IosBundleId','com.example.tenant'||NEW.tenant_id) OR

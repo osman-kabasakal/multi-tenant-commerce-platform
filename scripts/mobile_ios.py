@@ -51,6 +51,8 @@ def validate(manifest, client, android, ios, team, build_number):
         raise ValueError("Apple SDK configuration requires its public API key.")
     if "$(" in tenant["displayName"] or "${" in tenant["displayName"]:
         raise ValueError("The iOS display name cannot contain Xcode setting substitutions.")
+    if tenant['iosPushTransport'] == 'Apns' and tenant['iosDevelopmentTeam'] != team:
+        raise ValueError("The APNs team differs from the selected Apple signing team.")
     return dict(tenant, iosBundleId=bundle, extensionBundleId=extension, developmentTeam=team, buildNumber=build_number)
 
 
@@ -95,6 +97,9 @@ def prepare(manifest_path, firebase_directory, workspace, team, build_number=1, 
     info = read_plist(native / "Runner/Info.plist")
     info["CFBundleDisplayName"] = tenant["displayName"]
     info["CFBundleName"] = "Runner"
+    info["PlatformIosPushTransport"] = tenant['iosPushTransport']
+    info["PlatformIosDevelopmentTeam"] = team
+    info["FirebaseMessagingAutoInitEnabled"] = tenant['iosPushTransport'] != 'Apns'
     (native / "Runner/Info.plist").write_bytes(plistlib.dumps(info))
     (native / "Runner/Runner.entitlements").write_bytes(plistlib.dumps({"aps-environment": "production"}))
     common.private_json(workspace / "ios-tenant-build.json", tenant)
@@ -113,6 +118,11 @@ def verify_compiled_app(binary, tenant):
     info = read_plist(binary / "Info.plist")
     if info.get("CFBundleIdentifier") != tenant["iosBundleId"] or info.get("CFBundleVersion") != str(tenant["buildNumber"]) or info.get("CFBundleShortVersionString") != tenant["buildName"]:
         raise ValueError("Compiled iOS identity or version differs from this tenant build.")
+    if info.get("PlatformIosPushTransport", "Fcm") != tenant.get("iosPushTransport", "Fcm"):
+        raise ValueError("Compiled iOS push transport differs from the tenant plan.")
+    if tenant.get("iosPushTransport") == "Apns" and (info.get("PlatformIosDevelopmentTeam") != tenant["developmentTeam"] or
+                                                       info.get("FirebaseMessagingAutoInitEnabled") is not False):
+        raise ValueError("The compiled APNs team or disabled FCM registration was not verified.")
     ios = read_plist(binary / "GoogleService-Info.plist")
     expected = {"PROJECT_ID": tenant["projectId"], "GCM_SENDER_ID": tenant["projectNumber"],
                 "GOOGLE_APP_ID": tenant["iosAppId"], "BUNDLE_ID": tenant["iosBundleId"]}

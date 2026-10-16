@@ -277,6 +277,13 @@ def restore_state(backup, state):
                 shutil.copyfile(restored / 'secrets' / source, inputs / source)
                 plan[option] = str(inputs / source)
                 replacements.append((plan, option, source))
+        if plan['Providers']['Notifications'].get('Provider') == 'FcmApns':
+            apns = plan['Providers']['Notifications']['Apns']
+            source = 'apns-key.p8'
+            shutil.copyfile(restored / 'secrets' / source, inputs / source)
+            (inputs / source).chmod(0o600)
+            apns['KeyFile'] = str(inputs / source)
+            replacements.append((apns, 'KeyFile', source))
         # Validate credentials, certificates and original directory/key ownership before Docker writes.
         config.prepare(plan, restored, deployment.definition['services']['saas']['image'])
         config.write_json(restored / '.restore-operation.json', {'id': operation})

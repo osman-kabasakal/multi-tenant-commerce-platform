@@ -50,6 +50,22 @@ class IosWorkerNativeTests(unittest.TestCase):
         self.sdk.write_bytes(b"changed-export")
         with self.assertRaisesRegex(ValueError, "SDK export changed"): worker.bind(self.plan, self.tenant, self.inputs)
 
+    def test_optional_apns_plan_keeps_legacy_contract_and_refuses_transport_or_team_drift(self):
+        plan = dict(self.plan, iosPushTransport='Apns')
+        path = self.private_json('apns-plan.json', plan)
+        self.assertEqual(worker.read_plan(path), plan)
+        tenant = dict(self.tenant, iosPushTransport='Apns', iosDevelopmentTeam=plan['developmentTeam'])
+        worker.bind(plan, tenant, self.inputs)
+        for change in ({'iosPushTransport': 'Fcm'}, {'iosDevelopmentTeam': 'OTHER12345'}, {'iosDevelopmentTeam': None}):
+            with self.subTest(fields=tuple(change)), self.assertRaises(ValueError): worker.bind(plan, dict(tenant, **change), self.inputs)
+        with self.assertRaises(ValueError): worker.bind(self.plan, tenant, self.inputs)
+        for value in (None, 'Unknown', True):
+            path.write_text(json.dumps(dict(plan, iosPushTransport=value)))
+            with self.subTest(value=value), self.assertRaises(ValueError): worker.read_plan(path)
+        with patch.object(worker.ios, 'prepare', return_value=(self.workspace, self.tenant)), patch.object(worker.release, 'build') as native:
+            with self.assertRaises(ValueError): worker.build(self.args, plan)
+            native.assert_not_called()
+
     def test_native_artifact_paths_cannot_escape_or_follow_links(self):
         binary = self.workspace / "release.ipa"; binary.write_bytes(b"synthetic")
         self.assertEqual(worker.owned_path(self.workspace, "release.ipa", ".ipa"), binary)

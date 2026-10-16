@@ -107,6 +107,28 @@ public sealed class IosReleaseExecutorTests
         Assert.AreEqual(1, f.Android.Server.Uploads); Assert.AreEqual(1, f.Android.Server.Deliveries); Assert.AreEqual(1, f.Builder.Builds);
     }
     [TestMethod]
+    public async Task ApnsTransportSurvivesDurableBuildAndReplayWithoutChangingTheFirebaseApp()
+    {
+        using var f = new IosExecutorFixture(apns: true);
+        var first = await f.Executor().ExecuteAsync(f.Plan, default);
+        var second = await f.Executor().ExecuteAsync(f.Plan, default);
+        Assert.AreEqual(first, second); Assert.AreEqual("Apns", f.Plan.PushTransport);
+        Assert.AreEqual(1, f.Builder.Builds); Assert.AreEqual(1, f.Android.Server.Deliveries);
+        var artifact = JsonSerializer.Deserialize<IosBuiltArtifact>(f.Android.Secrets.Values[(f.Plan.TenantId, IosReleaseExecutor.ArtifactSecret)], new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.AreEqual("Apns", artifact.Plan.PushTransport);
+    }
+    [DataTestMethod]
+    [DataRow("Fcm", "ABCDE12345")]
+    [DataRow("Apns", "OTHER12345")]
+    public async Task FirebaseTransportOrTeamDriftCannotCreateAppleResources(string mode, string team)
+    {
+        using var f = new IosExecutorFixture(apns: true);
+        var changed = f.Android.Firebase with { IosPushTransport = mode, IosDevelopmentTeam = team };
+        f.Android.Secrets.Values[(f.Plan.TenantId, TenantFirebaseConfiguration.SecretName)] = JsonSerializer.Serialize(changed);
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => f.Executor().ExecuteAsync(f.Plan, default));
+        Assert.AreEqual(0, f.Apple.Server.Requests); Assert.AreEqual(0, f.Android.Server.Requests); Assert.AreEqual(0, f.Builder.Builds);
+    }
+    [TestMethod]
     public async Task QueueSdkDigestMatchesTheExactExportBytesAcrossPlatforms()
     {
         using var f = new IosExecutorFixture();
@@ -159,20 +181,30 @@ internal sealed class IosExecutorFixture : IDisposable
     public readonly IosReleasePlan Plan;
     public readonly IosParentFixture Parents;
     public readonly IosBuilderFixture Builder;
-    public IosExecutorFixture()
+    private readonly GoogleCloudOptions google;
+    public IosExecutorFixture(bool apns = false)
     {
         Android.Request = Android.Request with { MobileReleaseProfile = "AndroidIosAppDistribution" };
+        google = apns ? new GoogleCloudOptions { AllowCloudWrites = true, DeploymentId = Android.Google.DeploymentId,
+            ProjectIdPrefix = Android.Google.ProjectIdPrefix, Parent = Android.Google.Parent, SenderServiceAccount = Android.Google.SenderServiceAccount,
+            IosPushTransport = "Apns", IosDevelopmentTeam = Apple.Plan.DevelopmentTeam } : Android.Google;
+        if (apns)
+        {
+            Android.Firebase = Android.Firebase with { IosPushTransport = "Apns", IosDevelopmentTeam = Apple.Plan.DevelopmentTeam };
+            Android.Secrets.Values[(Android.Request.TenantId, TenantFirebaseConfiguration.SecretName)] = JsonSerializer.Serialize(Android.Firebase);
+        }
         Plan = new(Android.Request.TenantId, Android.Google.DeploymentId, Android.Firebase.IosBundleId, Apple.Plan.DevelopmentTeam,
             Apple.Plan.SigningCertificateSha256, new string('b', 64), 7, Android.Firebase.ProjectId, Android.Firebase.ProjectNumber,
-            Android.Firebase.IosAppId, IosReleaseOptions.SdkHash(Android.Firebase), Android.Deployment.StoreUrl(Android.Request.Slug));
+            Android.Firebase.IosAppId, IosReleaseOptions.SdkHash(Android.Firebase), Android.Deployment.StoreUrl(Android.Request.Slug))
+            { IosPushTransport = apns ? "Apns" : null };
         Options = new() { DeploymentId = Plan.DeploymentId, DevelopmentTeam = Plan.DevelopmentTeam, SigningCertificateSha256 = Plan.SigningCertificateSha256, ExpectedSourceHash = Plan.SourceHash };
         Android.Server.BuildVersion = "7";
         Android.Completed["google-firebase"] = new("Google", new Dictionary<string, string> { ["projectId"] = Plan.ProjectId, ["androidAppId"] = Android.Firebase.AndroidAppId, ["iosAppId"] = Plan.IosAppId });
         Parents = new(new(Android.Request, "Pending", 0, Android.Completed, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
         Builder = new(Android.Root, Android.Secrets);
     }
-    public IosReleaseExecutor Executor(IIosReleaseBuilder? builder = null) => new(Options, Android.Google, Parents, Android.Secrets,
+    public IosReleaseExecutor Executor(IIosReleaseBuilder? builder = null) => new(Options, google, Parents, Android.Secrets,
         new AppleTenantProvisioner(Apple.Options, Apple.Client(), Apple.Identity, Android.Secrets), builder ?? Builder,
-        new FirebaseAppDistribution(new GoogleRestClient(new HttpClient(Android.Server, false), new AndroidToken()), Android.Google));
+        new FirebaseAppDistribution(new GoogleRestClient(new HttpClient(Android.Server, false), new AndroidToken()), google));
     public void Dispose() { Apple.Dispose(); Android.Dispose(); }
 }

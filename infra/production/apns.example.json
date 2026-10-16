@@ -1,0 +1,14 @@
+{
+  "Providers": {
+    "Notifications": {
+      "Provider": "FcmApns",
+      "Apns": {
+        "Environment": "Production",
+        "DevelopmentTeam": "",
+        "KeyId": "",
+        "KeyFile": "/absolute/private/AuthKey.p8",
+        "LifetimeSeconds": 3600
+      }
+    }
+  }
+}

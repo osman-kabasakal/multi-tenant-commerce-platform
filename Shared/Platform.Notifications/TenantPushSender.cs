@@ -55,6 +55,7 @@ public sealed class FcmTenantPushSender(ITenantSecrets secrets, FirebaseCloudMes
         TenantPushMessage message, CancellationToken ct = default)
     {
         var tokens = PushInput.Tokens(registrationTokens);
+        if (tokens.Any(ApnsRegistrationToken.Reserved)) throw new ArgumentException("Select FcmApns for native Apple registrations.");
         var content = message.Content();
         var tenant = await secrets.ResolveAsync(tenantIdOrAlias, ct);
         PushInput.Canonical(tenant);

@@ -15,12 +15,12 @@ import mobile_ios_release as release
 PLAN_FIELDS = {"tenantId", "deploymentId", "iosBundleId", "developmentTeam", "signingCertificateSha256",
                "sourceHash", "buildNumber", "projectId", "projectNumber", "iosAppId", "firebaseSdkSha256", "storeUrl"}
 EVIDENCE_FIELDS = ("ipaSha256", "signingCertificateSha256", "applicationProfileUuid", "extensionProfileUuid",
-                   "symbolUuids", "symbolDwarfSha256", "iosSdkSha256", "nativeExecutableSha256")
+                   "symbolUuids", "symbolDwarfSha256", "iosSdkSha256", "nativeExecutableSha256", "iosPushTransport")
 
 
 def read_plan(path):
     value = preflight.read_json(Path(path), private=True)
-    if set(value) != PLAN_FIELDS or any(not isinstance(value[name], str) or not value[name] for name in PLAN_FIELDS - {"buildNumber"}):
+    if set(value) not in (PLAN_FIELDS, PLAN_FIELDS | {"iosPushTransport"}) or value.get("iosPushTransport", "Fcm") not in ("Fcm", "Apns") or any(not isinstance(value[name], str) or not value[name] for name in PLAN_FIELDS - {"buildNumber"}):
         raise ValueError("Expected the complete immutable iOS release plan.")
     if not re.fullmatch(r"[a-f0-9]{32}", value["tenantId"]) or int(value["tenantId"], 16) == 0:
         raise ValueError("Use a canonical nonempty tenant ID.")
@@ -36,6 +36,9 @@ def bind(plan, tenant, firebase_directory):
     for name in ("tenantId", "iosBundleId", "developmentTeam", "sourceHash", "buildNumber", "projectId", "projectNumber", "iosAppId"):
         if tenant.get(name) != plan[name]:
             raise ValueError("Native iOS preparation differs from the immutable release plan.")
+    if tenant.get("iosPushTransport", "Fcm") != plan.get("iosPushTransport", "Fcm") or (
+        plan.get("iosPushTransport") == "Apns" and tenant.get("iosDevelopmentTeam") != plan["developmentTeam"]):
+        raise ValueError("The native APNs transport or team differs from the immutable release plan.")
     if tenant.get("storeUrl", "").rstrip("/") != plan["storeUrl"].rstrip("/"):
         raise ValueError("The native build targets a different store origin.")
     # The queue binds the exact UTF-8 SDK export. Native verification independently canonicalizes its plist.

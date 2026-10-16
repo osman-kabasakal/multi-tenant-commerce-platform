@@ -48,6 +48,35 @@ class IosTenantTests(unittest.TestCase):
         self.manifest["iosBundleId"] = self.client["iosBundleId"] = self.sdk["BUNDLE_ID"] = "dev.bad_bundle.app"
         with self.assertRaises(ValueError): self.tenant()
 
+    def test_apns_export_must_bind_the_native_signing_team(self):
+        self.client.update(iosPushTransport='Apns', iosDevelopmentTeam='ABCDE12345')
+        self.assertEqual(self.tenant()['iosPushTransport'], 'Apns')
+        self.client['iosDevelopmentTeam'] = 'OTHER12345'
+        with self.assertRaises(ValueError): self.tenant()
+        self.client['iosDevelopmentTeam'] = 'ABCDE12345'
+        self.client['iosPushTransport'] = 'Unknown'
+        with self.assertRaises(ValueError): self.tenant()
+
+    def test_apple_bundle_hyphens_are_valid_but_underscores_are_not(self):
+        self.manifest['iosBundleId'] = self.client['iosBundleId'] = self.sdk['BUNDLE_ID'] = 'dev.tenant-coffee.app'
+        self.assertEqual('dev.tenant-coffee.app', self.tenant()['iosBundleId'])
+        self.manifest['iosBundleId'] = self.client['iosBundleId'] = self.sdk['BUNDLE_ID'] = 'dev.tenant_coffee.app'
+        with self.assertRaises(ValueError): self.tenant()
+
+    def test_apns_native_result_requires_exact_team_and_disabled_fcm_registration(self):
+        self.client.update(iosPushTransport='Apns', iosDevelopmentTeam='ABCDE12345')
+        app, tenant = self.native_app()
+        path = app / 'Info.plist'
+        info = ios.read_plist(path)
+        with self.assertRaises(ValueError): ios.verify_compiled_app(app, tenant)
+        info.update(PlatformIosPushTransport='Apns', PlatformIosDevelopmentTeam='ABCDE12345', FirebaseMessagingAutoInitEnabled=False)
+        path.write_bytes(plistlib.dumps(info))
+        with patch.object(ios.subprocess, 'check_output', side_effect=lambda command, **kw: 'arm64\n' if '-archs' in command else '    platform IOS\n'):
+            self.assertEqual('Apns', ios.verify_compiled_app(app, tenant)['iosPushTransport'])
+        for update in ({'PlatformIosPushTransport': 'Fcm'}, {'PlatformIosDevelopmentTeam': 'OTHER12345'}, {'FirebaseMessagingAutoInitEnabled': True}):
+            changed = dict(info, **update); path.write_bytes(plistlib.dumps(changed))
+            with self.subTest(fields=tuple(update)), self.assertRaises(ValueError): ios.verify_compiled_app(app, tenant)
+
     def test_display_name_cannot_inject_xcode_setting_substitutions(self):
         for name in ["Name $(CONFIGURATION)", "${OTHER_SETTING}"]:
             self.manifest["displayName"] = name

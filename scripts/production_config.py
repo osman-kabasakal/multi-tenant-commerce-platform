@@ -65,8 +65,29 @@ def validate(plan):
         raise ValueError('Explicitly select Disabled or Google provisioning.')
     if providers.get('ReadinessEmail', {}).get('Provider') not in ('Disabled', 'Smtp'):
         raise ValueError('Explicitly select Disabled or Smtp readiness delivery.')
-    if providers.get('Notifications', {}).get('Provider') not in ('Disabled', 'Fcm'):
-        raise ValueError('Explicitly select Disabled or Fcm notifications.')
+    notifications = providers.get('Notifications', {})
+    if not isinstance(notifications, dict) or notifications.get('Provider') not in ('Disabled', 'Fcm', 'FcmApns'):
+        raise ValueError('Explicitly select Disabled, Fcm or FcmApns notifications.')
+    if notifications.get('Provider') == 'FcmApns':
+        apns = notifications.get('Apns', {})
+        if not isinstance(apns, dict) or set(apns) - {'Environment', 'DevelopmentTeam', 'KeyId', 'KeyFile', 'LifetimeSeconds'}:
+            raise ValueError('Supply only the explicit APNs team-key file settings.')
+        if apns.get('Environment', 'Production') != 'Production' or any(
+                not isinstance(apns.get(field), str) or not re.fullmatch(r'[A-Z0-9]{10}', apns[field])
+                for field in ('DevelopmentTeam', 'KeyId')):
+            raise ValueError('Configure a production APNs team-scoped key, signing team and Key ID.')
+        if type(apns.get('LifetimeSeconds', 3600)) is not int or not 0 <= apns.get('LifetimeSeconds', 3600) <= 86400:
+            raise ValueError('Use an APNs delivery lifetime between zero and one day.')
+        if not isinstance(apns.get('KeyFile'), str):
+            raise ValueError('Supply the absolute APNs private key file path.')
+        key = Path(apns['KeyFile'])
+        if not key.is_absolute() or not key.is_file() or key.is_symlink() or any(parent.is_symlink() for parent in key.parents) or not 0 < key.stat().st_size <= 8192 or key.stat().st_mode & 0o077:
+            raise ValueError('Supply an owner-only regular absolute APNs key file without symbolic links.')
+        if providers['Google'].get('Provider') != 'Google' or providers['Google'].get('IosPushTransport', 'Apns') != 'Apns' or providers['Google'].get('IosDevelopmentTeam', apns['DevelopmentTeam']) != apns['DevelopmentTeam']:
+            raise ValueError('Direct APNs requires matching Google tenant metadata and Apple team.')
+        mobile = providers.get('Mobile', {})
+        if mobile.get('Provider') == 'AndroidIosAppDistribution' and mobile.get('Ios', {}).get('Release', {}).get('DevelopmentTeam') != apns['DevelopmentTeam']:
+            raise ValueError('The APNs key and iOS release must use the same Apple team.')
     payments = providers.get('Payments', {'Provider': 'Disabled'})
     if not isinstance(payments, dict) or payments.get('Provider') not in ('Disabled', 'Iyzico'):
         raise ValueError('Explicitly select Disabled or Iyzico subscription payments.')
@@ -176,6 +197,9 @@ def prepare(plan, state, image):
             source = Path(plan[option])
             if not source.is_absolute() or not source.is_file(): raise ValueError('Supply an absolute existing private Google credential file.')
             shutil.copyfile(source, state / 'secrets' / filename); (state / 'secrets' / filename).chmod(0o600)
+    if plan['Providers']['Notifications'].get('Provider') == 'FcmApns':
+        shutil.copyfile(plan['Providers']['Notifications']['Apns']['KeyFile'], state / 'secrets/apns-key.p8')
+        (state / 'secrets/apns-key.p8').chmod(0o600)
     render(plan, state, record, image)
     write_json(state / 'deployment.json', plan)
     record['Rendered'] = True
@@ -212,11 +236,15 @@ def render(p, state, record, image):
         Extensions={'InstalledPlugins': '', 'PluginSkipLoadingPattern': '.*'}, MultitenantTask={'Enabled': False},
         Notifications=p['Providers']['Notifications'], Provisioning={'ReadinessEndpoint': True},
         Proxy=proxy([ip(11)]), AllowedHosts='*.' + p['StoreParentDomain'])
+    if p['Providers']['Notifications'].get('Provider') == 'FcmApns':
+        commerce['Notifications'] = copy.deepcopy(p['Providers']['Notifications'])
+        commerce['Notifications']['Apns']['KeyFile'] = '/run/secrets/apns-key.p8'
     if ca: commerce['AuthConfiguration']['AuthorityRootCertificateFile'] = ca
     administration = copy.deepcopy(commerce)
     administration.update(AllowedHosts='*.' + p['AdminParentDomain'],
         TenantRouting={'Provider': 'Directory', 'RouteDirectory': '/var/lib/commerce/routes', 'AdminParentDomains': [p['AdminParentDomain']]})
     installer = copy.deepcopy(commerce); installer['PlatformSecurity'] = security('worker')
+    if p['Providers']['Notifications'].get('Provider') == 'FcmApns': installer['Notifications'] = {'Provider': 'Disabled'}
     gateway = copy.deepcopy(base)
     gateway.update(PlatformSecurity=security('reader', True), Proxy=proxy([ip(10)]),
         AllowedHosts='*.' + p['StoreParentDomain'] + ';*.' + p['AdminParentDomain'],
@@ -251,6 +279,9 @@ def render(p, state, record, image):
             'RouteDirectory': '/var/lib/commerce/routes', 'NotificationDirectory': '/var/lib/commerce/readiness-outbox', 'MobileDirectory': '/var/lib/commerce/mobile',
             'StoreBaseUrl': store, 'AdminBaseUrl': admin, 'KeycloakAuthority': identity, 'KeycloakRealm': 'commerce',
             'KeycloakAdminRealm': 'commerce', 'KeycloakAdminClientId': 'tenant-provisioner', 'KeycloakAdminClientSecret': c['provisioner']}})
+    if p['Providers']['Notifications'].get('Provider') == 'FcmApns':
+        worker['Provisioning']['Google'] = dict(p['Providers']['Google'], IosPushTransport='Apns',
+                                               IosDevelopmentTeam=p['Providers']['Notifications']['Apns']['DevelopmentTeam'])
     if mobile['Provider'] in ('AndroidAppDistribution', 'AndroidIosAppDistribution'):
         android = mobile['Android']
         worker['Provisioning']['Mobile']['Android'] = dict(android,
@@ -344,6 +375,7 @@ def compose(p, state, record, image, ip, identity):
         for directory in writable: mounts.append(bind(directory, '/var/lib/commerce/' + directory, False))
         if role in ('admin', 'gateway'): mounts.append(bind('routes', '/var/lib/commerce/routes'))
         if role in ('commerce', 'admin'):
+            if p['Providers']['Notifications'].get('Provider') == 'FcmApns': mounts.append(bind('secrets/apns-key.p8', '/run/secrets/apns-key.p8'))
             for directory, target in (('media-images', 'images'), ('media-files', 'files')):
                 mounts.append(bind(directory, '/app/' + role + '/wwwroot/assets/' + target + '/uploaded', False))
         if role == 'worker': mounts.append(bind('config/installer.json', '/run/secrets/installer.json'))

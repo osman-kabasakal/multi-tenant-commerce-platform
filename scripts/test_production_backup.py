@@ -128,14 +128,14 @@ class ProductionBackupTests(unittest.TestCase):
 
     def test_private_keys_and_committed_artifacts_roundtrip_but_caches_are_empty(self):
         state = self.root / 'source'; state.mkdir(mode=0o700)
-        values = {'secrets/platform-master-key': b'synthetic master', 'saas-cookie-keys/key.xml': b'synthetic cookie key',
+        values = {'secrets/apns-key.p8': b'synthetic APNs fixture only', 'secrets/platform-master-key': b'synthetic master', 'saas-cookie-keys/key.xml': b'synthetic cookie key',
             'mobile-artifacts/tenant/release.apk': b'synthetic artifact transport only',
             'mobile-cache/rebuildable': b'cache', 'mobile-work/temporary-signing-file': b'temporary', 'logs/runtime.log': b'private log'}
         for name, value in values.items():
             path = state / name; path.parent.mkdir(parents=True, exist_ok=True, mode=0o700); path.write_bytes(value)
         archive = self.root / 'state.tar'; snapshot.save_state(state, archive)
         restored = self.root / 'restored'; snapshot.unpack_state(archive, restored)
-        for name in ['secrets/platform-master-key', 'saas-cookie-keys/key.xml', 'mobile-artifacts/tenant/release.apk']:
+        for name in ['secrets/apns-key.p8', 'secrets/platform-master-key', 'saas-cookie-keys/key.xml', 'mobile-artifacts/tenant/release.apk']:
             self.assertEqual(values[name], (restored / name).read_bytes())
             self.assertEqual(0o600, (restored / name).stat().st_mode & 0o777)
         for name in snapshot.CACHES: self.assertEqual([], list((restored / name).iterdir()))

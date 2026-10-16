@@ -7,6 +7,10 @@ public sealed record IosReleasePlan(string TenantId, string DeploymentId, string
     string DevelopmentTeam, string SigningCertificateSha256, string SourceHash, int BuildNumber,
     string ProjectId, string ProjectNumber, string IosAppId, string FirebaseSdkSha256, string StoreUrl)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? IosPushTransport { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string PushTransport => IosPushTransport ?? "Fcm";
     internal static bool Digest(string? value) => Regex.IsMatch(value ?? "", "^[a-f0-9]{64}\\z");
     internal static void Tenant(string value)
     {
@@ -15,6 +19,7 @@ public sealed record IosReleasePlan(string TenantId, string DeploymentId, string
     }
     public void Validate()
     {
+        if (IosPushTransport is not (null or "Fcm" or "Apns")) throw new ArgumentException("Invalid immutable iOS push transport.");
         Tenant(TenantId);
         new IosWorkerIdentity(DeploymentId, DevelopmentTeam, SigningCertificateSha256, SourceHash).Validate();
         if (IosBundleId.Length > 220 || !Regex.IsMatch(IosBundleId, "^[A-Za-z][A-Za-z0-9-]*(\\.[A-Za-z][A-Za-z0-9-]*)+\\z") ||

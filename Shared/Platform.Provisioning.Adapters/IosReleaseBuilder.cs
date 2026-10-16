@@ -96,6 +96,8 @@ public sealed class IosReleaseBuilder(IosReleaseOptions options, AppleApiOptions
     }
     private static void Match(JsonElement result, IosReleasePlan plan)
     {
+        if ((result.TryGetProperty("iosPushTransport", out var transport) ? transport.GetString() : "Fcm") != plan.PushTransport)
+            throw new InvalidOperationException("The signed iOS result uses another push transport.");
         var expected = new Dictionary<string, string> { ["tenantId"] = plan.TenantId, ["deploymentId"] = plan.DeploymentId,
             ["developmentTeam"] = plan.DevelopmentTeam, ["iosBundleId"] = plan.IosBundleId, ["projectId"] = plan.ProjectId,
             ["projectNumber"] = plan.ProjectNumber, ["iosAppId"] = plan.IosAppId, ["sourceHash"] = plan.SourceHash,
@@ -118,7 +120,8 @@ public sealed class IosReleaseBuilder(IosReleaseOptions options, AppleApiOptions
     public async Task<IosBuiltArtifact> BuildAsync(IosReleasePlan plan, TenantProvisioningRequest request, TenantFirebaseConfiguration firebase, AppleSigningMaterial signing, CancellationToken ct)
     {
         plan.Validate();
-        if (plan.SourceHash != await SourceHashAsync(ct) || plan.FirebaseSdkSha256 != IosReleaseOptions.SdkHash(firebase) || signing.CertificateSha256 != plan.SigningCertificateSha256)
+        if (plan.SourceHash != await SourceHashAsync(ct) || plan.FirebaseSdkSha256 != IosReleaseOptions.SdkHash(firebase) || signing.CertificateSha256 != plan.SigningCertificateSha256 ||
+            firebase.IosPushTransport != plan.PushTransport || firebase.IosPushTransport == "Apns" && firebase.IosDevelopmentTeam != plan.DevelopmentTeam)
             throw new InvalidOperationException("The iOS source, SDK export or signing material changed before build.");
         var attemptId = Guid.NewGuid().ToString("N"); var attempt = Path.Combine(options.ArtifactDirectory, plan.TenantId, attemptId);
         MobileReleaseFiles.PrivateDirectory(attempt); var inputs = Path.Combine(attempt, "inputs"); MobileReleaseFiles.PrivateDirectory(inputs);

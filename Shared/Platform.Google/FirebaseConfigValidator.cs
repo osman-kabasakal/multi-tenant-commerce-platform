@@ -8,6 +8,9 @@ public static class FirebaseConfigValidator
 {
     public static void Validate(TenantFirebaseConfiguration config)
     {
+        if (config.IosPushTransport is not ("Fcm" or "Apns") || config.IosPushTransport == "Apns" &&
+            (config.IosDevelopmentTeam == null || !System.Text.RegularExpressions.Regex.IsMatch(config.IosDevelopmentTeam, "^[A-Z0-9]{10}\\z")))
+            throw new InvalidOperationException("Invalid tenant iOS push transport or Apple team.");
         var android = JsonNode.Parse(config.AndroidConfigJson) as JsonObject
             ?? throw new InvalidOperationException("Invalid Android Firebase configuration.");
         var clients = android["client"] as JsonArray;

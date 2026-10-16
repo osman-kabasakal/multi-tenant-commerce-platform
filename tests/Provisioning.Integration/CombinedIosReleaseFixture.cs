@@ -80,6 +80,14 @@ internal static class CombinedIosReleaseFixture
             .AddSingleton<IProvisioningStep>(new IosReleaseEnqueueStep(coordinator)).AddSingleton<IProvisioningStep>(android)
             .AddSingleton<IProvisioningStep>(new IosReleaseStep(coordinator)).BuildServiceProvider();
         using var worker = new ProvisioningWorker(parents, services.GetRequiredService<IServiceScopeFactory>(), new() { MaxAttempts = 1 }, NullLogger<ProvisioningWorker>.Instance);
+        var apnsGoogle = new GoogleCloudOptions { AllowCloudWrites = true, DeploymentId = google.DeploymentId, ProjectIdPrefix = google.ProjectIdPrefix,
+            Parent = google.Parent, SenderServiceAccount = google.SenderServiceAccount, IosPushTransport = "Apns", IosDevelopmentTeam = binding.DevelopmentTeam };
+        var apnsCoordinator = new IosReleaseCoordinator(binding, deployment, apnsGoogle, tenantSecrets, queue,
+            new FirebaseAppDistribution(new GoogleRestClient(http, new Tokens()), apnsGoogle));
+        using var apnsServices = new ServiceCollection().AddSingleton<IProvisioningGuard>(new IosReleaseGuard(apnsCoordinator))
+            .AddSingleton<IProvisioningStep>(new IosReleaseEnqueueStep(apnsCoordinator)).AddSingleton<IProvisioningStep>(android)
+            .AddSingleton<IProvisioningStep>(new IosReleaseStep(apnsCoordinator)).BuildServiceProvider();
+        using var apnsWorker = new ProvisioningWorker(parents, apnsServices.GetRequiredService<IServiceScopeFactory>(), new() { MaxAttempts = 1 }, NullLogger<ProvisioningWorker>.Instance);
         var identity = new IosWorkerIdentity(deployment.DeploymentId, binding.DevelopmentTeam, binding.SigningCertificateSha256, binding.ExpectedSourceHash);
         using var mac = new IosReleaseWorker(queue, new MacExecutor(), new() { Identity = identity }, NullLogger<IosReleaseWorker>.Instance);
         async Task<IosReleaseJob> BuildOnMac(string tenant)
@@ -101,7 +109,7 @@ internal static class CombinedIosReleaseFixture
         }
         TenantProvisioningRequest Request() => new(Guid.NewGuid().ToString("N"), "combined-" + Guid.NewGuid().ToString("N")[..10], "Synthetic Combined Store",
             "owner@example.test", "Fixture", "Owner", "Street", "5551234567", "store@example.test", DeploymentId: deployment.DeploymentId, MobileReleaseProfile: "AndroidIosAppDistribution");
-        async Task<TenantProvisioningRequest> Schedule()
+        async Task<TenantProvisioningRequest> Schedule(bool apns = false)
         {
             var request = Request(); var tenant = request.TenantId; var package = "com.example.tenant" + tenant;
             var number = (123456789 + server.Tenants.Count).ToString(System.Globalization.CultureInfo.InvariantCulture); var project = google.ProjectId(tenant);
@@ -110,13 +118,14 @@ internal static class CombinedIosReleaseFixture
                 client = new[] { new { client_info = new { mobilesdk_app_id = androidApp, android_client_info = new { package_name = package } } } } });
             var plist = $"<plist><dict><key>PROJECT_ID</key><string>{project}</string><key>GCM_SENDER_ID</key><string>{number}</string><key>GOOGLE_APP_ID</key><string>{iosApp}</string><key>BUNDLE_ID</key><string>{package}</string><key>API_KEY</key><string>synthetic-public-key</string></dict></plist>";
             var firebase = new TenantFirebaseConfiguration(tenant, project, number, google.SenderServiceAccount, androidApp, iosApp, package, package, androidJson, plist, google.DistributionGroupAlias);
+            if (apns) firebase = firebase with { IosPushTransport = "Apns", IosDevelopmentTeam = binding.DevelopmentTeam };
             server.Tenants[project] = firebase;
             await tenantSecrets.ProvisionAsync(tenant, request.Slug);
             await tenantSecrets.SetAsync(tenant, TenantFirebaseConfiguration.SecretName, JsonSerializer.Serialize(firebase));
             await parents.EnqueueAsync(request); var lease = await Claim(tenant);
             await parents.CheckpointAsync(lease, "publication", new("Portable", new Dictionary<string, string> { ["readiness"] = "Verified", ["storeUrl"] = deployment.StoreUrl(request.Slug) }));
-            await parents.CheckpointAsync(lease, "google-firebase", new("Google", new Dictionary<string, string> { ["projectId"] = project, ["iosAppId"] = iosApp }));
-            await worker.RunAsync(lease with { Job = (await parents.GetAsync(tenant))! }, default);
+            await parents.CheckpointAsync(lease, "google-firebase", new("Google", new Dictionary<string, string> { ["projectId"] = project, ["iosAppId"] = iosApp, ["notificationProvider"] = apns ? "FcmApns" : "Fcm" }));
+            await (apns ? apnsWorker : worker).RunAsync(lease with { Job = (await parents.GetAsync(tenant))! }, default);
             var status = (await parents.GetAsync(tenant))!;
             if (status.State != "Pending" || status.ErrorCode != "mobile-ios-release:WaitingForMac")
             {
@@ -211,6 +220,31 @@ internal static class CombinedIosReleaseFixture
                 await using var enable = new NpgsqlCommand("ALTER TABLE platform_provisioning.jobs ENABLE TRIGGER enforce_ios_release_v1", db); await enable.ExecuteNonQueryAsync();
             }
         }
+        var direct = await Schedule(apns: true);
+        var directPlan = (await queue.GetAsync(direct.TenantId))!.Plan;
+        Check(directPlan.PushTransport == "Apns", "The real coordinator persists the APNs transport in the immutable Mac plan");
+        await BuildOnMac(direct.TenantId);
+        var directReady = await Claim(direct.TenantId);
+        var directResult = await apnsCoordinator.CompleteAsync(direct, directReady.Job.Steps, default);
+        var queued = directReady.Job.Steps["mobile-ios-enqueue"];
+        var cloud = directReady.Job.Steps["google-firebase"];
+        var missing = new Dictionary<string, string>(queued.Resources); missing.Remove("iosPushTransport");
+        await parents.CheckpointAsync(directReady, "mobile-ios-enqueue", queued with { Resources = missing });
+        await parents.CheckpointAsync(directReady, "mobile-ios-release", directResult);
+        await Reject<PostgresException>(() => parents.CompleteAsync(directReady), "The database refuses an APNs completion missing the original queue transport evidence");
+        await parents.CheckpointAsync(directReady, "mobile-ios-enqueue", queued);
+        await parents.CheckpointAsync(directReady, "mobile-ios-release", directResult with { Resources = new Dictionary<string, string>(directResult.Resources) { ["iosPushTransport"] = "Fcm" } });
+        await Reject<PostgresException>(() => parents.CompleteAsync(directReady), "The database refuses substituted FCM evidence for a completed APNs plan");
+        await parents.CheckpointAsync(directReady, "mobile-ios-release", directResult);
+        await parents.CheckpointAsync(directReady, "google-firebase", cloud with { Resources = new Dictionary<string, string>(cloud.Resources) { ["notificationProvider"] = "Fcm" } });
+        await Reject<PostgresException>(() => parents.CompleteAsync(directReady), "The database requires the matching composite notification provider for APNs publication");
+        var mismatchedSteps = (await parents.GetAsync(direct.TenantId))!.Steps;
+        await Reject<InvalidOperationException>(() => apnsCoordinator.EnqueueAsync(direct, mismatchedSteps, default),
+            "The coordinator refuses changed notification routing before another Mac job can be queued");
+        await parents.CheckpointAsync(directReady, "google-firebase", cloud);
+        await apnsWorker.RunAsync(directReady with { Job = (await parents.GetAsync(direct.TenantId))! }, default);
+        Check((await parents.GetAsync(direct.TenantId))?.State == "Succeeded" && android.Calls[direct.TenantId] == 1,
+            "Matching APNs evidence completes the real combined tenant without repeating Android");
         Check(server.Writes == 0, "The real queue/coordinator fixture performs no Google, Apple or distribution writes");
     }
 }

@@ -26,7 +26,9 @@ class TenantFirebaseIdentity {
         !RegExp(r'^[a-z][a-z0-9-]{4,28}[a-z0-9]$').hasMatch(projectId) ||
         !RegExp(r'^[1-9][0-9]*$').hasMatch(projectNumber) ||
         !RegExp(
-          r'^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$',
+          platform == 'ios'
+              ? r'^[A-Za-z][A-Za-z0-9-]*(\.[A-Za-z][A-Za-z0-9-]*)+$'
+              : r'^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$',
         ).hasMatch(packageName) ||
         (platform != 'android' && platform != 'ios') ||
         !RegExp('^1:$projectNumber:$platform:[A-Za-z0-9]+\$').hasMatch(appId) ||

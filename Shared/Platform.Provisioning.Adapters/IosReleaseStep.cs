@@ -16,6 +16,8 @@ public sealed class IosReleaseBindingOptions
     public void Validate(IConfiguration config, string environment, PortableOnboardingOptions deployment)
     {
         new IosWorkerIdentity(deployment.DeploymentId, DevelopmentTeam, SigningCertificateSha256, ExpectedSourceHash).Validate();
+        if (config["Provisioning:Google:IosPushTransport"] == "Apns" && config["Provisioning:Google:IosDevelopmentTeam"] != DevelopmentTeam)
+            throw new InvalidOperationException("Use the same explicit Apple team for tenant signing and APNs.");
         if (BuildNumber is < 1 or > 2100000000 || environment is not ("Production" or "Staging") ||
             config.GetValue<bool>("LocalDemo:Enabled") || config["Provisioning:Profile"] != "Portable" ||
             config["Provisioning:Google:Provider"] != "Google" || !config.GetValue<bool>("Provisioning:Google:AllowCloudWrites") ||
@@ -81,25 +83,33 @@ public sealed class IosReleaseCoordinator(IosReleaseBindingOptions options, Port
             firebase.IosBundleId != (request.IosBundleId ?? "com.example.tenant" + request.TenantId) ||
             firebase.AndroidPackageName != (request.AndroidPackageName ?? "com.example.tenant" + request.TenantId) ||
             firebase.SenderServiceAccount != google.SenderServiceAccount || firebase.DistributionGroupAlias != google.DistributionGroupAlias ||
+            firebase.IosPushTransport != google.IosPushTransport || firebase.IosDevelopmentTeam != google.IosDevelopmentTeam ||
+            firebase.IosPushTransport == "Apns" && firebase.IosDevelopmentTeam != options.DevelopmentTeam ||
+            firebase.IosPushTransport == "Apns" && cloud.Resources.GetValueOrDefault("notificationProvider") != "FcmApns" ||
             cloud.Resources.GetValueOrDefault("projectId") != firebase.ProjectId || cloud.Resources.GetValueOrDefault("iosAppId") != firebase.IosAppId)
             throw new InvalidOperationException("The encrypted Firebase configuration belongs to another tenant, deployment or checkpoint.");
         var plan = new IosReleasePlan(request.TenantId, deployment.DeploymentId, firebase.IosBundleId, options.DevelopmentTeam,
             options.SigningCertificateSha256, options.ExpectedSourceHash, options.BuildNumber, firebase.ProjectId, firebase.ProjectNumber,
-            firebase.IosAppId, IosReleaseOptions.SdkHash(firebase), deployment.StoreUrl(request.Slug));
+            firebase.IosAppId, IosReleaseOptions.SdkHash(firebase), deployment.StoreUrl(request.Slug))
+            { IosPushTransport = firebase.IosPushTransport == "Apns" ? "Apns" : null };
         plan.Validate(); return (plan, firebase);
     }
-    private static ProvisioningStepResult Enqueued(IosReleasePlan plan) => new("IosQueue", new Dictionary<string, string> {
+    private static ProvisioningStepResult Enqueued(IosReleasePlan plan) => WithTransport(plan, new("IosQueue", new Dictionary<string, string> {
         ["iosAppId"] = plan.IosAppId, ["iosBundleId"] = plan.IosBundleId, ["developmentTeam"] = plan.DevelopmentTeam, ["sourceHash"] = plan.SourceHash,
         ["signingCertificateSha256"] = plan.SigningCertificateSha256, ["firebaseSdkSha256"] = plan.FirebaseSdkSha256,
         ["buildNumber"] = plan.BuildNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
-    });
-    private static ProvisioningStepResult Delivered(IosReleasePlan plan, IosReleaseReceipt receipt) => new("IosAppDistribution", new Dictionary<string, string> {
+    }));
+    private static ProvisioningStepResult Delivered(IosReleasePlan plan, IosReleaseReceipt receipt) => WithTransport(plan, new("IosAppDistribution", new Dictionary<string, string> {
         ["iosAppId"] = plan.IosAppId, ["iosBundleId"] = plan.IosBundleId, ["developmentTeam"] = plan.DevelopmentTeam, ["sourceHash"] = plan.SourceHash,
         ["signingCertificateSha256"] = plan.SigningCertificateSha256, ["firebaseSdkSha256"] = plan.FirebaseSdkSha256,
         ["buildNumber"] = plan.BuildNumber.ToString(System.Globalization.CultureInfo.InvariantCulture), ["sha256"] = receipt.IpaSha256,
         ["applicationProfileUuid"] = receipt.ApplicationProfileUuid, ["extensionProfileUuid"] = receipt.ExtensionProfileUuid,
         ["release"] = receipt.ReleaseResource, ["symbolsUploaded"] = "true"
-    });
+    }));
+    private static ProvisioningStepResult WithTransport(IosReleasePlan plan, ProvisioningStepResult result) =>
+        plan.PushTransport == "Fcm" ? result : result with {
+            Resources = new Dictionary<string,string>(result.Resources) { ["iosPushTransport"] = plan.PushTransport }
+        };
     private static void Checkpoint(IReadOnlyDictionary<string, ProvisioningStepResult> completed, string name, ProvisioningStepResult expected)
     {
         if (!completed.TryGetValue(name, out var value) || value.Provider != expected.Provider || value.Resources.Count != expected.Resources.Count ||

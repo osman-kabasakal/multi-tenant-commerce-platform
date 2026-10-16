@@ -1,3 +1,4 @@
+import 'package:store_user_app/core/services/apns_notification_bridge.dart';
 import 'package:store_user_app/core/config/local_demo.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -30,97 +31,98 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 @lazySingleton
 class FCMService {
-  final ComponentRepository _componentRepository;
+  ApnsNotificationBridge? _apns;
+  StreamSubscription<String>? _tokenSubscription;
+  bool _messageListenersReady = false;
   final FlutterSecureStorage _secureStorage;
   final Logger _logger = LoggerService.logger;
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
-  final CacheFreshnessService _cacheFreshnessService;
   bool _isInitialized = false;
   final Dio _dio;
 
   FCMService(
-    this._componentRepository,
+    ComponentRepository componentRepository,
     this._secureStorage,
     this._dio,
-    this._cacheFreshnessService,
+    CacheFreshnessService cacheFreshnessService,
   );
 
   bool get isInitialized => _isInitialized;
 
   /// FCM servisini başlatır ve konfigüre eder
   Future<void> initialize() async {
-    if (LocalDemo.enabled || _isInitialized) return;
-
+    if (LocalDemo.enabled) return;
+    if (ApnsNotificationBridge.enabled) {
+      try {
+        _apns ??= ApnsNotificationBridge(
+          onToken: _registerCurrentToken,
+          onOpened:
+              (data) =>
+                  _handleAppOpenedFromNotification(RemoteMessage.fromMap(data)),
+          onMessage: (_) => _logger.d('APNs notification received'),
+        );
+        _isInitialized = true;
+        final registration = await _apns!.initialize();
+        if (!registration.authorized) {
+          await saveTokenToServer('denied');
+        } else if (registration.token != null) {
+          await _registerCurrentToken(registration.token!);
+        }
+      } catch (_) {
+        _isInitialized = false;
+        _logger.e('APNs registration could not be initialized');
+      }
+      return;
+    }
+    if (_isInitialized) return;
     try {
-      // if (kDebugMode) {
-      //   // Firebase'i başlat
-      //   await Firebase.initializeApp(
-      //     options: fairebase_options.DefaultFirebaseOptions.currentPlatform,
-      //   );
-      // } else {
-      //   // Firebase'i başlat
-      //   await Firebase.initializeApp(
-      //     options: fairebase_options.DefaultFirebaseOptions.currentPlatform,
-      //   );
-      // }
-
-      // Arka plan mesaj işleyicisini ayarla
       FirebaseMessaging.onBackgroundMessage(
         _firebaseMessagingBackgroundHandler,
       );
-
-      // FCM izinlerini al
       await _requestPermissions();
-
-      // Lokal bildirimleri ayarla
       await _setupLocalNotifications();
-
-      // Mesaj dinleyicilerini ayarla
-      _setupMessageListeners();
-
-      // FCM token al ve gerekirse sunucuya kaydet
-      FirebaseMessaging.instance.onTokenRefresh.listen((String token) async {
-        if (kDebugMode) {
-          _logger.d('FCM Token yenilendi: $token');
-        }
-        await storeTokenSecurely(token);
-        await saveTokenToServer(token);
-      });
-      var savedToken = await getSecureToken();
-      if (savedToken == null) {
-        // Eğer token yoksa yeni token al
-        final token = await FirebaseMessaging.instance.getToken();
-        if (token != null) {
-          _isInitialized = true;
-          await storeTokenSecurely(token);
-          await saveTokenToServer(token);
-
-          if (kDebugMode) {
-            _logger.d('FCM Token: $token');
-          }
-        }
-      } else {
-        _isInitialized = true;
-        // Eğer token varsa, sunucuya kaydet
-        // await saveTokenToServer(savedToken);
+      if (!_messageListenersReady) {
+        _setupMessageListeners();
+        _messageListenersReady = true;
       }
-
-      // Initialize WebSocket connection for cache freshness
-      // await _cacheFreshnessService.startWs();
-    } catch (e) {
-      if (kDebugMode) {
-        _logger.e('FCM başlatma hatası: $e');
-      }
+      _isInitialized = true;
+      _tokenSubscription ??= FirebaseMessaging.instance.onTokenRefresh.listen(
+        _registerCurrentToken,
+      );
+      // Query the native SDK and register on every launch, even when secure storage has an old token.
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) await _registerCurrentToken(token);
+    } catch (_) {
+      _isInitialized = false;
+      _logger.e('Notification registration could not be initialized');
     }
   }
 
+  Future<void> _registerCurrentToken(String token) async {
+    await storeTokenSecurely(token);
+    await saveTokenToServer(token);
+  }
+
+  Future<RemoteMessage?> getInitialMessage() async {
+    if (ApnsNotificationBridge.enabled) {
+      final data = await _apns?.initialMessage();
+      return data == null ? null : RemoteMessage.fromMap(data);
+    }
+    return FirebaseMessaging.instance.getInitialMessage();
+  }
+
   Future<void> storeTokenSecurely(String token) async {
-    await _secureStorage.write(key: 'fcm_token', value: token);
+    await _secureStorage.write(
+      key: ApnsNotificationBridge.enabled ? 'push_token_apns_v1' : 'fcm_token',
+      value: token,
+    );
   }
 
   Future<String?> getSecureToken() async {
-    return await _secureStorage.read(key: 'fcm_token');
+    return await _secureStorage.read(
+      key: ApnsNotificationBridge.enabled ? 'push_token_apns_v1' : 'fcm_token',
+    );
   }
 
   /// FCM bildirimler için izin ister
@@ -376,13 +378,19 @@ class FCMService {
   }
 
   /// Bildirim tıklandığında çağrılır
-  void _handleAppOpenedFromNotification(RemoteMessage message) {
-    if (kDebugMode) {
-      _logger.d('Bildirim tıklandı: ${message.notification?.title}');
+  Future<void> _handleAppOpenedFromNotification(RemoteMessage message) async {
+    final data = message.data;
+    String? localPath =
+        data['local_path'] is String ? data['local_path'] as String : null;
+    if (localPath == null && data['action_link'] is String) {
+      final uri = Uri.tryParse(data['action_link'] as String);
+      if (uri != null) {
+        localPath = await getIt<DeeplinkService>().handleIncomingLink(uri);
+      }
     }
-
-    var localPath = message.data['local_path'];
-    if (localPath != null) {
+    if (localPath != null &&
+        localPath.startsWith('/') &&
+        !localPath.startsWith('//')) {
       getIt<AppRouter>().pushPath(localPath);
     }
   }
@@ -395,9 +403,10 @@ class FCMService {
     }
 
     try {
+      if (ApnsNotificationBridge.enabled) return _apns?.getToken();
       return await FirebaseMessaging.instance.getToken();
     } catch (e) {
-      _logger.e('FCM token alma hatası: $e');
+      _logger.e('Notification token could not be read');
       return null;
     }
   }
@@ -413,17 +422,23 @@ class FCMService {
       return;
     }
     try {
-      NotificationSettings settings = await FirebaseMessaging.instance
-          .requestPermission(
-            alert: true,
-            badge: true,
-            sound: true,
-            provisional: false,
-          );
-      // Token'ı sunucuya kaydetmek için gerekli API çağrısını yap
-      final allowed =
-          settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional;
+      final bool allowed;
+      if (ApnsNotificationBridge.enabled) {
+        allowed = await _apns?.permission() ?? false;
+        if (allowed && !token.startsWith(ApnsNotificationBridge.prefix)) {
+          throw const FormatException('Expected a native APNs registration.');
+        }
+      } else {
+        final settings = await FirebaseMessaging.instance.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+          provisional: false,
+        );
+        allowed =
+            settings.authorizationStatus == AuthorizationStatus.authorized ||
+            settings.authorizationStatus == AuthorizationStatus.provisional;
+      }
       final response = await _dio.post(
         '/PushNotifications/ProcessRegistration',
         data: {
@@ -451,6 +466,11 @@ class FCMService {
 
   /// Belirli bir konuya abone olur
   Future<void> subscribeToTopic(String topic) async {
+    if (ApnsNotificationBridge.enabled) {
+      throw UnsupportedError(
+        'Direct APNs uses tenant device registrations instead of FCM topics.',
+      );
+    }
     if (!_isInitialized) return;
 
     try {
@@ -463,6 +483,11 @@ class FCMService {
 
   /// Belirli bir konudan aboneliği kaldırır
   Future<void> unsubscribeFromTopic(String topic) async {
+    if (ApnsNotificationBridge.enabled) {
+      throw UnsupportedError(
+        'Direct APNs uses tenant device registrations instead of FCM topics.',
+      );
+    }
     if (!_isInitialized) return;
 
     try {
@@ -504,7 +529,7 @@ class FCMService {
         getIt<AppRouter>().pushPath(AppPaths.homeIndex());
       }
     } catch (e) {
-      print('Error handling notification tap: $e');
+      debugPrint('Notification action could not be opened');
       getIt<AppRouter>().pushPath(AppPaths.homeIndex());
     }
   }

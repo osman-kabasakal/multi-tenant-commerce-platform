@@ -1,6 +1,10 @@
 """Verify actual generated Production settings, opt-in Android consent and persisted key/artifact boundaries."""
 import copy
 import json
+import os
+import shutil
+import tarfile
+from unittest.mock import patch
 from pathlib import Path
 import subprocess
 import tempfile
@@ -8,6 +12,7 @@ import unittest
 
 import production_config as config
 import production_android
+import production_backup as snapshot
 
 
 class ProductionConfigTests(unittest.TestCase):
@@ -29,6 +34,10 @@ class ProductionConfigTests(unittest.TestCase):
         cls.mobile['Android'].update(AllowSigningKeyCreation=True, SharedArtifactsConfirmed=True)
         cls.google = json.loads((config.ROOT / 'infra/google/provisioning.example.json').read_text())['Provisioning']['Google']
         cls.google.update(AllowCloudWrites=True, DeploymentId=cls.plan['DeploymentId'])
+        cls.apns_key = cls.root / 'apns.p8'
+        subprocess.run(['openssl', 'genpkey', '-algorithm', 'EC', '-pkeyopt', 'ec_paramgen_curve:prime256v1',
+                        '-out', str(cls.apns_key)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cls.apns_key.chmod(0o600)
 
     @classmethod
     def tearDownClass(cls): cls.temporary.cleanup()
@@ -103,6 +112,116 @@ class ProductionConfigTests(unittest.TestCase):
         with self.assertRaises(ValueError): config.validate(plan)
         plan = self.combined_plan(); plan['Providers']['Mobile']['Android']['AllowSigningKeyCreation'] = False
         with self.assertRaises(ValueError): config.validate(plan)
+
+    def apns_plan(self):
+        plan = self.combined_plan()
+        plan['Providers']['Notifications'] = {'Provider': 'FcmApns', 'Apns': {
+            'Environment': 'Production', 'DevelopmentTeam': 'ABCDE12345', 'KeyId': 'KEYID12345',
+            'KeyFile': str(self.apns_key), 'LifetimeSeconds': 3600}}
+        return plan
+
+    def test_apns_team_key_reaches_only_notification_hosts_and_replay_keeps_master(self):
+        state = self.root / 'apns-state'; plan = self.apns_plan()
+        original = config.prepare(self.plan, state, 'commerce-platform:fixture')
+        enabled = config.prepare(plan, state, 'commerce-platform:fixture')
+        self.assertEqual(original['MasterKey'], enabled['MasterKey'])
+        self.assertEqual(original['Credentials'], enabled['Credentials'])
+        self.assertEqual(enabled, config.prepare(plan, state, 'commerce-platform:fixture'))
+        self.assertEqual(self.apns_key.read_bytes(), (state / 'secrets/apns-key.p8').read_bytes())
+        self.assertEqual(0o600, (state / 'secrets/apns-key.p8').stat().st_mode & 0o777)
+        services = json.loads((state / 'compose.json').read_text())['services']
+        for role, service in services.items():
+            mounts = [item for item in service.get('volumes', []) if isinstance(item, dict) and item.get('target') == '/run/secrets/apns-key.p8']
+            self.assertEqual(len(mounts), int(role in ('commerce', 'admin')), role)
+            if mounts: self.assertTrue(mounts[0]['read_only'])
+        for file in (state / 'config').glob('*.json'):
+            value = json.loads(file.read_text())
+            if file.stem in ('commerce', 'admin'):
+                self.assertEqual('/run/secrets/apns-key.p8', value['Notifications']['Apns']['KeyFile'])
+            else:
+                self.assertNotIn('KEYID12345', file.read_text())
+                self.assertNotIn('Apns', value.get('Notifications', {}))
+        worker = json.loads((state / 'config/worker.json').read_text())
+        self.assertEqual('Apns', worker['Provisioning']['Google']['IosPushTransport'])
+        self.assertEqual('ABCDE12345', worker['Provisioning']['Google']['IosDevelopmentTeam'])
+        self.assertEqual({'Provider': 'Disabled'}, json.loads((state / 'config/installer.json').read_text())['Notifications'])
+
+    def test_apns_rejects_invalid_config_and_team_or_transport_drift_before_rendering(self):
+        for update in ({'Environment': 'Sandbox'}, {'DevelopmentTeam': None}, {'DevelopmentTeam': 1234567890},
+                       {'DevelopmentTeam': 'ABCDE12345\n'}, {'KeyId': None}, {'KeyId': []}, {'KeyFile': None},
+                       {'KeyFile': 'relative.p8'}, {'LifetimeSeconds': True}, {'LifetimeSeconds': -1},
+                       {'LifetimeSeconds': 86401}, {'PrivateKey': 'inline-material'}):
+            plan = self.apns_plan(); plan['Providers']['Notifications']['Apns'].update(update)
+            with self.subTest(fields=tuple(update)), self.assertRaises(ValueError): config.validate(plan)
+        for section, update in [('Google', {'Provider': 'Disabled'}), ('Google', {'IosPushTransport': 'Fcm'}),
+                                ('Google', {'IosDevelopmentTeam': 'OTHER12345'})]:
+            plan = self.apns_plan(); plan['Providers'][section].update(update)
+            with self.subTest(fields=tuple(update)), self.assertRaises(ValueError): config.validate(plan)
+        plan = self.apns_plan(); plan['Providers']['Mobile']['Ios']['Release']['DevelopmentTeam'] = 'OTHER12345'
+        with self.assertRaises(ValueError): config.validate(plan)
+        for value in (None, [], 'FcmApns'):
+            plan = self.apns_plan(); plan['Providers']['Notifications'] = value
+            with self.subTest(value=value), self.assertRaises(ValueError): config.validate(plan)
+
+    def test_apns_refuses_shared_readable_linked_or_empty_key_inputs(self):
+        file = self.root / 'unsafe-apns.p8'; file.write_bytes(self.apns_key.read_bytes()); file.chmod(0o640)
+        plan = self.apns_plan(); plan['Providers']['Notifications']['Apns']['KeyFile'] = str(file)
+        with self.assertRaises(ValueError): config.validate(plan)
+        file.chmod(0o600); file.write_bytes(b'')
+        with self.assertRaises(ValueError): config.validate(plan)
+        file.write_bytes(b'x' * 8193)
+        with self.assertRaises(ValueError): config.validate(plan)
+        file.unlink(); file.symlink_to(self.apns_key)
+        with self.assertRaises(ValueError): config.validate(plan)
+        directory = self.root / 'linked-key-parent'; directory.symlink_to(self.root, target_is_directory=True)
+        plan['Providers']['Notifications']['Apns']['KeyFile'] = str(directory / self.apns_key.name)
+        with self.assertRaises(ValueError): config.validate(plan)
+
+    def test_apns_restore_uses_backed_up_key_after_original_input_disappears(self):
+        state = self.root / 'restore-apns-source'; plan = self.apns_plan()
+        missing = self.root / 'original-apns-input.p8'; shutil.copyfile(self.apns_key, missing); missing.chmod(0o600)
+        plan['Providers']['Notifications']['Apns']['KeyFile'] = str(missing)
+        original = config.prepare(plan, state, 'commerce-platform:fixture')
+        definition = json.loads((state / 'compose.json').read_text())
+        images = {service['image']: 'sha256:' + 'c' * 64 for service in definition['services'].values()}
+        backup = self.root / 'apns-snapshot'; backup.mkdir(mode=0o700)
+        snapshot.save_state(state, backup / 'state.tar')
+        for name in snapshot.VOLUMES:
+            file = backup / (name + '.tar')
+            with tarfile.open(file, 'w'): pass
+            file.chmod(0o600)
+        revision = 'b' * 40
+        config.write_json(backup / 'snapshot.json', {'version': 1, 'installationId': original['InstallationId'],
+            'project': definition['name'], 'sourceRevision': revision, 'uid': os.getuid(), 'gid': os.getgid(),
+            'images': images, 'archives': {file.name: snapshot.digest(file) for file in backup.glob('*.tar')}})
+        missing.unlink()
+        volumes = {}
+        def inspect(kind, name):
+            if kind == 'image': return {'Id': images[name]}
+            return volumes.get(name) if kind == 'volume' else None
+        actual_run = subprocess.run; actual_output = subprocess.check_output
+        def run(command, *args, **kwargs):
+            if command[:3] == ['docker', 'volume', 'create']:
+                labels = dict(command[index + 1].split('=', 1) for index, value in enumerate(command) if value == '--label')
+                volumes[command[-1]] = {'Labels': labels}
+                return subprocess.CompletedProcess(command, 0)
+            if command[0] == 'docker': raise AssertionError('Unexpected Docker mutation')
+            return actual_run(command, *args, **kwargs)
+        def output(command, *args, **kwargs):
+            return revision if command[:3] == ['git', 'rev-parse', 'HEAD'] else actual_output(command, *args, **kwargs)
+        destination = self.root / 'apns-restored'
+        with patch.object(snapshot, 'existing', side_effect=inspect), patch.object(snapshot, 'images', return_value=images), \
+             patch.object(snapshot.subprocess, 'run', side_effect=run), patch.object(snapshot.subprocess, 'check_output', side_effect=output), \
+             patch.object(snapshot, 'volume_tar') as restore_volumes:
+            snapshot.restore_state(backup, destination)
+        self.assertEqual(len(snapshot.VOLUMES), restore_volumes.call_count)
+        restored = json.loads((destination / 'deployment.json').read_text())
+        key = Path(restored['Providers']['Notifications']['Apns']['KeyFile'])
+        self.assertEqual(destination / 'recovery-inputs/apns-key.p8', key)
+        self.assertEqual(self.apns_key.read_bytes(), key.read_bytes())
+        self.assertEqual(0o600, key.stat().st_mode & 0o777)
+        self.assertEqual(original['MasterKey'], json.loads((destination / 'installation.json').read_text())['MasterKey'])
+        self.assertFalse(missing.exists())
 
     def test_google_administration_and_notification_credentials_have_separate_mounts(self):
         plan = copy.deepcopy(self.plan)

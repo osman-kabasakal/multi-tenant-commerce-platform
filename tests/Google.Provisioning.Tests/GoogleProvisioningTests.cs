@@ -11,11 +11,12 @@ namespace Platform.Google.Tests;
 [TestClass]
 public sealed class GoogleProvisioningTests
 {
-    internal static GoogleCloudOptions Options(bool allow = true, string? billing = null) => new()
+    internal static GoogleCloudOptions Options(bool allow = true, string? billing = null, bool apns = false, string? team = "ABC123DEFG") => new()
     {
         AllowCloudWrites = allow, DeploymentId = "contract-deployment", ProjectIdPrefix = "contract",
         Parent = "folders/123456", SenderServiceAccount = "sender-account@sender-project.iam.gserviceaccount.com",
-        TesterEmails = ["tester@example.com"], IncludeOwnerAsTester = true, PollIntervalSeconds = 1, BillingAccount = billing
+        TesterEmails = ["tester@example.com"], IncludeOwnerAsTester = true, PollIntervalSeconds = 1, BillingAccount = billing,
+        IosPushTransport = apns ? "Apns" : "Fcm", IosDevelopmentTeam = apns ? team : null
     };
     internal static GoogleTenantSpec Tenant() { var id = Guid.NewGuid().ToString("N"); return new(id, "Contract Store", "owner@example.com", "com.example.t" + id, "com.example.t" + id); }
 
@@ -35,6 +36,35 @@ public sealed class GoogleProvisioningTests
         Assert.IsFalse(server.Paths.Any(p => p.Contains("serviceAccountKeys", StringComparison.OrdinalIgnoreCase)));
     }
 
+    [TestMethod]
+    public async Task ApnsProvisioningExportsOnlyPublicTransportAndTeamForTheOwnedAppleApp()
+    {
+        using var server = new GoogleServer();
+        var spec = Tenant() with { IosBundleId = "com.example.tenant-coffee" };
+        var config = await new GoogleTenantProvisioner(server.Client(), Options(apns: true)).EnsureAsync(spec, default);
+        Assert.AreEqual("Apns", config.IosPushTransport); Assert.AreEqual("ABC123DEFG", config.IosDevelopmentTeam);
+        var directory = Path.Combine(Path.GetTempPath(), "apns-sdk-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await FirebaseClientFiles.ExportAsync(config, directory);
+            using var client = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(directory, "firebase-client.json")));
+            Assert.AreEqual("Apns", client.RootElement.GetProperty("iosPushTransport").GetString());
+            Assert.AreEqual(config.IosDevelopmentTeam, client.RootElement.GetProperty("iosDevelopmentTeam").GetString());
+            Assert.AreEqual(spec.IosBundleId, client.RootElement.GetProperty("iosBundleId").GetString());
+            Assert.IsFalse(client.RootElement.TryGetProperty("keyId", out _));
+            Assert.IsFalse(client.RootElement.TryGetProperty("keyFile", out _));
+            Assert.IsFalse(server.Paths.Any(path => path.Contains("apns", StringComparison.OrdinalIgnoreCase)));
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+    [DataTestMethod]
+    [DataRow(null)][DataRow("")][DataRow("abc123defg")][DataRow("ABC123DEFG\n")]
+    public async Task ApnsTeamIsValidatedBeforeGoogleResourceCreation(string? team)
+    {
+        using var server = new GoogleServer();
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => new GoogleTenantProvisioner(server.Client(), Options(apns: true, team: team)).EnsureAsync(Tenant(), default));
+        Assert.AreEqual(0, server.Paths.Count);
+    }
     [TestMethod]
     public async Task ForeignProjectIsNeverAdoptedOrMutated()
     {

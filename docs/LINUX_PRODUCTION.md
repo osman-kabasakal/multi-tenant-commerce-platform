@@ -2,6 +2,8 @@
 
 Linux Docker Engine plus Docker Compose is the selected Production target. Clean Linux CI has verified the complete cloud-free baseline: fresh infrastructure, actual SaaS enrollment, two new tenant storefronts and administrator logins, and a restart preserving data, keys and sessions. This uses isolated synthetic DNS and valid private-CA HTTPS; consistent cold database/private-state restoration also passed its full Linux gate. Live public DNS/cloud/device delivery still requires separate verification. The existing local demo is also a ready-to-run cloud-free entry point.
 
+For the Turkish operator setup and each new owner's registration, mobile delivery and acceptance steps, follow [Yeni işletme ekleme rehberi](YENI_ISLETME_EKLEME.md).
+
 ## Build the committed server image
 
 Use a non-root Linux deployment account with Docker access, Git, Python 3.10+ and Docker BuildKit. The build machine needs internet and at least 20 GiB of free disk for the separate .NET 8/9 SDK stages and Angular dependencies. The running server image contains the .NET 8/9 shared runtimes; it needs no host SDK or Node installation. Build for the target architecture explicitly:
@@ -103,3 +105,7 @@ Run the separate [Mac worker](MOBILE.md#run-the-explicitly-configured-mac-consum
 New trial/paid registrations enqueue iOS work after verified store/Firebase publication, perform Android publication, then wait for the exact iOS completion receipt. Pending Mac work frees the Linux claim for other businesses without consuming failure attempts. A combined business is ready only after both mobile results satisfy the database completion guard. Owner-authorized retry resets only a failed iOS child in the same transaction as the failed parent; completed Android/iOS results and the immutable original plan survive. Existing Android-only requests remain Android-only. The registration page shows the additional iOS status without exposing the plan or credentials.
 
 Local tests verify this orchestration with actual PostgreSQL and the installer's restricted roles. They do not prove a real Apple-signed IPA or configured-cloud/device delivery. See [the current validation record](VALIDATION.md#combined-saas-mobile-orchestration-2026-10-16) for evidence and remaining prerequisites.
+
+## Optional direct iOS notifications
+
+Merge the private [APNs fragment](../infra/production/apns.example.json) only after the Google/FCM sender and Apple team prerequisites are configured. `FcmApns` keeps Android on FCM and routes native iOS registrations directly to APNs. The generator copies the operator key into protected state, mounts it read-only only in commerce/admin and propagates only the public team/transport to the worker. The selected combined release team must match. No APNs key enters the server image, Mac queue, app or installer. Preserve the key with the original private state; the backup/restore tool restores and rebinds its path. Full setup and live acceptance requirements are in [NOTIFICATIONS.md](NOTIFICATIONS.md#direct-apns-for-ios) and [Yeni işletme ekleme](YENI_ISLETME_EKLEME.md).

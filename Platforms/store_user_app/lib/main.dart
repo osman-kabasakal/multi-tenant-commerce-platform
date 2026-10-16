@@ -405,7 +405,7 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
           deepLinkBuilder: (uri) async {
             var deeplinkService = await getIt.getAsync<DeeplinkService>();
             RemoteMessage? initialMessage =
-            LocalDemo.enabled ? null : await FirebaseMessaging.instance.getInitialMessage();
+            LocalDemo.enabled ? null : await (await getIt.getAsync<FCMService>()).getInitialMessage();
 
             // Uygulamaya bildirimden açıldıysa, bildirim verilerine göre yönlendirme yap
             if (initialMessage != null) {

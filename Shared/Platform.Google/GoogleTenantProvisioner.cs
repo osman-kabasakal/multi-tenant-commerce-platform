@@ -13,7 +13,8 @@ public sealed class GoogleTenantProvisioner(GoogleRestClient api, GoogleCloudOpt
         options.Validate();
         if (string.IsNullOrWhiteSpace(spec.DisplayName) || spec.DisplayName.Length > 200 ||
             !System.Net.Mail.MailAddress.TryCreate(spec.OwnerEmail, out var owner) || owner.Address != spec.OwnerEmail ||
-            new[] { spec.AndroidPackageName, spec.IosBundleId }.Any(p => !Regex.IsMatch(p, "^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$")))
+            !Regex.IsMatch(spec.AndroidPackageName, "^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$") ||
+            spec.IosBundleId.Length > 220 || !Regex.IsMatch(spec.IosBundleId, "^[a-zA-Z][a-zA-Z0-9-]*(\\.[a-zA-Z][a-zA-Z0-9-]*)+$"))
             throw new ArgumentException("Invalid Google tenant specification.");
         var id = options.ProjectId(spec.TenantId);
         var project = await EnsureProjectAsync(id, spec, ct);
@@ -38,7 +39,8 @@ public sealed class GoogleTenantProvisioner(GoogleRestClient api, GoogleCloudOpt
         var androidConfig = await ConfigAsync(id, "androidApps", android, ct);
         var iosConfig = await ConfigAsync(id, "iosApps", ios, ct);
         var result = new TenantFirebaseConfiguration(spec.TenantId, id, number, options.SenderServiceAccount,
-            android, ios, spec.AndroidPackageName, spec.IosBundleId, androidConfig, iosConfig, options.DistributionGroupAlias);
+            android, ios, spec.AndroidPackageName, spec.IosBundleId, androidConfig, iosConfig, options.DistributionGroupAlias)
+            { IosPushTransport = options.IosPushTransport, IosDevelopmentTeam = options.IosDevelopmentTeam };
         FirebaseConfigValidator.Validate(result);
         return result;
     }

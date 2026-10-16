@@ -86,6 +86,8 @@ Mağaza yöneticisi bu profilde GrandNode parola doğrulamasını kullanır. Saa
 
 ## Yeni yerel işletme
 
+Yerel demo ve gerçek sunucu için tek sıralı rehber: [Yeni işletme ekleme: ilk kurulumdan mobil teslimine](docs/YENI_ISLETME_EKLEME.md).
+
 1. `http://localhost:18081/local-onboarding.html` adresini açın; `demo-owner` hesabıyla giriş yapın. Parola `.local/credentials.json` içindeki `saas_user` değeridir.
 2. Benzersiz bir işletme adı ve en az 12 karakterlik mağaza yönetimi parolası girin. Bu akış gerçek ödeme almaz; mevcut plandan sıfır tutarlı deneme aboneliği oluşturur.
 3. Kurulum ilerledikçe veritabanı, mağaza, kimlik ve yayın adımları görünür. Hazır olduğunda verilen mağaza/yönetim bağlantılarını açın. Yönetimde hesabınızın e-postasını ve seçtiğiniz mağaza parolasını kullanın.

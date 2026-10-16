@@ -14,7 +14,9 @@ import mobile_ios
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def fixture_inputs(directory):
+def fixture_inputs(directory, push_transport="Fcm"):
+    if push_transport not in ("Fcm", "Apns"):
+        raise ValueError("Choose the Fcm or Apns fixture transport.")
     directory.mkdir(mode=0o700)
     tenant = "11111111111111111111111111111111"
     bundle = "dev.commerce.iosfixture"
@@ -24,6 +26,8 @@ def fixture_inputs(directory):
                 "baseUrl": "https://ios-coffee.shops.example.test", "displayName": 'İşletme "Kahve" & Çay',
                 "androidApplicationId": bundle, "iosBundleId": bundle, "firebase": cloud}
     client = dict(cloud, tenantId=tenant, androidPackageName=bundle, iosBundleId=bundle)
+    if push_transport == "Apns":
+        client.update(iosPushTransport="Apns", iosDevelopmentTeam="ABCDE12345")
     android = {"project_info": {"project_id": cloud["projectId"], "project_number": cloud["projectNumber"]},
                "client": [{"client_info": {"mobilesdk_app_id": cloud["androidAppId"], "android_client_info": {"package_name": bundle}}}]}
     ios = {"PROJECT_ID": cloud["projectId"], "GCM_SENDER_ID": cloud["projectNumber"],
@@ -74,7 +78,15 @@ puts({extensionBeforeFlutterEmbedding: copy && thin && runner.build_phases.index
             raise ValueError("The native configuration does not include its matching CocoaPods configuration.")
     if read_display_name(native) != tenant["displayName"]:
         raise ValueError("The display name was not preserved literally.")
-    return {"nativeTargetsVerified": True, "schemeVerified": True, "firebaseResourceMembershipVerified": True}
+    info = mobile_ios.read_plist(native / "Runner/Info.plist")
+    defines = common.read_json(workspace / "tenant.defines.json")
+    if info.get("PlatformIosPushTransport") != tenant["iosPushTransport"] or defines.get("IOS_PUSH_TRANSPORT") != tenant["iosPushTransport"]:
+        raise ValueError("Native and Dart notification transport differ from the selected tenant.")
+    if tenant["iosPushTransport"] == "Apns" and (info.get("PlatformIosDevelopmentTeam") != tenant["developmentTeam"] or
+            defines.get("IOS_DEVELOPMENT_TEAM") != tenant["developmentTeam"] or info.get("FirebaseMessagingAutoInitEnabled") is not False):
+        raise ValueError("Direct APNs requires matching public team settings and disabled FCM registration.")
+    return {"nativeTargetsVerified": True, "schemeVerified": True, "firebaseResourceMembershipVerified": True,
+            "iosPushTransport": tenant["iosPushTransport"], "nativePushConfigurationVerified": True}
 
 
 def verify_manual_signing(workspace, tenant, ruby):
@@ -141,6 +153,7 @@ def main():
     parser.add_argument("--ruby", default="ruby")
     parser.add_argument("--flutter", default="flutter")
     parser.add_argument("--compile-unsigned", action="store_true")
+    parser.add_argument("--push-transport", choices=("Fcm", "Apns"), default="Fcm")
     args = parser.parse_args()
     os.umask(0o077)
     parent = ROOT / ".local"; parent.mkdir(exist_ok=True)
@@ -148,7 +161,7 @@ def main():
     workspace = directory / "workspace"
     original = common.source_hash(ROOT)
     try:
-        manifest = fixture_inputs(directory / "inputs")
+        manifest = fixture_inputs(directory / "inputs", args.push_transport)
         workspace, tenant = mobile_ios.prepare(manifest, manifest.parent, workspace, "ABCDE12345", 7, args.ruby)
         result = dict(verify_project(workspace, tenant, args.ruby), sourceHash=tenant["sourceHash"], compiledIosApp=False,
                       signedIpaBuilt=False, distributed=False, symbolsUploaded=False)
