@@ -2,6 +2,7 @@
 """Loopback-only demo gateway. Keycloak service credentials never enter browser/mobile bundles."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import http.client
+import socket
 import json
 import re
 import threading
@@ -11,6 +12,7 @@ import urllib.request
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 LOCAL=ROOT/'.local'
+UPSTREAM_PORT=18082
 TOKEN_URL='http://localhost:18080/realms/commerce-demo/protocol/openid-connect/token'
 TENANTS={'demo-a.localhost':'demo-a','demo-b.localhost':'demo-b','localhost':'demo-a','127.0.0.1':'demo-a'}
 HOP={'connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','transfer-encoding','upgrade'}
@@ -43,15 +45,28 @@ class Handler(BaseHTTPRequestHandler):
         try:length=int(self.headers.get('Content-Length','0'))
         except ValueError:self.send_error(400);return
         if length<0 or length>10*1024*1024:self.send_error(413);return
-        connection=http.client.HTTPConnection('127.0.0.1',18082,timeout=60)
+        websocket=self.headers.get('Upgrade','').lower()=='websocket'
+        if websocket and (self.command!='GET' or urllib.parse.urlsplit(self.path).path!='/api/ws/fcm' or length):
+            self.send_error(400,'Unsupported demo WebSocket request');return
+        connection=http.client.HTTPConnection('127.0.0.1',UPSTREAM_PORT,timeout=60)
         try:
             headers={k:v for k,v in self.headers.items() if k.lower() not in HOP|{'host','x-store-token','forwarded'} and not k.lower().startswith('x-forwarded-')}
             headers['Host']=slug+'.localhost:18090'
             headers['x-store-token']=token(slug)
-            headers['Connection']='close'
+            headers['Connection']='Upgrade' if websocket else 'close'
+            if websocket:headers['Upgrade']='websocket'
             body=self.rfile.read(length) if length else None
             connection.request(self.command,self.path,body=body,headers=headers)
-            response=connection.getresponse();data=response.read()
+            response=connection.getresponse()
+            if websocket and response.status==101:
+                self.send_response(101)
+                for k,v in response.getheaders():
+                    if k.lower() not in HOP|{'content-length'}:self.send_header(k,v)
+                self.send_header('Connection','Upgrade');self.send_header('Upgrade','websocket');self.end_headers();self.wfile.flush()
+                self.close_connection=True
+                self.relay_websocket(connection.sock,response.fp)
+                return
+            data=response.read()
             self.send_response(response.status)
             for k,v in response.getheaders():
                 if k.lower() not in HOP|{'content-length'}:self.send_header(k,v)
@@ -60,6 +75,29 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             self.send_error(502,'Local commerce service unavailable; see .local/logs')
         finally:connection.close()
+    def relay_websocket(self,upstream,reader):
+        # Read buffered streams: an upstream can send its first frame with the upgrade headers.
+        upstream.settimeout(None)
+        stopped=threading.Event()
+        def close_both():
+            if stopped.is_set():return
+            stopped.set()
+            for peer in (self.connection,upstream):
+                try:peer.shutdown(socket.SHUT_RDWR)
+                except OSError:pass
+        def copy(source,target):
+            try:
+                while not stopped.is_set():
+                    data=source.read1(65536)
+                    if not data:break
+                    target.sendall(data)
+            except OSError:pass
+            finally:close_both()
+        downstream=threading.Thread(target=copy,args=(reader,self.connection),daemon=True)
+        downstream.start()
+        copy(self.rfile,upstream)
+        downstream.join(timeout=2)
+
     do_GET=do_POST=do_PUT=do_DELETE=do_PATCH=do_OPTIONS=do_HEAD=proxy
 if __name__=='__main__':
     print('Demo gateway: http://demo-a.localhost:18090 and http://demo-b.localhost:18090',flush=True)

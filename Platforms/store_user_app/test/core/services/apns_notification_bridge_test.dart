@@ -199,4 +199,84 @@ void main() {
       },
     );
   });
+  group('Persistent native cache hints', () {
+    test(
+      'acknowledges only the consumed version and keeps a newer native hint pending',
+      () async {
+        var pending = 'version-one';
+        String? handled;
+        binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+          call,
+        ) async {
+          if (call.method == 'initialize') return native;
+          if (call.method == 'pendingCacheRefresh')
+            return pending == handled ? null : pending;
+          if (call.method == 'acknowledgeCacheRefresh')
+            handled = call.arguments as String;
+          return null;
+        });
+        await bridge.initialize();
+        var clears = 0;
+        await bridge.consumeCacheRefresh(() async {
+          clears++;
+          pending = 'version-two';
+        });
+        expect(handled, 'version-one');
+        await bridge.consumeCacheRefresh(() async {
+          clears++;
+        });
+        await bridge.consumeCacheRefresh(() async {
+          clears++;
+        });
+        expect(clears, 2);
+        expect(handled, 'version-two');
+      },
+    );
+    test(
+      'a failed cache refresh does not acknowledge the native pending version',
+      () async {
+        var acknowledged = false;
+        binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+          call,
+        ) async {
+          if (call.method == 'initialize') return native;
+          if (call.method == 'pendingCacheRefresh') return 'pending-version';
+          if (call.method == 'acknowledgeCacheRefresh') acknowledged = true;
+          return null;
+        });
+        await bridge.initialize();
+        await expectLater(
+          bridge.consumeCacheRefresh(() async {
+            throw StateError('fixture cache failure');
+          }),
+          throwsStateError,
+        );
+        expect(acknowledged, isFalse);
+      },
+    );
+    test(
+      'the native method response waits for the asynchronous data consumer',
+      () async {
+        final gate = Completer<void>();
+        bridge = ApnsNotificationBridge(
+          expectedBundle: 'com.example.tenant',
+          expectedTeam: 'ABC123DEFG',
+          channel: channel,
+          onToken: (_) async {},
+          onOpened: (_) async {},
+          onMessage: (_) => gate.future,
+        );
+        await bridge.initialize();
+        var completed = false;
+        final delivery = event('message', {
+          'data': {'Type': 'cache_invalidation'},
+        }).then((_) => completed = true);
+        await Future<void>.delayed(Duration.zero);
+        expect(completed, isFalse);
+        gate.complete();
+        await delivery;
+        expect(completed, isTrue);
+      },
+    );
+  });
 }

@@ -8,3 +8,8 @@ class AuthTokensRefreshEvent extends EntityEvent<AuthTokens>
   final AuthTokens? oldTokens;
   AuthTokensRefreshEvent({required super.entity, super.userId, this.oldTokens});
 }
+
+/// Emitted before local session credentials are discarded.
+class AuthSessionEndedEvent extends EntityEvent<bool> {
+  AuthSessionEndedEvent() : super(entity: true);
+}

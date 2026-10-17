@@ -1,8 +1,9 @@
+import 'package:store_user_app/core/config/local_demo.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:injectable/injectable.dart';
 import 'package:dio/dio.dart';
 import 'package:store_user_app/core/config/app_config.dart';
@@ -13,410 +14,333 @@ import 'package:store_user_app/core/models/cache/stale_cache_query_model.dart';
 import 'package:store_user_app/core/models/cache/stale_cache_response.dart';
 import 'package:store_user_app/core/services/Security/connectivity_monitor.dart';
 import 'package:store_user_app/core/services/auth/auth_service.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:web_socket_channel/io.dart';
-
+import 'package:store_user_app/core/services/auth/app_tokens_refresh_event.dart';
 import '../../cache/cache_manager.dart';
 import '../../network/dio/interceptors/cachekey_tracker_interceptor.dart';
 import '../logger/logger_service.dart';
+import 'cache_change_notice.dart';
+import 'cache_refresh_marker.dart';
 
-/// Service for checking and refreshing stale caches when SignalR might have missed messages
 @Singleton(dependsOn: [CacheManager, Dio])
-class CacheFreshnessService {
+class CacheFreshnessService with WidgetsBindingObserver {
   final CacheManager _cacheManager;
   final Dio _dio;
-  final CacheKeyTrackerInterceptor _cacheTrackerInterceptor;
-  final ConnectivityMonitor _connectivityMonitor;
-  final EventBus _eventBus;
-
-  Timer? _checkTimer;
-  bool _isRunning = false;
-  WebSocketChannel? _webSocketChannel;
-  // Timer? _reconnectTimer;
-  // Timer? _refreshConnectionTimer;
-  bool _isConnected = false;
-  bool _isConnecting = false;
-
-  static const Duration _checkInterval = Duration(seconds: 30);
-  // static const Duration _reconnectInterval = Duration(seconds: 30);
-
-  // late StreamSubscription<EntityEvent> _eventStreamSubscription;
+  final CacheKeyTrackerInterceptor _tracker;
+  final ConnectivityMonitor _connectivity;
+  final CacheRefreshMarker _marker;
+  final Future<WebSocket?> Function() _connect;
+  final Duration _interval;
+  Timer? _timer;
+  StreamSubscription<dynamic>? _events;
+  StreamSubscription<dynamic>? _socketSubscription;
+  WebSocket? _socket;
+  bool _disposed = false, _running = false, _connecting = false;
+  bool _foreground = true;
+  int _connectionGeneration = 0;
+  int _identityGeneration = 0, _clearedIdentityGeneration = 0;
 
   @factoryMethod
   static Future<CacheFreshnessService> create(
-    CacheManager cacheManager,
+    CacheManager cache,
     Dio dio,
-    CacheKeyTrackerInterceptor cacheTrackerInterceptor,
-    ConnectivityMonitor connectivityMonitor,
-    EventBus eventBus,
-  ) async {
-    var service = CacheFreshnessService._(
-      cacheManager,
-      dio,
-      cacheTrackerInterceptor,
-      connectivityMonitor,
-      eventBus,
-    );
+    CacheKeyTrackerInterceptor tracker,
+    ConnectivityMonitor connectivity,
+    EventBus events,
+  ) async => CacheFreshnessService._(
+    cache,
+    dio,
+    tracker,
+    connectivity,
+    events,
+    CacheRefreshMarker(),
+    _connectSocket,
+    const Duration(seconds: 30),
+  );
 
-    return service;
-  }
+  @visibleForTesting
+  factory CacheFreshnessService.forTesting(
+    CacheManager cache,
+    Dio dio,
+    CacheKeyTrackerInterceptor tracker,
+    ConnectivityMonitor connectivity,
+    EventBus events, {
+    required CacheRefreshMarker marker,
+    required Future<WebSocket?> Function() connect,
+    Duration interval = const Duration(milliseconds: 30),
+  }) => CacheFreshnessService._(
+    cache,
+    dio,
+    tracker,
+    connectivity,
+    events,
+    marker,
+    connect,
+    interval,
+  );
 
   CacheFreshnessService._(
     this._cacheManager,
     this._dio,
-    this._cacheTrackerInterceptor,
-    this._connectivityMonitor,
-    this._eventBus,
+    this._tracker,
+    this._connectivity,
+    EventBus events,
+    this._marker,
+    this._connect,
+    this._interval,
   ) {
-    _connectivityMonitor.connectionStatus.addListener(
-      _handleConnectivityChange,
-    );
-    // _eventStreamSubscription = _eventBus.stream.listen(handleEvent);
-    // _startPeriodicCheck();
+    _foreground =
+        WidgetsBinding.instance.lifecycleState == null ||
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    WidgetsBinding.instance.addObserver(this);
+    _connectivity.connectionStatus.addListener(_availabilityChanged);
+    _events = events.stream.listen((event) {
+      if (event is AuthSessionEndedEvent) {
+        _disconnect();
+        _identityGeneration++;
+        unawaited(_tick());
+      } else if (event is AuthTokensRefreshEvent) {
+        _disconnect();
+        if (event.oldTokens != null &&
+            (event.oldTokens?.email != event.entity.email ||
+                event.oldTokens?.guestId != event.entity.guestId)) {
+          _identityGeneration++;
+        }
+        unawaited(_tick());
+      }
+    });
+    _availabilityChanged();
   }
 
-  // void handleEvent(EntityEvent event) {
-  //   if (event is AuthTokensRefreshEvent) {
-  //     if (event.oldTokens != null &&
-  //         (event.oldTokens?.bearerRefreshToken !=
-  //                 event.entity.bearerRefreshToken ||
-  //             event.oldTokens?.bearerToken != event.entity.bearerToken)) {
-  //       _checkAndRefreshConnection();
-  //     }
-  //   }
-  // }
+  bool get _available =>
+      !_disposed &&
+      _foreground &&
+      !_connectivity.connectionStatus.value.contains(ConnectivityResult.none);
 
-  void _handleConnectivityChange() {
-    if (_connectivityMonitor.connectionStatus.value.contains(
-      ConnectivityResult.none,
-    )) {
-      // Lost connection, close WebSocket if open
-      _closeWebSocket();
-    } else {
-      // Connection restored, try to connect WebSocket
-      checkCacheFreshness().then((_) => _startPeriodicCheck());
-    }
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _availabilityChanged();
   }
 
-  /// Start WebSocket connection to the backend FcmWebSocketController with authentication headers
-  Future<void> startWs() async {
-    if (_isConnected ||
-        _isConnecting ||
-        _connectivityMonitor.connectionStatus.value.contains(
-          ConnectivityResult.none,
-        )) {
+  void _availabilityChanged() {
+    if (!_available) {
+      _timer?.cancel();
+      _timer = null;
+      _disconnect();
       return;
     }
+    _timer ??= Timer.periodic(_interval, (_) => unawaited(_tick()));
+    unawaited(_tick());
+  }
 
-    _isConnecting = true;
+  Future<void> _tick() async {
+    await checkCacheFreshness();
+    await startWs();
+  }
 
+  static Future<WebSocket?> _connectSocket() async {
+    final tokens = await (await getIt.getAsync<AuthService>()).getAccessToken();
+    if (tokens?.bearerToken == null || tokens!.bearerToken!.isEmpty) {
+      return null;
+    }
+    return openSocket(
+      Uri.parse(AppConfig.instance.apiBaseUrl),
+      tokens.bearerToken!,
+      tokens.csrfToken,
+    );
+  }
+
+  @visibleForTesting
+  static Future<WebSocket> openSocket(
+    Uri origin,
+    String bearer,
+    String? csrf,
+  ) async {
+    if (!['http', 'https'].contains(origin.scheme) ||
+        origin.userInfo.isNotEmpty ||
+        origin.hasQuery ||
+        origin.hasFragment) {
+      throw ArgumentError('Use a configured HTTP(S) store origin.');
+    }
+    final uri = origin.replace(
+      scheme: origin.scheme == 'https' ? 'wss' : 'ws',
+      path: '/api/ws/fcm',
+    );
+    // The public tenant gateway resolves the server-only store credential. It is never embedded in Flutter.
+    final socket = await WebSocket.connect(
+      uri.toString(),
+      protocols: ['stale-cache-websocket-protocol'],
+      headers: {
+        'Authorization': 'Bearer $bearer',
+        if (LocalDemo.enabled && LocalDemo.tenantHost.isNotEmpty)
+          'Host': LocalDemo.tenantHost,
+        if (csrf != null) 'X-CSRF-TOKEN': csrf,
+      },
+    );
+    return socket;
+  }
+
+  Future<void> startWs() async {
+    if (!_available || _socket != null || _connecting) return;
+    _connecting = true;
+    final generation = _connectionGeneration;
     try {
-      // Get auth tokens for authentication headers
-      final authService = await getIt.getAsync<AuthService>();
-      final tokens = await authService.getAccessToken();
-
-      if (tokens == null) {
-        LoggerService.error(
-          'Unable to get authentication tokens for WebSocket connection',
-        );
-        _scheduleReconnect();
+      if (_clearedIdentityGeneration != _identityGeneration) return;
+      if (!_available || generation != _connectionGeneration) return;
+      final socket = await _connect();
+      if (!_available || generation != _connectionGeneration) {
+        await socket?.close();
         return;
       }
-
-      // Create WebSocket URL with query parameters for authentication
-      final wsBaseUrl = AppConfig.instance.apiBaseUrl.replaceFirst(
-        'http',
-        'ws',
-      );
-
-      // Add tokens as query parameters instead of headers
-      // This is a workaround since WebSocket handshake can accept query parameters
-
-      final wsUrlWithAuth = '$wsBaseUrl/api/ws/fcm';
-
-      LoggerService.info('Connecting to WebSocket with auth parameters');
-
-      // Create a WebSocket connection using IOWebSocketChannel
-      // This allows us to use protocols for the connection
-      WebSocket socket;
-
-      if (kDebugMode) {
-        // In debug mode, use a custom HttpClient that ignores SSL certificate errors
-        final securityContext = SecurityContext.defaultContext;
-
-        final httpClient = HttpClient(context: securityContext)
-          ..badCertificateCallback = (
-            X509Certificate cert,
-            String host,
-            int port,
-          ) {
-            LoggerService.info(
-              'Ignoring SSL certificate error for $host:$port in debug mode',
-            );
-            return true; // Accept any certificate in debug mode
-          };
-
-        socket = await WebSocket.connect(
-          wsUrlWithAuth,
-          protocols: [
-            'stale-cache-websocket-protocol',
-            'sec-websocket-protocol',
-          ],
-          headers: {
-            'X-CSRF-TOKEN': tokens.csrfToken,
-            'Authorization': 'Bearer ${tokens.bearerToken}',
-          },
-          customClient: httpClient,
-        );
-      } else {
-        // In release mode, use the default HttpClient
-        socket = await WebSocket.connect(
-          wsUrlWithAuth,
-          protocols: [
-            'stale-cache-websocket-protocol',
-            'sec-websocket-protocol',
-          ],
-          headers: {
-            'X-CSRF-TOKEN': tokens.csrfToken,
-            'Authorization': 'Bearer ${tokens.bearerToken}',
-          },
-        );
-      }
-
-      _webSocketChannel = IOWebSocketChannel(socket);
-      _isConnected = true;
-      _isConnecting = false;
-
-      _webSocketChannel!.stream.listen(
-        (dynamic message) {
-          _handleWebSocketMessage(message);
+      if (socket == null) return;
+      _socket = socket;
+      _socketSubscription = socket.listen(
+        (message) {
+          final notice = CacheChangeNotice.socket(message);
+          if (notice != null) {
+            unawaited(_applyNotice(notice));
+          }
         },
-        onError: (error) {
-          LoggerService.error('WebSocket error', error);
-          _isConnected = false;
-          _scheduleReconnect();
+        onError: (_) {
+          if (generation == _connectionGeneration) _disconnect();
         },
         onDone: () {
-          LoggerService.info('WebSocket connection closed');
-          _isConnected = false;
-          _scheduleReconnect();
+          if (generation == _connectionGeneration) _disconnect();
         },
       );
-    } catch (e, stackTrace) {
-      LoggerService.error('Error connecting to WebSocket', e, stackTrace);
-      _isConnected = false;
-      _isConnecting = false;
-      _scheduleReconnect();
+    } catch (_) {
+      // The HTTP check remains active; the periodic tick retries with current credentials.
+      if (generation == _connectionGeneration) _disconnect();
+    } finally {
+      if (generation == _connectionGeneration) _connecting = false;
     }
   }
 
-  /// Handle messages received from WebSocket
-  void _handleWebSocketMessage(dynamic message) {
-    try {
-      if (message is String) {
-        final data = jsonDecode(message);
-
-        if (data is Map<String, dynamic> &&
-            data.containsKey('correlationIds') &&
-            data['correlationIds'] is List) {
-          final correlationIds = List<String>.from(data['correlationIds']);
-          final timestamp =
-              data['timestamp'] != null
-                  ? DateTime.parse(data['timestamp'])
-                  : DateTime.now().toUtc();
-
-          // Create StaleCacheResponse model from received data
-          final responseData = StaleCacheResponse(
-            staleCorrelationIds: correlationIds,
-            asOf: timestamp,
-          );
-
-          // Process stale correlation IDs
-          processStaleCorrelationIds(responseData);
-        }
-      }
-    } catch (e) {
-      LoggerService.error('Error processing WebSocket message', e);
+  void _disconnect() {
+    _connectionGeneration++;
+    _connecting = false;
+    final subscription = _socketSubscription;
+    _socketSubscription = null;
+    if (subscription != null) unawaited(subscription.cancel());
+    final socket = _socket;
+    _socket = null;
+    if (socket != null) {
+      unawaited(socket.close().then<void>((_) {}, onError: (_) {}));
     }
   }
 
-  /// Process stale correlation IDs received from WebSocket or API
-  Future<void> processStaleCorrelationIds(
-    StaleCacheResponse responseData,
-  ) async {
+  Future<void> _applyNotice(CacheChangeNotice notice) async {
     try {
-      var handleCacheKey = [];
-      for (var correlationId in responseData.staleCorrelationIds) {
-        var cacheKeys = _cacheTrackerInterceptor.getLocalKeysForRemoteKey(
-          correlationId,
-        );
-        for (var key in cacheKeys) {
-          if (!handleCacheKey.contains(key)) {
-            await _cacheManager.removeAsync(key);
-            if (kDebugMode) {
-              print('Removed stale cache key: $key');
-            }
-          }
-        }
-      }
-      // var localKeys =
-      //     responseData.staleCorrelationIds
-      //         .map((e) => _cacheTrackerInterceptor.getLocalKeysForRemoteKey(e))
-      //         .expand((element) => element)
-      //         .toList();
-
-      // // Remove stale cache entries
-      // for (final key in localKeys) {
-      //   await _cacheManager.removeAsync(key);
-      //   if (kDebugMode) {
-      //     print('Removed stale cache key: $key');
-      //   }
-      // }
-    } catch (e) {
-      LoggerService.error('Error processing stale correlation IDs', e);
-    }
-  }
-
-  /// Close WebSocket connection
-  void _closeWebSocket() {
-    _webSocketChannel?.sink.close();
-    _webSocketChannel = null;
-    _isConnected = false;
-    _checkTimer?.cancel();
-  }
-
-  /// Schedule WebSocket reconnection
-  void _scheduleReconnect() {
-    // _reconnectTimer?.cancel();
-    // _reconnectTimer = Timer(_reconnectInterval, () => startWs());
-  }
-
-  /// Check if WebSocket connection needs to be refreshed with updated tokens
-  // Future<void> _checkAndRefreshConnection() async {
-  //   if (!_isConnected) {
-  //     await startWs();
-  //     return;
-  //   }
-
-  //   try {
-  //     final authService = await getIt.getAsync<AuthService>();
-  //     final tokens = await authService.getAccessToken();
-
-  //     if (tokens != null && !tokens.shouldRefresh) {
-  //       // Tokens are about to expire, close current connection and reconnect with new tokens
-  //       LoggerService.info(
-  //         'Auth tokens are about to expire, refreshing WebSocket connection',
-  //       );
-  //       _closeWebSocket();
-  //       await startWs();
-  //     }
-  //   } catch (e) {
-  //     LoggerService.error('Error checking WebSocket connection status', e);
-  //   }
-  // }
-
-  void _startPeriodicCheck() {
-    _checkTimer?.cancel();
-    // _refreshConnectionTimer?.cancel();
-
-    // Check cache freshness periodically
-    _checkTimer = Timer.periodic(_checkInterval, (_) => checkCacheFreshness());
-
-    // Check and refresh WebSocket connection periodically (every 15 minutes)
-    // _refreshConnectionTimer = Timer.periodic(
-    //   const Duration(minutes: 15),
-    //   (_) => _checkAndRefreshConnection(),
-    // );
-  }
-
-  /// Check cache freshness for all cached keys
-  Future<void> checkCacheFreshness() async {
-    if (_isRunning ||
-        _connectivityMonitor.connectionStatus.value.contains(
-          ConnectivityResult.none,
-        ))
-      return;
-
-    _isRunning = true;
-    try {
-      // Get all cache keys (this would need to be implemented in CacheManager)
-      final cacheKeys = await getAllCacheKeys();
-
-      if (cacheKeys.isEmpty) {
+      if (!_available) {
+        await _marker.mark();
         return;
       }
-
-      // Split keys into batches to avoid too large requests
-      const batchSize = 50;
-      for (var i = 0; i < cacheKeys.length; i += batchSize) {
-        final end =
-            (i + batchSize < cacheKeys.length)
-                ? i + batchSize
-                : cacheKeys.length;
-        final batch = cacheKeys.sublist(i, end);
-
-        await _checkBatchFreshness(batch);
-      }
-    } catch (e) {
-      LoggerService.error('Error checking cache freshness', e);
-    } finally {
-      _isRunning = false;
-    }
-  }
-
-  /// Check the freshness of a batch of cache keys
-  Future<void> _checkBatchFreshness(
-    List<({String key, DateTime createdDate})> cacheKeys,
-  ) async {
-    try {
-      var data = cacheKeys.fold(<StaleCacheItem>[], (box, value) {
-        box.addAll(
-          _cacheTrackerInterceptor
-              .getRelatedRemoteKeys(value.key)
-              .map(
-                (a) => StaleCacheItem(
-                  correlationId: a,
-                  asOf: value.createdDate.toUtc(),
-                ),
-              ),
-        );
-
-        return box;
-      });
-      var requestData = StaleCacheQueryModel(staleCacheItems: data);
-      final response = await _dio.post<Map<String, dynamic>>(
-        '/StaleCache/stale-cache-keys',
-        data: jsonDecode(jsonEncode(requestData.toJson())),
+      await processStaleCorrelationIds(
+        StaleCacheResponse(
+          staleCorrelationIds: notice.ids,
+          asOf: notice.timestamp,
+        ),
       );
-
-      if (response.statusCode == 200 && response.data != null) {
-        var responseData = StaleCacheResponse.fromJson(response.data!);
-        await processStaleCorrelationIds(responseData);
+    } catch (_) {
+      try {
+        await _marker.mark();
+      } catch (_) {
+        LoggerService.info(
+          'Cache change will be verified by the next HTTP check.',
+        );
       }
-    } catch (e) {
-      LoggerService.error('Error checking batch freshness', e);
     }
   }
 
-  /// Get all cache keys (this would need implementation in your CacheManager)
-  Future<List<({String key, DateTime createdDate})>> getAllCacheKeys() async {
-    try {
-      return await _cacheManager.getAllCacheKeys();
-    } catch (e) {
-      LoggerService.error('Error getting all cache keys', e);
-      return [];
+  Future<bool> handlePushData(Map<String, dynamic> data) async {
+    final notice = CacheChangeNotice.push(data);
+    if (notice == null) return false;
+    await _applyNotice(notice);
+    return true;
+  }
+
+  Future<void> processStaleCorrelationIds(StaleCacheResponse response) async {
+    if (_disposed) return;
+    final keys = <String>{};
+    for (final id in response.staleCorrelationIds) {
+      keys.addAll(_tracker.getLocalKeysForRemoteKey(id));
+    }
+    for (final key in keys) {
+      await _cacheManager.removeAsync(key);
+      await _tracker.forget(key);
     }
   }
+
+  Future<void> refreshAfterBackgroundPush() => _clear();
+
+  Future<void> _clear() async {
+    await _cacheManager.clear();
+    await _tracker.clear();
+  }
+
+  Future<void> checkCacheFreshness() async {
+    if (_running || !_available) return;
+    _running = true;
+    try {
+      while (_clearedIdentityGeneration != _identityGeneration && _available) {
+        final generation = _identityGeneration;
+        await _clear();
+        _clearedIdentityGeneration = generation;
+      }
+      if (!_available) return;
+      await _marker.apply(_clear);
+      final correlations = <String, DateTime>{};
+      for (final entry in await getAllCacheKeys()) {
+        final related = _tracker.getRelatedRemoteKeys(entry.key);
+        if (related.isEmpty) {
+          await _cacheManager.removeAsync(entry.key);
+          continue;
+        }
+        for (final id in related) {
+          correlations.putIfAbsent(id, () => entry.createdDate.toUtc());
+        }
+      }
+      final items =
+          correlations.entries
+              .map(
+                (entry) =>
+                    StaleCacheItem(correlationId: entry.key, asOf: entry.value),
+              )
+              .toList();
+      for (var offset = 0; offset < items.length && _available; offset += 50) {
+        final end = (offset + 50).clamp(0, items.length);
+        final request = StaleCacheQueryModel(
+          staleCacheItems: items.sublist(offset, end),
+        );
+        final response = await _dio.post<Map<String, dynamic>>(
+          '/StaleCache/stale-cache-keys',
+          data: jsonDecode(jsonEncode(request.toJson())),
+          options: Options(extra: {'skipCacheTracking': true}),
+        );
+        if (response.statusCode == 200 && response.data != null && _available) {
+          await processStaleCorrelationIds(
+            StaleCacheResponse.fromJson(response.data!),
+          );
+        }
+      }
+    } catch (_) {
+      LoggerService.info('Cache freshness check will retry when available.');
+    } finally {
+      _running = false;
+    }
+  }
+
+  Future<List<({String key, DateTime createdDate})>> getAllCacheKeys() =>
+      _cacheManager.getAllCacheKeys();
 
   @disposeMethod
   void dispose() {
-    _checkTimer?.cancel();
-    // _reconnectTimer?.cancel();
-    // _refreshConnectionTimer?.cancel();
-    _closeWebSocket();
-    _connectivityMonitor.connectionStatus.removeListener(
-      _handleConnectivityChange,
-    );
-    // _eventStreamSubscription.cancel();
+    _disposed = true;
+    _timer?.cancel();
+    _timer = null;
+    _disconnect();
+    if (_events != null) unawaited(_events!.cancel());
+    _connectivity.connectionStatus.removeListener(_availabilityChanged);
+    WidgetsBinding.instance.removeObserver(this);
   }
 }

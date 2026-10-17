@@ -1,3 +1,5 @@
+import 'package:store_user_app/core/services/cache/cache_change_notice.dart';
+import 'package:store_user_app/core/services/cache/cache_refresh_marker.dart';
 import 'package:store_user_app/core/services/apns_notification_bridge.dart';
 import 'package:store_user_app/core/config/local_demo.dart';
 import 'dart:async';
@@ -25,7 +27,10 @@ import 'package:store_user_app/domain/repositories/component/component_repositor
 // FCM mesajlarını arka planda işlemek için global handler
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Arka planda alınan bildirimler için gerekli işlemler
+  if (CacheChangeNotice.push(message.data) != null) {
+    await CacheRefreshMarker().mark();
+    return;
+  }
   await Firebase.initializeApp();
 }
 
@@ -40,12 +45,13 @@ class FCMService {
       FlutterLocalNotificationsPlugin();
   bool _isInitialized = false;
   final Dio _dio;
+  final CacheFreshnessService _cacheFreshness;
 
   FCMService(
     ComponentRepository componentRepository,
     this._secureStorage,
     this._dio,
-    CacheFreshnessService cacheFreshnessService,
+    this._cacheFreshness,
   );
 
   bool get isInitialized => _isInitialized;
@@ -60,10 +66,14 @@ class FCMService {
           onOpened:
               (data) =>
                   _handleAppOpenedFromNotification(RemoteMessage.fromMap(data)),
-          onMessage: (_) => _logger.d('APNs notification received'),
+          onMessage:
+              (data) => _handleForegroundMessage(RemoteMessage.fromMap(data)),
         );
         _isInitialized = true;
         final registration = await _apns!.initialize();
+        await _apns!.consumeCacheRefresh(
+          _cacheFreshness.refreshAfterBackgroundPush,
+        );
         if (!registration.authorized) {
           await saveTokenToServer('denied');
         } else if (registration.token != null) {
@@ -186,7 +196,11 @@ class FCMService {
   }
 
   /// Ön planda gelen mesajları işler
-  void _handleForegroundMessage(RemoteMessage message) {
+  Future<void> _handleForegroundMessage(RemoteMessage message) async {
+    if (message.data['Type'] == 'cache_invalidation') {
+      await _cacheFreshness.handlePushData(message.data);
+      return;
+    }
     _logger.d('Foreground mesajı alındı: ${message.notification?.title}');
 
     final notification = message.notification;
@@ -380,6 +394,10 @@ class FCMService {
   /// Bildirim tıklandığında çağrılır
   Future<void> _handleAppOpenedFromNotification(RemoteMessage message) async {
     final data = message.data;
+    if (data['Type'] == 'cache_invalidation') {
+      await _cacheFreshness.handlePushData(data);
+      return;
+    }
     String? localPath =
         data['local_path'] is String ? data['local_path'] as String : null;
     if (localPath == null && data['action_link'] is String) {

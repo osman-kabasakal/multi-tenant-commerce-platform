@@ -1,3 +1,4 @@
+import 'package:synchronized/synchronized.dart';
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -9,6 +10,7 @@ class CacheKeyTrackerInterceptor extends Interceptor {
   static const _remoteKeysHeader = 'X-Correlation-ID';
 
   final Box<List<String>> _keyRelationBox;
+  final _writes = Lock();
 
   CacheKeyTrackerInterceptor(this._keyRelationBox);
 
@@ -18,7 +20,8 @@ class CacheKeyTrackerInterceptor extends Interceptor {
       await Hive.openBox<List<String>>('cache_key_relations');
     }
     return CacheKeyTrackerInterceptor(
-        Hive.box<List<String>>('cache_key_relations'));
+      Hive.box<List<String>>('cache_key_relations'),
+    );
   }
 
   @override
@@ -28,8 +31,9 @@ class CacheKeyTrackerInterceptor extends Interceptor {
       final cacheKey = Zone.current[cacheKeyZoneKey] as String?;
       if (cacheKey != null) {
         // Store the cache key in the request extras to retrieve it in the response
-        options.extra['localCacheKey'] =
-            String.fromCharCodes(cacheKey.codeUnits);
+        options.extra['localCacheKey'] = String.fromCharCodes(
+          cacheKey.codeUnits,
+        );
       }
     } catch (e) {
       if (kDebugMode) {
@@ -41,46 +45,41 @@ class CacheKeyTrackerInterceptor extends Interceptor {
   }
 
   @override
-  void onResponse(Response response, ResponseInterceptorHandler handler) {
+  void onResponse(Response response, ResponseInterceptorHandler handler) async {
     try {
-      final localCacheKey =
-          response.requestOptions.extra['localCacheKey'] as String?;
-
-      if (localCacheKey != null &&
-          response.headers.map.containsKey(_remoteKeysHeader)) {
-        // Extract remote cache keys from header
-        final relatedRemoteKeysStr = response.headers.value(_remoteKeysHeader);
-        if (relatedRemoteKeysStr != null && relatedRemoteKeysStr.isNotEmpty) {
-          try {
-            final remoteKeys = [relatedRemoteKeysStr];
-
-            // Store the relation between local cache key and remote keys
-            if (remoteKeys.isNotEmpty) {
-              try {
-                if (localCacheKey.contains('getHomePageCategoriesComponent')) {
-                  var debug = true;
-                }
-                _keyRelationBox.put(localCacheKey, remoteKeys).then((v) => v);
-              } catch (e) {
-                if (kDebugMode) {
-                  debugPrint('Error storing cache key relations: $e');
-                }
-              }
-            }
-          } catch (e) {
-            if (kDebugMode) {
-              debugPrint('Error decoding remote cache keys: $e');
-            }
-          }
-        }
+      final local = response.requestOptions.extra['localCacheKey'] as String?;
+      if (local != null &&
+          response.requestOptions.extra['skipCacheTracking'] != true) {
+        await _writes.synchronized(() async {
+          final remote =
+              response.headers.value(_remoteKeysHeader)?.trim().toLowerCase();
+          final valid =
+              remote != null &&
+              RegExp(
+                r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+              ).hasMatch(remote);
+          final ids = <String>{
+            ...getRelatedRemoteKeys(local),
+            if (valid) remote,
+          };
+          await _keyRelationBox.put(
+            local,
+            valid && ids.length <= 100 ? ids.toList() : <String>[],
+          );
+        });
       }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('CacheKeyTrackerInterceptor.onResponse error: $e');
-      }
+      handler.next(response);
+    } catch (error) {
+      handler.reject(
+        DioException(requestOptions: response.requestOptions, error: error),
+      );
     }
+  }
 
-    handler.next(response);
+  Future<void> forget(String key) =>
+      _writes.synchronized(() => _keyRelationBox.delete(key));
+  Future<void> clear() async {
+    await _writes.synchronized(() => _keyRelationBox.clear());
   }
 
   /// Get related remote keys for a local cache key
@@ -109,8 +108,9 @@ class CacheKeyTrackerInterceptor extends Interceptor {
     for (final key in _keyRelationBox.keys) {
       final remoteKeys = _keyRelationBox.get(key.toString());
       if (remoteKeys != null &&
-          remoteKeys
-              .any((remoteKey) => remoteKey.startsWith(remoteKeyPrefix))) {
+          remoteKeys.any(
+            (remoteKey) => remoteKey.startsWith(remoteKeyPrefix),
+          )) {
         result.add(key.toString());
       }
     }

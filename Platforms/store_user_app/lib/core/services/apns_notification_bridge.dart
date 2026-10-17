@@ -30,7 +30,7 @@ class ApnsNotificationBridge {
   final String expectedTeam;
   final Future<void> Function(String) onToken;
   final Future<void> Function(Map<String, dynamic>) onOpened;
-  final void Function(Map<String, dynamic>) onMessage;
+  final FutureOr<void> Function(Map<String, dynamic>) onMessage;
   bool _verified = false;
   String? _pendingToken;
   Future<ApnsRegistration>? _initializing;
@@ -99,7 +99,7 @@ class ApnsNotificationBridge {
         }
       case 'message':
         if (_verified && call.arguments is Map) {
-          onMessage(Map<String, dynamic>.from(call.arguments as Map));
+          await onMessage(Map<String, dynamic>.from(call.arguments as Map));
         }
       case 'registrationError':
         // Keep the application usable; the next foreground initialization retries registration.
@@ -113,6 +113,14 @@ class ApnsNotificationBridge {
     if (!await permission()) return null;
     final token = await channel.invokeMethod<String>('getToken');
     return token == null ? null : encode(token);
+  }
+
+  Future<void> consumeCacheRefresh(Future<void> Function() refresh) async {
+    if (!_verified) return;
+    final version = await channel.invokeMethod<String>('pendingCacheRefresh');
+    if (version == null || version.isEmpty) return;
+    await refresh();
+    await channel.invokeMethod<void>('acknowledgeCacheRefresh', version);
   }
 
   Future<Map<String, dynamic>?> initialMessage() async {

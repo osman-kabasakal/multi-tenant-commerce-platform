@@ -54,7 +54,7 @@ abort 'Missing native targets.' unless runner && extension
 scheme = Xcodeproj::XCScheme.new(File.join(ios, 'Runner.xcodeproj/xcshareddata/xcschemes/tenant.xcscheme'))
 copy = runner.copy_files_build_phases.find { |phase| phase.files_references.include?(extension.product_reference) }
 thin = runner.shell_script_build_phases.find { |phase| phase.name == 'Thin Binary' }
-puts({extensionBeforeFlutterEmbedding: copy && thin && runner.build_phases.index(copy) < runner.build_phases.index(thin), swiftPackageManagerEnabled: YAML.safe_load(File.read(File.join(ios, '../pubspec.yaml'))).fetch('flutter').fetch('config').fetch('enable-swift-package-manager'), configs: project.build_configurations.map(&:name), runner: runner.build_configurations.select { |config| config.name.end_with?('-tenant') }.map { |config| {name: config.name, bundle: config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'], product: config.build_settings['PRODUCT_NAME'], team: config.build_settings['DEVELOPMENT_TEAM'], base: config.base_configuration_reference.real_path.to_s} }, extension: extension.build_configurations.select { |config| config.name.end_with?('-tenant') }.map { |config| {name: config.name, bundle: config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'], product: config.build_settings['PRODUCT_NAME'], team: config.build_settings['DEVELOPMENT_TEAM'], plist: config.build_settings['INFOPLIST_FILE']} }, linked: runner.dependencies.any? { |dependency| dependency.target == extension }, embedded: runner.copy_files_build_phases.select { |phase| phase.dst_subfolder_spec == '13' }.flat_map(&:files_references).any? { |file| file == extension.product_reference }, sdkResources: runner.resources_build_phase.files_references.select { |file| file.path.to_s.end_with?('GoogleService-Info.plist') }.map { |file| file.real_path.to_s }, extensionSources: extension.source_build_phase.files_references.map { |file| file.real_path.to_s }, archiveConfiguration: scheme.archive_action.build_configuration, launchConfiguration: scheme.launch_action.build_configuration }.to_json)
+puts({privacyResources: runner.resources_build_phase.files_references.select { |file| file.path.to_s.end_with?('PrivacyInfo.xcprivacy') }.map { |file| file.real_path.to_s }, extensionBeforeFlutterEmbedding: copy && thin && runner.build_phases.index(copy) < runner.build_phases.index(thin), swiftPackageManagerEnabled: YAML.safe_load(File.read(File.join(ios, '../pubspec.yaml'))).fetch('flutter').fetch('config').fetch('enable-swift-package-manager'), configs: project.build_configurations.map(&:name), runner: runner.build_configurations.select { |config| config.name.end_with?('-tenant') }.map { |config| {name: config.name, bundle: config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'], product: config.build_settings['PRODUCT_NAME'], team: config.build_settings['DEVELOPMENT_TEAM'], base: config.base_configuration_reference.real_path.to_s} }, extension: extension.build_configurations.select { |config| config.name.end_with?('-tenant') }.map { |config| {name: config.name, bundle: config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'], product: config.build_settings['PRODUCT_NAME'], team: config.build_settings['DEVELOPMENT_TEAM'], plist: config.build_settings['INFOPLIST_FILE']} }, linked: runner.dependencies.any? { |dependency| dependency.target == extension }, embedded: runner.copy_files_build_phases.select { |phase| phase.dst_subfolder_spec == '13' }.flat_map(&:files_references).any? { |file| file == extension.product_reference }, sdkResources: runner.resources_build_phase.files_references.select { |file| file.path.to_s.end_with?('GoogleService-Info.plist') }.map { |file| file.real_path.to_s }, extensionSources: extension.source_build_phase.files_references.map { |file| file.real_path.to_s }, archiveConfiguration: scheme.archive_action.build_configuration, launchConfiguration: scheme.launch_action.build_configuration }.to_json)
 """
     value = json.loads(subprocess.check_output([ruby, "-e", script, str(workspace)], text=True, timeout=30))
     expected = {mode + "-tenant" for mode in ["Debug", "Profile", "Release"]}
@@ -70,6 +70,15 @@ puts({extensionBeforeFlutterEmbedding: copy && thin && runner.build_phases.index
     native = workspace / "Platforms/store_user_app/ios"
     if value["sdkResources"] != [str(native / "Runner/GoogleService-Info.plist")] or value["extensionSources"] != [str(native / "NotificationServiceExtension/NotificationService.swift")]:
         raise ValueError("The real native resource/source membership is incorrect.")
+    privacy = native / "Runner/PrivacyInfo.xcprivacy"
+    if value["privacyResources"] != [str(privacy)]:
+        raise ValueError("The native privacy manifest must belong to Runner resources.")
+    if privacy.is_symlink() or not privacy.is_file() or not 0 < privacy.stat().st_size <= 65536:
+        raise ValueError("Use a bounded regular app privacy manifest.")
+    reasons = plistlib.loads(privacy.read_bytes()).get("NSPrivacyAccessedAPITypes", [])
+    if not any(item.get("NSPrivacyAccessedAPIType") == "NSPrivacyAccessedAPICategoryUserDefaults" and
+               "CA92.1" in item.get("NSPrivacyAccessedAPITypeReasons", []) for item in reasons):
+        raise ValueError("Declare the app-owned UserDefaults usage for the native cache hint.")
     if value["archiveConfiguration"] != "Release-tenant" or value["launchConfiguration"] != "Debug-tenant":
         raise ValueError("The generated scheme uses an incorrect configuration.")
     for mode in ["Debug", "Profile", "Release"]:
@@ -86,7 +95,7 @@ puts({extensionBeforeFlutterEmbedding: copy && thin && runner.build_phases.index
             defines.get("IOS_DEVELOPMENT_TEAM") != tenant["developmentTeam"] or info.get("FirebaseMessagingAutoInitEnabled") is not False):
         raise ValueError("Direct APNs requires matching public team settings and disabled FCM registration.")
     return {"nativeTargetsVerified": True, "schemeVerified": True, "firebaseResourceMembershipVerified": True,
-            "iosPushTransport": tenant["iosPushTransport"], "nativePushConfigurationVerified": True}
+            "iosPushTransport": tenant["iosPushTransport"], "nativePushConfigurationVerified": True, "privacyManifestMembershipVerified": True}
 
 
 def verify_manual_signing(workspace, tenant, ruby):

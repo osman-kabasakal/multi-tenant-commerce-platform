@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "utc": "2026-10-17T06:41:12.784117+00:00",
+  "baseCommit": "f748d0313ede88e21b0c1ef63c11921b9dd5ed70",
+  "flutterChecks": 49,
+  "gatewayLoopbackChecks": 5,
+  "nativeLocalTenantHostSocketCheck": true,
+  "realHiveStorage": true,
+  "realNativeSocketLoopback": true,
+  "controlledCredentialAndApnsMethodChannel": true,
+  "androidDemoApk": {
+    "variant": "demo-debug",
+    "sha256": "4b54e55ceb693c964a85e36b03642eec5004682a79f2179f9c3a8c487bae0db0",
+    "bytes": 108876575,
+    "externalDistribution": false
+  },
+  "compiledIosApp": false,
+  "signedIosApp": false,
+  "remoteGithubActionsExecuted": false,
+  "externalMessagesSent": 0,
+  "sourceFiles": [
+    {
+      "path": ".github/workflows/verify.yml",
+      "sha256": "4d07728827ed6d80d03f81d41f145cdb58e650300ea1b11b0e440ce2d53e2638"
+    },
+    {
+      "path": "Platforms/store_user_app/ios/Runner.xcodeproj/project.pbxproj",
+      "sha256": "074a20810308867717e712c46eda37b814589d500d827b58650ce0d0556b7cab"
+    },
+    {
+      "path": "Platforms/store_user_app/ios/Runner/AppDelegate.swift",
+      "sha256": "aaba0bb6edd0a777cd9205226559e7bc29d787ebbb04178d2b902cf916bfef73"
+    },
+    {
+      "path": "Platforms/store_user_app/ios/Runner/PrivacyInfo.xcprivacy",
+      "sha256": "dc8d7e1f9a7da7f3381f30746b59206ee62ce225b69fe3bcbb66234f8459be35"
+    },
+    {
+      "path": "Platforms/store_user_app/lib/core/network/dio/interceptors/cachekey_tracker_interceptor.dart",
+      "sha256": "0b0409326d64c1ea2788e4f6a77f6dbd3f9f1b526b26f8ef9abba539e55d7382"
+    },
+    {
+      "path": "Platforms/store_user_app/lib/core/services/apns_notification_bridge.dart",
+      "sha256": "566c0f2a851c633d9b52e45ef245ffaeea45f57dbbd0fdd3779564745d9a1874"
+    },
+    {
+      "path": "Platforms/store_user_app/lib/core/services/auth/app_tokens_refresh_event.dart",
+      "sha256": "3bf9d4f294a59bfef964e88d51eeaedea5202e9688a69548d0b129bc9a67416b"
+    },
+    {
+      "path": "Platforms/store_user_app/lib/core/services/auth/auth_service.dart",
+      "sha256": "42df15ee29f47c4a3ce9a3dc579878ac1a0f11bd91b4b8ed5cec8c0dffe5238e"
+    },
+    {
+      "path": "Platforms/store_user_app/lib/core/services/cache/cache_freshness_service.dart",
+      "sha256": "7d0b33c75aaefb04fc62da88ca39028c507ad80eaec55441f257ef51af762ccc"
+    },
+    {
+      "path": "Platforms/store_user_app/lib/core/services/cache/cache_change_notice.dart",
+      "sha256": "7b03fee8ae333c98bb11de5da07b5e69441d2f53e0ba02f0a232473e0b489f9c"
+    },
+    {
+      "path": "Platforms/store_user_app/lib/core/services/cache/cache_refresh_marker.dart",
+      "sha256": "ca9ce68417dd9b45114a1c4d9dcbee6794f32bccb9858c000c8ad7442e2f6523"
+    },
+    {
+      "path": "Platforms/store_user_app/lib/core/services/fcm_service.dart",
+      "sha256": "2917c5bfaf6055a5307bf2dc1d62f7b774223abef3613b2334eb91cda903b731"
+    },
+    {
+      "path": "Platforms/store_user_app/lib/domain/cache/cache_manager_impl.dart",
+      "sha256": "3a863f0557a2e72581f3e5f4ef80ea80b0184fcaa97de73149bb16f22b333b4e"
+    },
+    {
+      "path": "Platforms/store_user_app/test/core/services/apns_notification_bridge_test.dart",
+      "sha256": "f7aeebb310f81ce73fdf45d30f931f3475cab69faabc3c004d5a69bc746728a4"
+    },
+    {
+      "path": "Platforms/store_user_app/test/core/services/auth/auth_session_cache_test.dart",
+      "sha256": "6b5ad7b5645190e0a0a407f175ddd246b6458f25aae1faaf26559af6ae37799d"
+    },
+    {
+      "path": "Platforms/store_user_app/test/core/services/cache/client_cache_test.dart",
+      "sha256": "dbd70776e0b46b0355f728254c5ad3d1603adf3cd9c421630971c937febca30c"
+    },
+    {
+      "path": "scripts/gateway.py",
+      "sha256": "945cc2e2e45787a2c100a18a57e1b14dc391111090c60543fb6cba253f4c4548"
+    },
+    {
+      "path": "scripts/test_demo_gateway.py",
+      "sha256": "15df9ae160c7cf0a1c514919c0c6f52e0d1d4fe68706b8750385841e0d6b72e2"
+    },
+    {
+      "path": "scripts/smoke_mobile_ios.py",
+      "sha256": "7873e6952bbeadad0e824491ded87a04b6e50bf8f992f845c69cd7436644ec97"
+    }
+  ],
+  "remainingAcceptance": [
+    "Provider-to-physical-device FCM/APNs delivery",
+    "Compiled/signed tenant iOS archive and distribution",
+    "Permitted live rollout of the new source"
+  ],
+  "scope": "Actual Flutter services with controlled Dio/native channel/credential fixtures, real Hive and loopback WebSocket; actual Python demo proxy bytes; Android demo only, no Firebase device delivery.",
+  "iosProjectProfiles": {
+    "Apns": {
+      "nativeTargetsVerified": true,
+      "schemeVerified": true,
+      "firebaseResourceMembershipVerified": true,
+      "iosPushTransport": "Apns",
+      "nativePushConfigurationVerified": true,
+      "privacyManifestMembershipVerified": true,
+      "sourceHash": "e122904f56ce38d2ad925f31166c4e9f85b98f51fbe8d3cb7f65bf2054b395cd",
+      "compiledIosApp": false,
+      "signedIpaBuilt": false,
+      "distributed": false,
+      "symbolsUploaded": false,
+      "manualSigningBindingsVerified": true
+    },
+    "Fcm": {
+      "nativeTargetsVerified": true,
+      "schemeVerified": true,
+      "firebaseResourceMembershipVerified": true,
+      "iosPushTransport": "Fcm",
+      "nativePushConfigurationVerified": true,
+      "privacyManifestMembershipVerified": true,
+      "sourceHash": "e122904f56ce38d2ad925f31166c4e9f85b98f51fbe8d3cb7f65bf2054b395cd",
+      "compiledIosApp": false,
+      "signedIpaBuilt": false,
+      "distributed": false,
+      "symbolsUploaded": false,
+      "manualSigningBindingsVerified": true
+    }
+  }
+}

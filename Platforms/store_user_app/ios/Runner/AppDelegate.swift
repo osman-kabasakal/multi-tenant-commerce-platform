@@ -9,6 +9,8 @@ import flutter_local_notifications
   private var currentApnsToken: String?
   private var pendingApnsOpen: [String: Any]?
   private var routesReady = false
+  private let cachePendingKey = "platform.client-cache.pending.v1"
+  private let cacheHandledKey = "platform.client-cache.handled.v1"
   private var directApns: Bool {
     Bundle.main.object(forInfoDictionaryKey: "PlatformIosPushTransport") as? String == "Apns"
   }
@@ -58,6 +60,12 @@ import flutter_local_notifications
           DispatchQueue.main.async { result(self.authorized(settings)) }
         }
       case "getToken": result(currentApnsToken)
+      case "pendingCacheRefresh":
+        let pending = UserDefaults.standard.string(forKey: self.cachePendingKey)
+        result(pending == UserDefaults.standard.string(forKey: self.cacheHandledKey) ? nil : pending)
+      case "acknowledgeCacheRefresh":
+        if let version = call.arguments as? String { UserDefaults.standard.set(version, forKey: self.cacheHandledKey) }
+        result(nil)
       case "initialMessage":
         routesReady = true
         let initial = pendingApnsOpen
@@ -90,12 +98,29 @@ import flutter_local_notifications
     if directApns { apnsChannel?.invokeMethod("registrationError", arguments: nil) }
   }
 
+  private func retainCacheRefresh(_ info: [AnyHashable: Any]) {
+    if let data = info["data"] as? [String: Any], data["Type"] as? String == "cache_invalidation" {
+      // Persist before Flutter handles the message or iOS suspends the engine.
+      UserDefaults.standard.set(UUID().uuidString, forKey: cachePendingKey)
+    }
+  }
+
   override func application(_ application: UIApplication,
     didReceiveRemoteNotification userInfo: [AnyHashable: Any],
     fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
     if directApns && userInfo["platform_apns"] as? String == "v1" {
-      apnsChannel?.invokeMethod("message", arguments: ["data": userInfo["data"] as? [String: Any] ?? [:]])
-      completionHandler(.noData)
+      retainCacheRefresh(userInfo)
+      guard let channel = apnsChannel else { completionHandler(.noData); return }
+      var finished = false
+      let finish: (UIBackgroundFetchResult) -> Void = { result in
+        guard !finished else { return }
+        finished = true
+        completionHandler(result)
+      }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 5) { finish(.noData) }
+      channel.invokeMethod("message", arguments: ["data": userInfo["data"] as? [String: Any] ?? [:]]) { _ in
+        finish(.newData)
+      }
     } else {
       super.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
     }
@@ -111,6 +136,7 @@ import flutter_local_notifications
     willPresent notification: UNNotification,
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
     if directApns && notification.request.content.userInfo["platform_apns"] as? String == "v1" {
+      retainCacheRefresh(notification.request.content.userInfo)
       apnsChannel?.invokeMethod("message", arguments: payload(notification))
       if #available(iOS 14.0, *) { completionHandler([.banner, .list, .badge, .sound]) }
       else { completionHandler([.alert, .badge, .sound]) }
@@ -123,6 +149,7 @@ import flutter_local_notifications
     didReceive response: UNNotificationResponse,
     withCompletionHandler completionHandler: @escaping () -> Void) {
     if directApns && response.notification.request.content.userInfo["platform_apns"] as? String == "v1" {
+      retainCacheRefresh(response.notification.request.content.userInfo)
       let message = payload(response.notification)
       if routesReady { apnsChannel?.invokeMethod("opened", arguments: message) }
       else { pendingApnsOpen = message }
