@@ -200,7 +200,7 @@ def check_signature(app, profile, settings, certificate_sha256):
     if hashlib.sha256(embedded).hexdigest() != profile["sha256"]:
         raise ValueError("The exported app embedded a different provisioning profile.")
     requirement = 'anchor apple generic and certificate leaf[subject.OU] = "' + settings["DevelopmentTeam"] + '" and identifier "' + profile["bundle"] + '"'
-    apple(["/usr/bin/codesign", "--verify", "--strict", "--all-architectures", "-R", requirement, str(app)])
+    apple(["/usr/bin/codesign", "--verify", "--strict", "--all-architectures", "-R", "=" + requirement, str(app)])
     entitlements = plistlib.loads(apple(["/usr/bin/codesign", "--display", "--entitlements", "-", "--xml", str(app)]))
     if not isinstance(entitlements, dict) or entitlements.get("application-identifier") != profile["entitlements"]["application-identifier"] or entitlements.get("com.apple.developer.team-identifier") != settings["DevelopmentTeam"] or entitlements.get("get-task-allow", False) is not False or not authorize(entitlements, profile["entitlements"]):
         raise ValueError("Signed entitlements exceed the selected tenant profile.")

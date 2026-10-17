@@ -148,6 +148,8 @@ class IosReleaseTests(unittest.TestCase):
         selected = hashlib.sha256(self.cert).hexdigest()
         actual = dict(profile["entitlements"])
         def command(args):
+            if "--verify" in args:
+                self.assertEqual(args[args.index("-R") + 1], '=anchor apple generic and certificate leaf[subject.OU] = "ABCDE12345" and identifier "dev.commerce.fixture"')
             if "--entitlements" in args: return plistlib.dumps(actual)
             for item in args:
                 if item.startswith("--extract-certificates="):
@@ -161,6 +163,19 @@ class IosReleaseTests(unittest.TestCase):
             actual["aps-environment"] = "production"
             with self.assertRaisesRegex(ValueError, "different signing certificate"):
                 release.check_signature(app, profile, self.settings, "0" * 64)
+
+    @unittest.skipUnless(__import__("sys").platform == "darwin", "Requires native Mac codesign")
+    def test_native_codesign_accepts_inline_identifier_and_rejects_a_foreign_identifier(self):
+        import shutil
+        import subprocess
+        binary = self.root / "owned-code-signature-fixture"
+        shutil.copyfile("/usr/bin/true", binary)
+        subprocess.run(["/usr/bin/codesign", "--force", "--sign", "-", "--identifier", "dev.commerce.fixture", str(binary)],
+                       check=True, capture_output=True, timeout=30)
+        release.apple(["/usr/bin/codesign", "--verify", "--strict", "-R", '=identifier "dev.commerce.fixture"', str(binary)])
+        for requirement in ['identifier "dev.commerce.fixture"', '=identifier "dev.foreign.fixture"']:
+            with self.subTest(requirement=requirement), self.assertRaises(ValueError):
+                release.apple(["/usr/bin/codesign", "--verify", "--strict", "-R", requirement, str(binary)])
 
     def test_foreign_symbol_uuid_cannot_be_uploaded_for_the_release(self):
         app = self.root / "Runner.app"; app.mkdir()
