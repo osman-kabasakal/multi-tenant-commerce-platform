@@ -34,6 +34,12 @@ Yeni iOS sürümleri `platform_provisioning.ios_build_jobs` içindedir; ilk `ios
 
 Kodun giriş noktaları: [portal görsel seçimi](../SaasManager/src/Infrastructure/MobileBrandingCapture.cs), [ortak görsel deposu](../Shared/Platform.Provisioning/MobileBranding.cs), [sürüm çifti](../Shared/Platform.Provisioning/AndroidBuildQueue.cs), [iOS sürüm kuyruğu](../Shared/Platform.Provisioning/IosBuildQueue.cs), [native hazırlık](../scripts/mobile_android.py), [Mac yürütücüsü](../Shared/Platform.Provisioning.Adapters/IosReleaseExecutor.cs).
 
+## Görsel yükleme 400 dönerse
+
+Yeni Derleme ekranı, oturuma bağlı istek tokenını okunabilir `X-XSRF-TOKEN` çerezinde üretir. Angular aynı adlı başlıkla gönderir; sunucunun ayrı `platform-antiforgery` çerezi HttpOnly kalır. Multipart yükleme ve yeni derleme isteği geçerli doğrulama ister. Eski portal sekmesi açıksa sayfayı yenileyin; korumayı kapatmayın veya özel çerezi istek tokenı olarak kullanmayın.
+
+Örnek işletmelerden alınan gerçek marka dosyaları bu testte yalnız Git dışındaki özel varlık deposunda tutulur. Bu dosyalar açık kaynak lisansının kapsamına kendiliğinden girmez; kendi işletmenizin haklarına sahip olduğunuz görselleri yükleyin.
+
 ## Doğrulama kapsamı
 
 Yerel kontroller; değiştirilmiş/başka tenant’a ait görselleri, paket içindeki eksik logo baytlarını, eşzamanlı tekrarı, değiştirilmiş iOS planını ve süresi dolmuş Mac claim’ini reddeder. Gerçek sabitlenmiş ikon/splash araçları izole Android/iOS klasörlerinde çalıştırılmıştır. Bu kontroller tek başına yeni markalı imzalı APK/IPA veya fiziksel cihaz kabulü değildir; canlı kabul sonucu ayrıca [doğrulama günlüğünde](VALIDATION.md) kaydedilir.
