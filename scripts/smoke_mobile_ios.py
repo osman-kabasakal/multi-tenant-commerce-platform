@@ -98,7 +98,7 @@ puts({privacyResources: runner.resources_build_phase.files_references.select { |
             "iosPushTransport": tenant["iosPushTransport"], "nativePushConfigurationVerified": True, "privacyManifestMembershipVerified": True}
 
 
-def verify_manual_signing(workspace, tenant, ruby):
+def verify_manual_signing(workspace, tenant, ruby, log_name="ios-signing-project.log"):
     plan = {"developmentTeam": tenant["developmentTeam"], "certificateSha1": "a" * 40,
             "application": {"bundle": tenant["iosBundleId"], "uuid": "11111111-1111-1111-1111-111111111111"},
             "extension": {"bundle": tenant["extensionBundleId"], "uuid": "22222222-2222-2222-2222-222222222222"}}
@@ -106,7 +106,7 @@ def verify_manual_signing(workspace, tenant, ruby):
     project = workspace / "Platforms/store_user_app/ios/Runner.xcodeproj/project.pbxproj"
     original = project.read_bytes()
     try:
-        with mobile_ios.private_log(workspace / "ios-signing-project.log") as log:
+        with mobile_ios.private_log(workspace / log_name) as log:
             common.run_private([ruby, str(workspace / "scripts/mobile_ios_signing.rb"), str(workspace)], workspace, os.environ.copy(), log, 60)
         script = r"""
 require 'json'
@@ -162,6 +162,7 @@ def main():
     parser.add_argument("--ruby", default="ruby")
     parser.add_argument("--flutter", default="flutter")
     parser.add_argument("--compile-unsigned", action="store_true")
+    parser.add_argument("--archive-unsigned", action="store_true", help="Also exercise the real CocoaPods archive graph without signing or provider writes.")
     parser.add_argument("--push-transport", choices=("Fcm", "Apns"), default="Fcm")
     args = parser.parse_args()
     os.umask(0o077)
@@ -175,9 +176,26 @@ def main():
         result = dict(verify_project(workspace, tenant, args.ruby), sourceHash=tenant["sourceHash"], compiledIosApp=False,
                       signedIpaBuilt=False, distributed=False, symbolsUploaded=False)
         result["manualSigningBindingsVerified"] = verify_manual_signing(workspace, tenant, args.ruby)
-        if args.compile_unsigned:
+        if args.compile_unsigned or args.archive_unsigned:
             with mobile_ios.private_log(directory / "fixture.log") as log:
                 result.update(mobile_ios.compile_unsigned(workspace, tenant, args.flutter, log))
+        if args.archive_unsigned:
+            # CocoaPods now exists. Exercise the actual signing configurator, then
+            # restore Runner's fixture settings before the unsigned archive.
+            verify_manual_signing(workspace, tenant, args.ruby, "ios-signing-archive-project.log")
+            app = workspace / "Platforms/store_user_app"
+            archive = workspace / "unsigned-archive/Runner.xcarchive"
+            with mobile_ios.private_log(directory / "archive.log") as log:
+                common.run_private(["/usr/bin/xcodebuild", "-workspace", str(app / "ios/Runner.xcworkspace"),
+                    "-scheme", "tenant", "-configuration", "Release-tenant", "-sdk", "iphoneos",
+                    "-destination", "generic/platform=iOS", "-archivePath", str(archive),
+                    "-derivedDataPath", str(workspace / "unsigned-archive/DerivedData"),
+                    "CODE_SIGNING_ALLOWED=NO", "archive"], app, os.environ.copy(), log, 3600)
+            native = archive / "Products/Applications/Runner.app"
+            mobile_ios.verify_compiled_app(native, tenant)
+            mobile_ios.release.verify_symbols(native, archive)
+            result["unsignedArchiveVerified"] = True
+            result["archiveSymbolsVerified"] = True
         if common.source_hash(ROOT) != original:
             raise ValueError("The probe changed the source checkout.")
         common.private_json(directory / "result.json", result)

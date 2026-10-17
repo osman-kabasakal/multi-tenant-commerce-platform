@@ -57,10 +57,16 @@ public sealed class MobileIdentityRegistry(string connectionString) : IAsyncDisp
             BEGIN
                 IF (NEW.id,NEW.tenant_id,NEW.business_app_id,NEW.owner_subject,NEW.generation,NEW.legacy,NEW.android_package,NEW.ios_bundle,NEW.domain_request_id,NEW.expected_active_id,NEW.request) IS DISTINCT FROM
                     (OLD.id,OLD.tenant_id,OLD.business_app_id,OLD.owner_subject,OLD.generation,OLD.legacy,OLD.android_package,OLD.ios_bundle,OLD.domain_request_id,OLD.expected_active_id,OLD.request) OR
-                    OLD.prepared IS NOT NULL AND NEW.prepared IS DISTINCT FROM OLD.prepared OR
                     OLD.android_receipt IS NOT NULL AND NEW.android_receipt IS DISTINCT FROM OLD.android_receipt OR
                     OLD.ios_receipt IS NOT NULL AND NEW.ios_receipt IS DISTINCT FROM OLD.ios_receipt THEN
                     RAISE EXCEPTION 'The package identity, signing bindings and completed build receipts are immutable' USING ERRCODE='23514';
+                END IF;
+                IF OLD.prepared IS NOT NULL AND NEW.prepared IS DISTINCT FROM OLD.prepared THEN
+                    IF NOT EXISTS(SELECT 1 FROM platform_provisioning.mobile_identity_source_repairs a
+                        WHERE a.identity_id=OLD.id AND a.tenant_id=OLD.tenant_id AND a.old_prepared=OLD.prepared
+                        AND a.new_prepared=NEW.prepared AND a.transaction_id=txid_current()) THEN
+                        RAISE EXCEPTION 'Prepared bindings require an explicit source repair in the same transaction' USING ERRCODE='23514';
+                    END IF;
                 END IF;
                 IF NOT NEW.legacy AND NEW.state IN ('Ready','Active','Retired') AND NOT (
                     COALESCE(NEW.android_receipt->>'Provider','')='AndroidAppDistribution' AND
@@ -79,6 +85,7 @@ public sealed class MobileIdentityRegistry(string connectionString) : IAsyncDisp
             CREATE TRIGGER immutable_mobile_identity_v1 BEFORE UPDATE ON platform_provisioning.mobile_identity_versions
                 FOR EACH ROW EXECUTE FUNCTION platform_provisioning.immutable_mobile_identity_v1();
             """,connection,transaction);await command.ExecuteNonQueryAsync(ct);
+        await MobileIdentitySourceRepair.InitializeAsync(connection,transaction,ct);
     }
     public static Guid InitialId(string tenant,string deployment)
     {

@@ -25,3 +25,6 @@ GRANT SELECT,INSERT ON platform_provisioning.android_build_jobs TO platform_saas
 GRANT SELECT,UPDATE ON platform_provisioning.android_build_jobs TO platform_worker;
 GRANT SELECT ON platform_provisioning.ios_release_jobs TO platform_saas;
 GRANT UPDATE(state,attempts,error_code,available_at,updated_at) ON platform_provisioning.ios_release_jobs TO platform_saas;
+
+GRANT SELECT,INSERT ON platform_provisioning.mobile_identity_source_repairs TO platform_worker;
+GRANT SELECT ON platform_provisioning.mobile_identity_source_repairs TO platform_reader;

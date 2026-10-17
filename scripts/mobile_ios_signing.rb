@@ -18,4 +18,15 @@ project = Xcodeproj::Project.open(File.join(workspace, 'Platforms/store_user_app
   config.build_settings.delete('PROVISIONING_PROFILE')
 end
 project.save
+# Archive normally redirects SKIP_INSTALL pods to one UninstalledProducts directory.
+# CocoaPods variants can share a product name but have distinct configuration dirs.
+# Give each dependency its own intermediate install directory; Runner/NSE embed their own.
+pods_path = File.join(workspace, 'Platforms/store_user_app/ios/Pods/Pods.xcodeproj')
+if File.directory?(pods_path)
+  pods = Xcodeproj::Project.open(pods_path)
+  pods.targets.each do |pod|
+    pod.build_configurations.each { |config| config.build_settings['UNINSTALLED_PRODUCTS_DIR'] = '$(TARGET_TEMP_DIR)/UninstalledProducts' }
+  end
+  pods.save
+end
 puts 'Bound manual signing to the prepared tenant application and extension.'

@@ -55,6 +55,47 @@ internal static class MobileIdentityRegistryFixture
             {"release","projects/1234567/apps/"+prepared.AndroidAppId+"/releases/new-package"}});
         await versions.CompleteAndroidAsync(linux,android,default);
         Check((await versions.GetAsync(legacy.Request.Id,owner))!.State=="Active" && (await versions.GetAsync(request.Id,owner))!.State=="WaitingBuilds","Android alone never activates the new package; the existing identity stays active");
+        // Repair changes only the iOS source recipe, after the lane is idle and before any artifact journal.
+        await using var repairs=new MobileIdentitySourceRepair(connection);
+        async Task Sql(string sql,params object[] values)
+        {
+            await using var db=new NpgsqlConnection(connection);await db.OpenAsync();await using var cmd=new NpgsqlCommand(sql,db);
+            foreach(var value in values)cmd.Parameters.Add(new NpgsqlParameter{Value=value});await cmd.ExecuteNonQueryAsync();
+        }
+        var repairId=Guid.NewGuid();var worker=new IosWorkerIdentity(deployment,iosPlan.DevelopmentTeam,iosPlan.SigningCertificateSha256,new string('9',64));
+        const string reason="Upgrade the verified iOS archive recipe after a native build failure";
+        await Reject<PostgresException>(()=>repairs.ApplyAsync(repairId,tenant,request.Id,iosPlan.SourceHash,worker,reason),"A live Mac lease blocks source repair");
+        await versions.FailAsync(ios,"MobileIos.ArchiveFailed",default);
+        await Reject<ProvisioningConflictException>(()=>repairs.ApplyAsync(repairId,tenant,request.Id,new string('0',64),worker,reason),"Repair rejects a stale expected source fingerprint");
+        await Reject<ProvisioningConflictException>(()=>repairs.ApplyAsync(repairId,tenant,request.Id,iosPlan.SourceHash,worker with{SigningCertificateSha256=new string('0',64)},reason),"Repair cannot change the signing certificate");
+        var artifactName="ios-identity-"+request.Id.ToString("N")+"-release-artifact-v1";
+        await Sql("INSERT INTO platform_security.secrets(scope,name,ciphertext) VALUES($1,$2,'synthetic-not-read')","tenant-"+tenant,artifactName);
+        await Reject<PostgresException>(()=>repairs.ApplyAsync(repairId,tenant,request.Id,iosPlan.SourceHash,worker,reason),"A durable native artifact blocks source repair even without a final receipt");
+        await Sql("DELETE FROM platform_security.secrets WHERE scope=$1 AND name=$2","tenant-"+tenant,artifactName);
+        foreach(var changed in new[] {
+            prepared with{AndroidSourceHash=new string('8',64),IosPlan=iosPlan with{SourceHash=worker.SourceHash}},
+            prepared with{IosPlan=iosPlan with{SourceHash=worker.SourceHash,SigningCertificateSha256=new string('8',64)}},
+            prepared with{IosPlan=iosPlan with{SourceHash=worker.SourceHash,ProjectId="foreign-project"}},
+            prepared with{IosPlan=iosPlan with{SourceHash=worker.SourceHash,IosBundleId="org.foreign.application"}} })
+            await Reject<PostgresException>(()=>Sql("INSERT INTO platform_provisioning.mobile_identity_source_repairs(id,identity_id,tenant_id,old_prepared,new_prepared,reason) VALUES($1,$2,$3,$4::jsonb,$5::jsonb,$6)",Guid.NewGuid(),request.Id,tenant,System.Text.Json.JsonSerializer.Serialize(prepared),System.Text.Json.JsonSerializer.Serialize(changed),reason),
+                "The database itself rejects repair of package, Firebase, certificate or Android source bindings");
+        var repaired=await repairs.ApplyAsync(repairId,tenant,request.Id,iosPlan.SourceHash,worker,reason);
+        Check(await repairs.ApplyAsync(repairId,tenant,request.Id,iosPlan.SourceHash,worker,reason)==repaired,"Replaying the same repair intent preserves one audit record and result");
+        var afterRepair=(await versions.GetAsync(request.Id,owner))!;
+        Check(afterRepair.Prepared==prepared with{IosPlan=iosPlan with{SourceHash=worker.SourceHash}} && afterRepair.AndroidReceipt!.Resources["sha256"]==android.Resources["sha256"] && afterRepair.IosAttempts==0,
+            "Source repair preserves packages, Firebase targets, certificate, Android source and completed Android receipt");
+        await using(var db=new NpgsqlConnection(connection))
+        {
+            await db.OpenAsync();await using var cmd=new NpgsqlCommand("SELECT count(*) FROM platform_provisioning.mobile_identity_source_repairs WHERE id=$1 AND old_prepared->'IosPlan'->>'SourceHash'=$2 AND new_prepared->'IosPlan'->>'SourceHash'=$3",db);
+            cmd.Parameters.AddWithValue(repairId);cmd.Parameters.AddWithValue(iosPlan.SourceHash);cmd.Parameters.AddWithValue(worker.SourceHash);
+            Check((long)(await cmd.ExecuteScalarAsync())! ==1,"The old and new immutable plans remain together in append-only history");
+        }
+        await Reject<PostgresException>(()=>Sql("UPDATE platform_provisioning.mobile_identity_source_repairs SET reason='overwrite history' WHERE id=$1",repairId),"Repair history cannot be overwritten");
+        await Reject<PostgresException>(()=>Sql("DELETE FROM platform_provisioning.mobile_identity_source_repairs WHERE id=$1",repairId),"Repair history cannot be deleted");
+        await Reject<PostgresException>(()=>Sql("UPDATE platform_provisioning.mobile_identity_versions SET prepared=$2::jsonb WHERE id=$1",request.Id,System.Text.Json.JsonSerializer.Serialize(prepared)),"A prior audit cannot authorize an unaudited prepared-plan rewrite in a later transaction");
+        Check(await versions.ClaimIosAsync(new(deployment,iosPlan.DevelopmentTeam,iosPlan.SigningCertificateSha256,iosPlan.SourceHash),default)==null,"The former Mac source cannot claim the repaired plan");
+        iosPlan=iosPlan with{SourceHash=worker.SourceHash};prepared=prepared with{IosPlan=iosPlan};
+        ios=(await versions.ClaimIosAsync(worker,default))!;
         var iosReceipt=new IosReleaseReceipt(new string('1',64),iosPlan.SourceHash,iosPlan.SigningCertificateSha256,iosPlan.FirebaseSdkSha256,1,
             Guid.NewGuid().ToString("D"),Guid.NewGuid().ToString("D"),"projects/1234567/apps/"+iosPlan.IosAppId+"/releases/new-ios",true);
         await Reject<ArgumentException>(()=>versions.CompleteIosAsync(ios,iosReceipt with{SigningCertificateSha256=new string('0',64)},default),"A different iOS signing certificate cannot satisfy the activation gate");

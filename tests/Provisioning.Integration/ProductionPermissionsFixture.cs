@@ -46,6 +46,10 @@ internal static class ProductionPermissionsFixture
             await Denied($"UPDATE platform_provisioning.domain_requests SET state='Verified' WHERE id='{request.Id:D}'", "The Production portal role cannot certify its own domain proof");
             await Denied($"UPDATE platform_provisioning.domain_requests SET challenge='forged' WHERE id='{request.Id:D}'", "The Production portal role cannot replace the ownership challenge");
             await Denied("CREATE TABLE platform_provisioning.forbidden_runtime_table(id integer)", "The Production portal role receives no schema creation permission");
+            await Denied("INSERT INTO platform_provisioning.mobile_identity_source_repairs DEFAULT VALUES", "The portal role cannot authorize an operator source repair");
+            await Denied("UPDATE platform_provisioning.mobile_identity_versions SET prepared=prepared", "The portal role cannot rewrite a prepared build plan");
+            await using var permission = new NpgsqlCommand($"SELECT has_table_privilege('{worker}','platform_provisioning.mobile_identity_source_repairs','INSERT') AND NOT has_table_privilege('{worker}','platform_provisioning.mobile_identity_source_repairs','UPDATE') AND NOT has_table_privilege('{worker}','platform_provisioning.mobile_identity_source_repairs','DELETE')",admin);
+            Check((bool)(await permission.ExecuteScalarAsync())!, "The Production worker receives append-only repair permissions");
         }
         finally
         {

@@ -10,11 +10,25 @@ using Platform.Security;
 if (args.Length == 1 && args[0] == "--help")
 {
     Console.WriteLine("Platform.Ios.Worker --config <absolute-private-mac-json>");
+    Console.WriteLine("Repair only: --config <file> --repair-ios-source --tenant <tenantN> --identity <guid> --repair-id <new-guid> --expected-source <previous-sha256> --reason <operator-reason> --confirm-workers-stopped");
     return 0;
 }
 try
 {
-    if (args.Length != 2 || args[0] != "--config") throw new ArgumentException();
+    var repair = args.Contains("--repair-ios-source", StringComparer.Ordinal);
+    if (args.Length < 2 || args[0] != "--config" || !repair && args.Length != 2) throw new ArgumentException();
+    var repairValues = new Dictionary<string,string>(StringComparer.Ordinal);
+    if (repair)
+    {
+        if (args.Length != 14 || args.Count(x=>x=="--repair-ios-source")!=1 || args.Count(x=>x=="--confirm-workers-stopped")!=1) throw new ArgumentException();
+        var allowed = new HashSet<string>(StringComparer.Ordinal) {"--tenant","--identity","--repair-id","--expected-source","--reason"};
+        for (var i=2;i<args.Length;i++)
+        {
+            if (args[i] is "--repair-ios-source" or "--confirm-workers-stopped") continue;
+            if (!allowed.Contains(args[i]) || i+1>=args.Length || !repairValues.TryAdd(args[i],args[++i])) throw new ArgumentException();
+        }
+        if (repairValues.Count!=5) throw new ArgumentException();
+    }
     var selected = IosReleaseOptions.ReadConfiguration(args[1]);
     var builder = Host.CreateApplicationBuilder(Array.Empty<string>());
     builder.Configuration.Sources.Clear();
@@ -50,6 +64,19 @@ try
     using var startup = new CancellationTokenSource(TimeSpan.FromMinutes(2));
     if (await host.Services.GetRequiredService<IIosReleaseBuilder>().SourceHashAsync(startup.Token) != options.ExpectedSourceHash)
         throw new InvalidOperationException("The Mac checkout differs from its selected immutable source.");
+    if (repair)
+    {
+        var identityId=Guid.ParseExact(repairValues["--identity"],"D");
+        var version=await host.Services.GetRequiredService<MobileIdentityRegistry>().GetForWorkerAsync(repairValues["--tenant"],identityId,startup.Token);
+        var androidSource=await new AndroidReleaseBuilder(new AndroidReleaseOptions {SourceDirectory=options.SourceDirectory,PythonPath=options.PythonPath}).SourceHashAsync(startup.Token);
+        if(version?.Prepared==null || version.Prepared.AndroidSourceHash!=androidSource)
+            throw new InvalidOperationException("The completed Android recipe must remain unchanged during an iOS-only repair.");
+        await using var repairs = new MobileIdentitySourceRepair(connection);
+        var receipt = await repairs.ApplyAsync(Guid.ParseExact(repairValues["--repair-id"],"D"),repairValues["--tenant"],
+            identityId,repairValues["--expected-source"],options.Identity,repairValues["--reason"],startup.Token);
+        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(receipt,new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)));
+        return 0;
+    }
     await host.RunAsync(); return 0;
 }
 catch (Exception error)

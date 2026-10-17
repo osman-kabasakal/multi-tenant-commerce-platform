@@ -791,3 +791,12 @@ Son `aa7e835fcaccfc03604e5589e1ccaa2503cfc7d2` güncellemesinin kaynak farkı ya
 Temiz kaynak snapshot'ında Portable, Google, gateway ve kayıt/sahiplik testleri; gerçek PostgreSQL üzerindeki paket/domain kuyruk denetimleri; portal, bildirim ve Flutter APNs testleri geçti. Portal Release, Mac işçisi, bulut aracı ve `BuildType=Installer` derlemeleri doğrulandı. Gitleaks bulgu üretmedi; asset/source guard geçti. [Ayrıntılı yerel kontrol kaydı](validation/tenant-domains-mobile-identities-local-20261017.json).
 
 Bu kayıt yeni özel domainin gerçek genel TLS ile çalıştığını veya yeni paket için gerçek imzalı Android/iOS teslimini ispatlamaz. Bu kabul adımları ayrı takip edilir. Kullanım ve sıralı geçiş: [alan adı ve mobil kimlik rehberi](TENANT_DOMAINS_AND_MOBILE_IDENTITIES.md).
+
+
+## iOS arşivleme ve geçmişi koruyan kaynak onarımı — 17 Ekim 2026
+
+Gerçek yeni tenant derlemesinde imzasız cihaz çıktısı üretildi; imzalı arşiv CocoaPods varyantlarının aynı `UninstalledProducts` yolunu paylaşması ve Apple CMS profil UUID'sinin büyük harfe çevrilmesi nedeniyle durdu. Küçük gerçek Xcode denemesinde büyük harfli seçici profili bulamadı; CMS'deki özgün yazım profil seçimini geçip imza aşamasına ulaştı. Bu küçük deneme tenant IPA veya cihaz kabulü değildir; bekleyen kendi süreçleri kapatıldı.
+
+Düzeltme profil UUID'sinin özgün yazımını korur ve yalnız hazırlanmış CocoaPods bağımlılıklarına hedefe özel geçici arşiv yolu verir. Gerçek Xcode ile sentetik APNs uygulamasının **cihaz derlemesi, imzasız arşivi ve eşleşen sembol UUID'leri geçti**. Tam imzalı tenant IPA henüz bu kayıtta doğrulanmadı. **54 Python iOS kontrolü ve gerçek PostgreSQL üzerinde 181 kontrol geçti**; Mac worker ve owner bootstrap derlendi.
+
+Kullanıcı onayıyla eklenen operatör onarımı yalnız henüz yayımlanmamış iOS planının kaynak özetini değiştirir. Eski/yeni plan aynı transaction'da silinemez geçmişe yazılır; paket, Firebase projesi/uygulamaları, sertifika ve Android makbuzu korunur. Aktif Mac claim, kayıtlı artifact ve portal rolüyle müdahale reddedilir. Android gerçek kaynak özeti önceki planla aynıdır. [Tekrarlanabilir onarım ve arşiv kontrolü](TENANT_DOMAINS_AND_MOBILE_IDENTITIES.md#henüz-yayımlanmamış-ios-planının-kaynak-onarımı), [yerel kanıt ve kaynak hashleri](validation/ios-source-repair-local-20261017.json).

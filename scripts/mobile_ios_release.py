@@ -123,7 +123,8 @@ def profile_guard(value, bundle, settings, application, now=None):
     matches = [x for x in certificates if isinstance(x, bytes) and len(x) <= 65536 and hashlib.sha1(x).hexdigest() == settings["SigningCertificateSha1"]]
     if len(matches) != 1:
         raise ValueError("The selected signing certificate is not uniquely authorized by the profile.")
-    return {"uuid": profile_id.upper(), "entitlements": entitlements, "certificate": matches[0],
+    # Xcode matches a UUID selector case-sensitively. Preserve the signed CMS spelling.
+    return {"uuid": value["UUID"], "entitlements": entitlements, "certificate": matches[0],
             "expiresAtUtc": expiry.replace(tzinfo=timezone.utc).isoformat(), "deviceCount": len(registered), "devices": registered, "application": application}
 
 
@@ -134,7 +135,10 @@ def install_profile(profile, raw):
         if parent.is_symlink():
             raise ValueError("Profile installation cannot follow symbolic links.")
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-    target = directory / (str(uuid.UUID(profile["uuid"])).upper() + ".mobileprovision")
+    profile_id = profile["uuid"]
+    if not isinstance(profile_id, str) or not re.fullmatch(r"[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", profile_id):
+        raise ValueError("Use the exact signed profile UUID.")
+    target = directory / (profile_id + ".mobileprovision")
     temporary = directory / (".platform-profile-" + uuid.uuid4().hex)
     try:
         fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

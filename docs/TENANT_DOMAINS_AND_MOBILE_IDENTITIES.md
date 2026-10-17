@@ -149,3 +149,36 @@ python3 scripts/production.py up --config /absolute/private/deployment.json --st
 ```
 
 Önce düzeltmeyi commit edin; araç yalnız committed Git arşivini kullanır. Aynı Linux amd64 operatörünün iki temel imajı bulunmalı, tam temel commit kimliği eşleşmeli ve en az 12 GiB boş alan olmalıdır. Araç değişen dosyaları denetler: installer dışındaki çalışma zamanı veya genel derleme kaynağı değişmişse kısmi güncellemeyi reddeder. Installer `BuildType=Installer` ile tüm eklentileriyle yeniden yayınlanır. Diğer uygulama ve Android SDK temel katmanları, kullanıcı, ortam, entrypoint ve komut ayarları karşılaştırılarak korunur. Git dışında oluşan makinece okunabilir kayıt, temel/hedef revision ve imaj kimliklerini içerir. Bu yöntem yeni bir tam SaaS/worker/SDK derlemesi olarak raporlanmaz; tam temiz kurulum güncel standart Dockerfile ile yapılabilir.
+
+
+## Henüz yayımlanmamış iOS planının kaynak onarımı
+
+Arşivleme aracındaki bir düzeltme iOS kaynak özetini değiştirirse mevcut plan yeni Mac tarafından alınmaz. Paket, Firebase uygulaması, sertifika veya tamamlanan makbuzları SQL ile değiştirmeyin. Önce güncel committed kaynağın owner bootstrap ve runtime izinlerini normal Production güncellemesiyle uygulayın; onarım tablosu ve koruyucu trigger aynı şema başlatıcısının parçasıdır.
+
+Operatör önce Linux/Mac derleme işçilerini durdurur, veritabanı/secret ve artifact yedeğini alır ve önceki iOS claim süresinin dolmasını bekler. Eski claim için iki dakikalık ek bekleme aranır. Yeni kaynağı commit edilmiş ayrı bir checkout'ta tutun; `python3 scripts/mobile_ios_worker.py source-hash` çıktısını özel Mac yapılandırmasındaki `Provisioning:Mobile:Ios:Worker:ExpectedSourceHash` alanına yazın. Seçili Ruby ile `gem 'xcodeproj', '1.27.0'` yüklenebilmelidir; Ruby kurulumları aynı gem deposunu paylaşmayabilir.
+
+Mac aracını yeni kaynaktan derledikten sonra yeni bir onarım kimliğiyle çalıştırın:
+
+```sh
+dotnet tools/Platform.Ios.Worker/bin/Release/net8.0/Platform.Ios.Worker.dll \
+  --config /absolute/private/mac-worker.json \
+  --repair-ios-source --confirm-workers-stopped \
+  --tenant TENANT_GUID_N --identity MOBILE_IDENTITY_GUID_D \
+  --repair-id NEW_REPAIR_GUID_D --expected-source PREVIOUS_IOS_SHA256 \
+  --reason "Fix the verified iOS archive recipe in commit COMMIT_SHA"
+```
+
+Bu komut kuyruk tüketicisini başlatmaz veya Google/Apple kaynağı oluşturmaz. Aynı repair ID ve aynı parametrelerin tekrarı önceki sonucu döndürür. Aktif iş, tamamlanmış iOS makbuzu veya saklanmış iOS artifact/symbol/dağıtım kaydı varsa işlem reddedilir. Kaynak domain hâlâ işletmenin aktif ana adresi olmalıdır. Yeni Mac'teki gerçek Android kaynak özeti de önceki Android planıyla aynı kalmalıdır.
+
+Yalnız `IosPlan.SourceHash` değişebilir. Paket/bundle, Firebase uygulama ve proje ID'leri, SDK özeti, takım, sertifika, build numarası, Android kaynakları ve tamamlanan Android makbuzu korunur. `mobile_identity_source_repairs`, eski ve yeni tam planı, işlem kimliğini, operatör DB rolünü, nedeni ve zamanı aynı transaction içinde kaydeder. Bu geçmiş güncellenemez/silinemez; geçmişteki bir kayıt başka transaction'da plan değiştirme yetkisi vermez. Portal rolünün onarım yazma veya `prepared` değiştirme yetkisi yoktur.
+
+Başarıdan sonra Linux dağıtımının ve Mac'in özel iOS source policy'sini aynı yeni özete bağlayıp işçileri yeniden açın. İki gerçek imzalı makbuz olmadan aktif mobil kimlik yine değişmez. Tamamlanmış artifact varken kaynak onarımı yerine özgün source/workspace geri yüklenir; önceki imzalı sürüm başka kaynak etiketiyle yeniden sunulmaz.
+
+İmzasız arşiv grafiği ve semboller, Google/Apple hesabına yazmadan tekrar denenebilir:
+
+```sh
+python3 scripts/smoke_mobile_ios.py --ruby /absolute/path/to/ruby \
+  --flutter /absolute/path/to/flutter --push-transport Apns --archive-unsigned
+```
+
+Bu kontrol gerçek CocoaPods/Xcode arşivini ve sembol UUID'lerini denetler; imzalı IPA, cihaz kurulumu veya teslim kanıtı değildir. Arşivde aynı ürün adlı CocoaPods varyantları hedefe özel `UNINSTALLED_PRODUCTS_DIR` kullanır. Apple CMS profilindeki UUID'nin harf biçimi Xcode seçicisine aynen taşınır.

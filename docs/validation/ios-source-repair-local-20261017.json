@@ -1,0 +1,45 @@
+{
+  "dateUtc": "2026-10-17",
+  "baseRuntimeRevision": "a3fd3cbbd75703831bcc8cb29c548350d83b98c7",
+  "scope": "local iOS recipe repair and real unsigned Xcode archive",
+  "tests": {
+    "realPostgresChecks": 181,
+    "pythonIosChecks": 54
+  },
+  "actualXcode": {
+    "compiledDeviceApp": true,
+    "unsignedArchive": true,
+    "archiveSymbolsVerified": true,
+    "sourceHash": "1ee3e27e77a7fea8ccdd83abd5de7a54e04c42f81b292797e782ce9674ea6404"
+  },
+  "builds": {
+    "macWorker": true,
+    "ownerBootstrap": true
+  },
+  "liveAcceptance": {
+    "repairApplied": false,
+    "newPackageSignedIos": false,
+    "physicalDevice": false
+  },
+  "sourceSha256": {
+    "Shared/Platform.Provisioning/MobileIdentitySourceRepair.cs": "f0bf925dd6ee44b3a7393d142fd17c62106b71637efde5356cb71a7ba2773a2c",
+    "Shared/Platform.Provisioning/MobileIdentityRegistry.cs": "c9af68e7f2b67100cfc676a762512e16c0c5be78cb8107f8579c341cd94c383b",
+    "scripts/mobile_ios_release.py": "ce2854bc3d2d75717c7cedf2570110ab9d8d5bae970ea6137a66df90f94fdc02",
+    "scripts/mobile_ios_signing.rb": "e522f41e7f4429e9174905f1268b7d1509e4ae4f4068bcfe389a103d790537da",
+    "tools/Platform.Ios.Worker/Program.cs": "126c584fb1ca8358336160d10866d62b2b34343c2aa029e7fd75225f73ac449d"
+  },
+  "notes": [
+    "The audit allows only an idle, unpublished iOS SourceHash repair in the same transaction.",
+    "Packages, certificates, Firebase targets, completed Android evidence and old plans are retained.",
+    "The actual native failure is recorded separately from the passing fixed unsigned archive.",
+    "No signed IPA or physical-device acceptance is claimed by this record.",
+    "GitHub Actions was not run because of account quota."
+  ],
+  "stagedSecretScan": {
+    "findings": 0
+  },
+  "trackedSourceFilenameGuard": {
+    "passed": true,
+    "files": 13268
+  }
+}

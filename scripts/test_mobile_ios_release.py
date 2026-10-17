@@ -73,6 +73,11 @@ class IosReleaseTests(unittest.TestCase):
                 self.assertEqual(result["entitlements"]["application-identifier"], "ABCDE12345.dev.commerce.fixture")
                 self.assertEqual(result["deviceCount"], 1)
 
+    def test_signed_profile_uuid_case_is_preserved_for_xcode_selection(self):
+        for selected in ["870b33a6-2b74-47df-a80f-3f6f637faf76", "870B33A6-2B74-47DF-A80F-3F6F637FAF76"]:
+            value = copy.deepcopy(self.value); value["UUID"] = selected
+            self.assertEqual(self.profile(value)["uuid"], selected)
+
     def test_profile_platforms_reject_unknown_non_ios_duplicate_and_malformed_values(self):
         for platforms in [[], ["xrOS", "visionOS"], ["iOS", "macOS"], ["iOS", "tvOS"],
                           ["iOS", "iOS"], ["iOS", {}], None, "iOS", {"iOS": True}]:
