@@ -152,3 +152,5 @@ CodeGraph isteğe bağlıdır; demo için gerekmez. Bu çalışma kopyasında in
 ## Lisans ve yayın durumu
 
 GrandNode çekirdeğinin GPLv3 lisansı `Ecommerce/LICENSE` altında korunur. Üçüncü taraf dosyaların lisansları kendi konumlarında geçerlidir. Henüz lisansı kesinleştirilmemiş modül ve varlıklar [lisans envanterinde](THIRD_PARTY_NOTICES.md) işaretlidir; tamamı için farklı bir lisans varsayılmamalıdır. [Private GitHub reposu](https://github.com/osman-kabasakal/multi-tenant-commerce-platform) yayımlandı; herkese açık yayın izni henüz tamamlanmamıştır. [Ayrıntılı lisans ve varlık incelemesi](docs/LICENSE_REVIEW.md) kalan kararları listeler.
+
+Oracle dağıtımını takip etmek için [SSH ve Docker ile dağıtımın ayrıntılı açıklaması](docs/ORACLE_SSH_DOCKER_DEPLOYMENT.md): operatör bilgisayarı, Terraform, kaynak aktarımı, gizli girdiler, Docker derlemesi, Compose servisleri ve güncelleme/yedek/durdurma adımları.

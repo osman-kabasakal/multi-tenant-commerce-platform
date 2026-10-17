@@ -1,0 +1,121 @@
+{
+  "verifiedOnOperatorDate": "2026-10-17",
+  "completedAtUtc": "2026-10-16T23:58:09.492080+00:00",
+  "runtimeSourceCommit": "7a836a9cc017a2a93552bac25ef305bb1b6a5cc4",
+  "runtimeImageId": "sha256:a88c44dc03e98b70818eea4ca24ffd9d40502d38049ad88e00d592154e0c67e9",
+  "runtimeNonRootUser": "1001:1001",
+  "sourceFilesSha256": {
+    "scripts/oracle.py": "9086536845fd51b5aed1bb7137b80b19d82c603f30b5b637d0d9b62147a155ff",
+    "scripts/oracle_remote.py": "94e0fc50a1512d2d9a114d57d0afdd1c011501b99ee9dedaccd936c29927275e",
+    "scripts/production.py": "83f7f602f3ff7052a06b67d0c24ed11a6a19c3493d17e6b7c5ce9b9784e0f060",
+    "scripts/production_config.py": "30df0f68db86c036551fb21ff5f67a33ea8bbff25d022f79c4ee3810f211c119",
+    "scripts/test_oracle.py": "baaec694d7c13d1d461665cc071ced8cf3301d786c6e0a0773da6bde77896e9c",
+    "scripts/test_production_config.py": "a99e6174fe2eac7a90d0a03a19db666c840e81a4cabc63a2dda36724677c87d1",
+    "infra/oracle/cloud-init.yaml": "5b9729aaaffcda8a7eeb3c05993cee5c1621f6b1eeb350a2ab369300bc36d64f"
+  },
+  "appliedInfrastructureTemplateFilesSha256": {
+    "main.tf": "333abd5a1e06612e4bf53e88ee1c8f25ecb8d070064923afbedc5a14436ccade",
+    "credit.tf": "9c9ae86f12f795dd9584a9fb73b2cebcca0dd9d5921de8765be9f51d6b915ed1",
+    "cloud-init.yaml": "2541e809e0cfdd1042325cde6420b8dd13e7fe8af5c6f6a83580fa45a08f2031",
+    ".terraform.lock.hcl": "461fa24dd97792bf1411ff986fbba553eab0c739de6838c1ac3d27cb057bc5ba"
+  },
+  "execution": {
+    "githubActionsUsed": false,
+    "infrastructure": "Actual OCI CLI and Resource Manager Terraform plan/apply",
+    "initialApplication": "Actual oracle.py deploy committed Git bundle and strict SSH receiver",
+    "applicationRepair": "Oracle.deploy after original remote stack/input and native stop guard verification; same SSH receiver, no Terraform mutation",
+    "runtimeBuild": "Actual clean committed Linux AMD64 Docker build on the single Oracle VM"
+  },
+  "profile": {
+    "shape": "VM.Standard.E5.Flex",
+    "ocpus": 1,
+    "memoryGiB": 8,
+    "bootVolumeGiB": 100,
+    "ownedVmCount": 1,
+    "deadlineUtc": "2026-10-17T05:09:05Z",
+    "computeAndMemoryEstimateUsdPerHour": 0.046,
+    "sixHourComputeAndMemoryEstimateUsd": 0.276,
+    "estimateExcludesStorageNetworkTaxAndAccountSpecificConditions": true,
+    "actualInvoiceVerified": false
+  },
+  "infrastructureChecks": {
+    "originalPlanAdd": 9,
+    "originalPlanChange": 0,
+    "originalPlanDestroy": 0,
+    "firstApply": "Partial failure: Oracle rejected ICAL COUNT together with end time",
+    "emergencyApiStopObserved": "STOPPED",
+    "sameVmRetainedAndRestarted": true,
+    "repairPlanAdd": 2,
+    "repairPlanChange": 0,
+    "repairPlanDestroy": 0,
+    "repairApplySucceeded": true,
+    "activeNativeStopScheduleAndExactTargetPolicyVerified": true,
+    "scheduleExecutionObserved": false,
+    "guestPackageInstallationResumedAfterEmergencyStop": true,
+    "dockerBuildxAddedToFreshBootstrap": true,
+    "sshHostKeyVerifiedThroughAuthenticatedOciConsoleHistory": true
+  },
+  "applicationChecks": {
+    "runningServiceCount": 10,
+    "committedSourceImageLabelAndNonRootUserVerified": true,
+    "publicDnsAndTrustedTlsVerified": true,
+    "portalRegistrationEntryStatus": 200,
+    "identityMetadataStatus": 200,
+    "unknownTenantStatus": 404,
+    "externalIdentityAdministrationStatus": 404,
+    "invalidClientSecretStatus": 401,
+    "privateIdentityRouteRepair": "Public-IP hairpin admin request returned 404; private edge returned 200 with same scoped client",
+    "retainedSameBusinessAndJobAfterRepair": true,
+    "retainedJobState": "Succeeded",
+    "completedJobSteps": [
+      "database",
+      "domains",
+      "google-firebase",
+      "identity",
+      "publication",
+      "store",
+      "tenant-secrets"
+    ],
+    "liveGoogleFirebaseStepCompleted": true,
+    "tenantPublicationVerified": true,
+    "ownerOnlyStatusDidNotExposeDatabaseCredentials": true,
+    "registrationReplayDidNotDuplicateBusinessOrExtendTrial": true,
+    "memoryAvailableKiBAtFinalSample": 5444524
+  },
+  "registrationChecks": {
+    "smtpVerifiedTls465AndAuthenticationPassedOnMacAndOracle": true,
+    "sourceInsecure587FlagsNotUsed": true,
+    "keycloakRegistrationEnabled": true,
+    "keycloakVerifyEmailEnabled": true,
+    "originalCredentialsAndMasterKeyPreserved": true,
+    "portalLoginRedirectVerified": true,
+    "registerLinkPresent": true,
+    "actualRegistrationFormStatus": 200,
+    "usernameEmailAndProfileFieldsPresent": true,
+    "systemPublicCaAndHostnameVerified": true,
+    "formSubmittedByProbe": false,
+    "verificationInboxDeliveryTested": false,
+    "passwordEntryStageNotExercised": true
+  },
+  "offlineChecks": {
+    "oracleUnitTestsPassed": 30,
+    "productionConfigurationTestsPassed": 14,
+    "terraformFmtAndActualPinnedProviderValidatePassed": true
+  },
+  "scope": {
+    "syntheticOwnerCreatedAndEmailVerifiedByOperator": true,
+    "freshPublicMailboxSignupAndInboxDeliveryVerified": false,
+    "syntheticTenantProbeSentNoMessagesOrTesterInvitations": true,
+    "mobileProfile": "Disabled",
+    "freshOracleAndroidOrIosReleaseVerified": false,
+    "deviceNotificationsVerified": false,
+    "paymentsEnabled": false,
+    "privateConfigurationBackupVerified": true,
+    "coldDatabaseSnapshotOnThisVmTaken": false,
+    "runtimeImagesAndOriginalDatabaseVolumesRetainedOnBootDisk": true,
+    "vmStateAtRecord": "RUNNING",
+    "vmKeptRunningForOperatorPortalAcceptanceUntilOriginalStopDeadline": true,
+    "publicReleaseRightsCleared": false,
+    "resourceIdsPublicKeysAccountIdentifiersCredentialPathsAndSecrets": "Retained only in private operator records"
+  }
+}
