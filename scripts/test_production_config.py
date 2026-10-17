@@ -281,13 +281,23 @@ class ProductionConfigTests(unittest.TestCase):
         self.assertEqual(original['MasterKey'], replay['MasterKey']); self.assertEqual(original['Credentials'], replay['Credentials'])
         worker = json.loads((state / 'config/worker.json').read_text())['Provisioning']['Mobile']
         saas = json.loads((state / 'config/saas.json').read_text())['Provisioning']['Mobile']
-        self.assertEqual(saas, {'Provider': 'AndroidIosAppDistribution', 'ArtifactDirectory': '/var/lib/commerce/mobile-artifacts'})
+        self.assertEqual(saas, {'Provider': 'AndroidIosAppDistribution', 'ArtifactDirectory': '/var/lib/commerce/mobile-artifacts', 'Ios': plan['Providers']['Mobile']['Ios']})
+        self.assertNotIn('Worker', saas['Ios']); self.assertNotIn('KeyFile', json.dumps(saas)); self.assertNotIn('RequiredDeviceUdids', json.dumps(saas))
         self.assertEqual(worker['Ios'], plan['Providers']['Mobile']['Ios'])
         self.assertEqual(worker['Android']['SourceDirectory'], '/app/mobile-source')
         services = json.loads((state / 'compose.json').read_text())['services']
         self.assertEqual(services['worker']['image'], 'commerce-platform:fixture-android')
         self.assertIn('/var/lib/commerce/mobile-artifacts', {item['target'] for item in services['worker']['volumes']})
         self.assertNotIn('Worker', worker['Ios']); self.assertNotIn('KeyFile', json.dumps(worker)); self.assertNotIn('RequiredDeviceUdids', json.dumps(worker))
+
+    def test_portal_rebuild_policy_tracks_new_sources_without_rotating_existing_installation(self):
+        plan=self.combined_plan();state=self.root/'portal-rebuild-policy'
+        before=config.prepare(plan,state,'commerce-platform:fixture')
+        plan['Providers']['Mobile']['Ios']['Release']['ExpectedSourceHash']='d'*64
+        after=config.prepare(plan,state,'commerce-platform:fixture-next')
+        saas=json.loads((state/'config/saas.json').read_text())
+        self.assertEqual('d'*64,saas['Provisioning']['Mobile']['Ios']['Release']['ExpectedSourceHash'])
+        self.assertEqual(before['MasterKey'],after['MasterKey']);self.assertEqual(before['Credentials'],after['Credentials'])
 
     def test_combined_mobile_requires_the_exact_public_binding_and_rejects_private_mac_inputs(self):
         for change in ({'DevelopmentTeam': ''}, {'ExpectedSourceHash': 'b' * 64 + '\n'}, {'SigningCertificateSha256': 'A' * 64},

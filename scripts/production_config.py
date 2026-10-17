@@ -341,6 +341,8 @@ def render(p, state, record, image):
         Web={'AllowedOrigins': [portal], 'DataProtectionKeyDirectory': '/var/lib/commerce/saas-cookie-keys', 'DataProtectionApplicationName': ident},
         GuestAuth={'Issuer': portal, 'Audience': portal, 'SecretKey': c['guest']}, redispublisher='redis:6379,password=' + c['redis'],
         Proxy=proxy([ip(10)]), Diagnostics={'DatabaseQueries': {'Enabled': False}})
+    if mobile['Provider'] == 'AndroidIosAppDistribution':
+        saas['Provisioning']['Mobile']['Ios'] = {'Release': copy.deepcopy(mobile['Ios']['Release'])}
     saas['Payments'] = copy.deepcopy(p['Providers'].get('Payments', {'Provider': 'Disabled'}))
     if saas['Payments']['Provider'] == 'Iyzico':
         saas['CardProtection'] = {'Provider': 'Platform'}

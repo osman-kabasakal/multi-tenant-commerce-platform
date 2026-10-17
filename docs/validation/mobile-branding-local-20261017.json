@@ -9,5 +9,9 @@
   "dependencyLockfilePreserved": true,
   "actualBrandedSignedNativeReleaseAccepted": false,
   "cloudWritesDuringLocalTests": 0,
-  "unrelatedEcommerceEditsExcluded": true
+  "unrelatedEcommerceEditsExcluded": true,
+  "productionConfigurationChecks": 22,
+  "actualRubyXcodePreparationVerified": true,
+  "releaseTenantSelectsGeneratedAppIcon": true,
+  "liveRegistrationJsonParsedByFlutterModel": true
 }
