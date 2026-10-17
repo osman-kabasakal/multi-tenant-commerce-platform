@@ -67,7 +67,7 @@ public interface IIosReleaseBuilder
     string BinaryPath(IosBuiltArtifact artifact);
 }
 
-public sealed class IosReleaseBuilder(IosReleaseOptions options, AppleApiOptions apple) : IIosReleaseBuilder
+public sealed class IosReleaseBuilder(IosReleaseOptions options, AppleApiOptions apple,MobileBrandingStore? branding=null) : IIosReleaseBuilder
 {
     public static string DeviceHash(AppleApiOptions apple) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', apple.RequiredDeviceUdids.Select(x => x.ToUpperInvariant()).Order(StringComparer.Ordinal))))).ToLowerInvariant();
     private string Attempt(IosBuiltArtifact artifact)
@@ -104,6 +104,8 @@ public sealed class IosReleaseBuilder(IosReleaseOptions options, AppleApiOptions
             ["developmentTeam"] = plan.DevelopmentTeam, ["iosBundleId"] = plan.IosBundleId, ["projectId"] = plan.ProjectId,
             ["projectNumber"] = plan.ProjectNumber, ["iosAppId"] = plan.IosAppId, ["sourceHash"] = plan.SourceHash,
             ["signingCertificateSha256"] = plan.SigningCertificateSha256, ["firebaseSdkSha256"] = plan.FirebaseSdkSha256 };
+        if ((result.TryGetProperty("brandingSha256",out var brand) ? brand.GetString() : null)!=plan.Branding?.Sha256)
+            throw new InvalidOperationException("The native iOS result differs from its frozen branding.");
         if (expected.Any(x => result.GetProperty(x.Key).GetString() != x.Value) || result.GetProperty("buildNumber").GetInt32() != plan.BuildNumber ||
             result.GetProperty("storeUrl").GetString()?.TrimEnd('/') != plan.StoreUrl.TrimEnd('/') ||
             new[] { "signedIpaBuilt", "signatureVerified", "xcodeExported", "symbolsVerified" }.Any(x => !result.GetProperty(x).GetBoolean()) ||
@@ -131,10 +133,11 @@ public sealed class IosReleaseBuilder(IosReleaseOptions options, AppleApiOptions
         try
         {
             await FirebaseClientFiles.ExportAsync(firebase, inputs, ct);
+            await MobileBrandingFiles.ExportAsync(branding,plan.TenantId,plan.Branding,inputs,ct);
             await MobileReleaseFiles.WriteAsync(Path.Combine(inputs, "plan.json"), JsonSerializer.SerializeToUtf8Bytes(plan, MobileReleaseFiles.Json), ct);
             await MobileReleaseFiles.WriteAsync(Path.Combine(inputs, "tenant.json"), JsonSerializer.SerializeToUtf8Bytes(new {
                 tenantId = plan.TenantId, slug = request.Slug, displayName = request.StoreName, baseUrl = plan.StoreUrl, localDemo = false,
-                verifiedDomain=request.Domain,mobileIdentityId=plan.MobileIdentityId?.ToString("N")??"",
+                verifiedDomain=request.Domain,branding=plan.Branding,mobileIdentityId=plan.MobileIdentityId?.ToString("N")??"",
                 androidApplicationId = firebase.AndroidPackageName, iosBundleId = firebase.IosBundleId,
                 firebase = new { enabled = true, projectId = firebase.ProjectId, projectNumber = firebase.ProjectNumber, androidAppId = firebase.AndroidAppId, iosAppId = firebase.IosAppId }
             }, MobileReleaseFiles.Json), ct);

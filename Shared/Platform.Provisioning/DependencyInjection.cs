@@ -13,9 +13,11 @@ public static class DependencyInjection
         services.AddSingleton(_ => new PostgresProvisioningQueue(connection));
         services.AddSingleton<IProvisioningQueue>(sp => sp.GetRequiredService<PostgresProvisioningQueue>());
         services.AddSingleton(_ => new AndroidBuildQueue(connection));
+        services.AddSingleton(_ => new IosBuildQueue(connection));
         services.AddSingleton(_ => new TenantDomainRegistry(connection));
         services.AddSingleton(_ => new DomainActivationQueue(connection));
         services.AddSingleton(_ => new MobileIdentityRegistry(connection));
+        services.AddSingleton(_ => new MobileBrandingStore(connection));
         services.AddSingleton(_ => new PostgresIosReleaseQueue(connection));
         services.AddSingleton<IIosReleaseQueue>(sp => sp.GetRequiredService<PostgresIosReleaseQueue>());
         if (configuration.GetValue<bool>("Provisioning:InitializeSchema")) services.AddHostedService<ProvisioningStartup>();

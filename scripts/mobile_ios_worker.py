@@ -21,7 +21,7 @@ EVIDENCE_FIELDS = ("ipaSha256", "signingCertificateSha256", "applicationProfileU
 
 def read_plan(path):
     value = preflight.read_json(Path(path), private=True)
-    if not PLAN_FIELDS.issubset(value) or set(value) - PLAN_FIELDS - {"iosPushTransport", "mobileIdentityId"} or value.get("iosPushTransport", "Fcm") not in ("Fcm", "Apns") or any(not isinstance(value[name], str) or not value[name] for name in PLAN_FIELDS - {"buildNumber"}):
+    if not PLAN_FIELDS.issubset(value) or set(value) - PLAN_FIELDS - {"iosPushTransport", "mobileIdentityId", "releaseId", "branding"} or value.get("iosPushTransport", "Fcm") not in ("Fcm", "Apns") or any(not isinstance(value[name], str) or not value[name] for name in PLAN_FIELDS - {"buildNumber"}):
         raise ValueError("Expected the complete immutable iOS release plan.")
     if not re.fullmatch(r"[a-f0-9]{32}", value["tenantId"]) or int(value["tenantId"], 16) == 0:
         raise ValueError("Use a canonical nonempty tenant ID.")
@@ -29,6 +29,12 @@ def read_plan(path):
         identity = value['mobileIdentityId']
         if not isinstance(identity, str) or not re.fullmatch(r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}', identity) or uuid.UUID(identity).int == 0:
             raise ValueError("Use a canonical mobile identity reference.")
+    if value.get('branding') is not None:
+        ios.common.branding_digest(value['branding'])
+    if value.get('releaseId') is not None:
+        release_id = value['releaseId']
+        if not isinstance(release_id, str) or str(uuid.UUID(release_id)) != release_id or uuid.UUID(release_id).int == 0 or not value.get('mobileIdentityId') or value['buildNumber'] < 2:
+            raise ValueError('Invalid subsequent iOS release identity.')
     for name in ("sourceHash", "signingCertificateSha256", "firebaseSdkSha256"):
         if not re.fullmatch(r"[a-f0-9]{64}", value[name]):
             raise ValueError("Expected a SHA-256 release binding.")
@@ -41,6 +47,10 @@ def bind(plan, tenant, firebase_directory):
     for name in ("tenantId", "iosBundleId", "developmentTeam", "sourceHash", "buildNumber", "projectId", "projectNumber", "iosAppId"):
         if tenant.get(name) != plan[name]:
             raise ValueError("Native iOS preparation differs from the immutable release plan.")
+    if tenant.get('branding') != plan.get('branding'):
+        raise ValueError('Native branding differs from the frozen release plan.')
+    if plan.get('branding') and tenant.get('brandingSha256') != ios.common.branding_digest(plan['branding']):
+        raise ValueError('Native branding digest differs from the frozen release plan.')
     expected_identity = uuid.UUID(plan['mobileIdentityId']).hex if plan.get('mobileIdentityId') else ''
     if tenant.get('mobileIdentityId', '') != expected_identity:
         raise ValueError("The native build belongs to another mobile identity version.")
@@ -106,7 +116,7 @@ def verify(args, plan, upload=False):
     settings = release.policy(args.signing_config, tenant)
     native = release.signing_plan(settings, tenant, expected_certificate_sha256=plan["signingCertificateSha256"])
     verified = release.verify_ipa(binary, tenant, settings, native, ios.verify_compiled_app, archive)
-    if any(verified.get(name) != original.get(name) for name in EVIDENCE_FIELDS):
+    if any(verified.get(name) != original.get(name) for name in (*EVIDENCE_FIELDS, "brandingSha256")):
         raise ValueError("The retained IPA, native metadata, profiles or matching symbols changed.")
     verified.update(xcodeExported=True, signedIpaBuilt=True)
     if upload:

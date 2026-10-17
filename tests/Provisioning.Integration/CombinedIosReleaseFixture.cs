@@ -47,7 +47,7 @@ internal static class CombinedIosReleaseFixture
             Calls[request.TenantId] = Calls.GetValueOrDefault(request.TenantId) + 1;
             var firebase = server.Tenants.Values.Single(x => x.TenantId == request.TenantId);
             return Task.FromResult(new ProvisioningStepResult("AndroidAppDistribution", new Dictionary<string, string> {
-                ["androidApplicationId"] = firebase.AndroidPackageName, ["sourceHash"] = new string('a', 64), ["sha256"] = new string('b', 64),
+                ["buildNumber"] = "7", ["androidAppId"] = firebase.AndroidAppId, ["androidApplicationId"] = firebase.AndroidPackageName, ["sourceHash"] = new string('a', 64), ["sha256"] = new string('b', 64),
                 ["signingCertificateSha256"] = new string('c', 64), ["release"] = $"projects/{firebase.ProjectNumber}/apps/{firebase.AndroidAppId}/releases/fixture" }));
         }
     }
@@ -124,7 +124,7 @@ internal static class CombinedIosReleaseFixture
             await tenantSecrets.SetAsync(tenant, TenantFirebaseConfiguration.SecretName, JsonSerializer.Serialize(firebase));
             await parents.EnqueueAsync(request); var lease = await Claim(tenant);
             await parents.CheckpointAsync(lease, "publication", new("Portable", new Dictionary<string, string> { ["readiness"] = "Verified", ["storeUrl"] = deployment.StoreUrl(request.Slug) }));
-            await parents.CheckpointAsync(lease, "google-firebase", new("Google", new Dictionary<string, string> { ["projectId"] = project, ["iosAppId"] = iosApp, ["notificationProvider"] = apns ? "FcmApns" : "Fcm" }));
+            await parents.CheckpointAsync(lease, "google-firebase", new("Google", new Dictionary<string, string> { ["projectId"] = project, ["projectNumber"] = number, ["androidAppId"] = androidApp, ["iosAppId"] = iosApp, ["notificationProvider"] = apns ? "FcmApns" : "Fcm" }));
             await (apns ? apnsWorker : worker).RunAsync(lease with { Job = (await parents.GetAsync(tenant))! }, default);
             var status = (await parents.GetAsync(tenant))!;
             if (status.State != "Pending" || status.ErrorCode != "mobile-ios-release:WaitingForMac")
@@ -162,6 +162,8 @@ internal static class CombinedIosReleaseFixture
         await worker.RunAsync(ready, default);
         Check((await parents.GetAsync(first.TenantId)) is { State: "Succeeded" } && android.Calls[first.TenantId] == 1,
             "The resumed real coordinator verifies the saved iOS release and completes without repeating Android");
+
+        await BrandingReleaseFixture.RunAsync(connection,roles.SaasConnection,roles.WorkerConnection,(await parents.GetAsync(first.TenantId))!,built.Plan);
 
         var failed = await Schedule(); var failedChild = (await queue.ClaimAsync(identity, TimeSpan.FromMinutes(2)))!;
         await queue.FailAsync(failedChild, "native:SyntheticFailure", 1);

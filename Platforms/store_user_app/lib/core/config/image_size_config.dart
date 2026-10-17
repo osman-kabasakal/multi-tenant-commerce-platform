@@ -1,5 +1,3 @@
-import 'package:path/path.dart' as path;
-
 class ImageSizeConfig {
   final double width;
   final double height;
@@ -12,25 +10,17 @@ class ImageSizeConfig {
   });
 
   String getOptimizedUrl(String originalUrl) {
-    var fileName = path.basenameWithoutExtension(originalUrl);
-    var splitFileName = fileName.split('_');
-
-    if (splitFileName.length == 3) {
-      splitFileName[2] = width.toInt().toString();
-    } else {
-      splitFileName.add(width.toInt().toString());
-    }
-    var mergedFileName = splitFileName.join("_");
-
-    var uri = Uri.parse(originalUrl);
-    uri = uri.replace(
-      queryParameters: {
-        'width': width.toInt().toString(),
-        'height': height.toInt().toString(),
-        'useHighRes': useHighRes.toString(),
-      },
-    );
-    // return originalUrl.replaceAll(fileName, mergedFileName);
-    return uri.toString();
+    final uri = Uri.parse(originalUrl);
+    return uri
+        .replace(
+          queryParameters: {
+            ...uri.queryParameters,
+            if (width.isFinite && width > 0) 'width': width.toInt().toString(),
+            if (height.isFinite && height > 0)
+              'height': height.toInt().toString(),
+            'useHighRes': useHighRes.toString(),
+          },
+        )
+        .toString();
   }
 }

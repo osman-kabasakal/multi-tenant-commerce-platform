@@ -7,7 +7,6 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:nb_utils/nb_utils.dart';
 import 'package:store_user_app/core/config/app_config.dart';
 import 'package:store_user_app/core/config/image_size_config.dart';
-import 'package:store_user_app/core/constants/colors.dart';
 import 'package:store_user_app/core/constants/images.dart';
 import 'package:store_user_app/core/constants/strings.dart';
 import 'package:store_user_app/core/di/injection_container.dart';

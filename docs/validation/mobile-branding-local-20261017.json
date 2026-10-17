@@ -1,0 +1,13 @@
+{
+  "scope": "Local tenant branding and subsequent paired Android/iOS release enhancement",
+  "pythonMobileChecks": 90,
+  "portableProvisioningChecks": 157,
+  "portableServicesChecks": 38,
+  "realPostgresChecks": 197,
+  "flutterConfigAndWidgetChecks": 17,
+  "pinnedAndroidAndIosGeneratorsActuallyExecuted": true,
+  "dependencyLockfilePreserved": true,
+  "actualBrandedSignedNativeReleaseAccepted": false,
+  "cloudWritesDuringLocalTests": 0,
+  "unrelatedEcommerceEditsExcluded": true
+}

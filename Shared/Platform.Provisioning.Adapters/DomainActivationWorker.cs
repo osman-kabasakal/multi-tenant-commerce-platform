@@ -6,7 +6,7 @@ namespace Platform.Provisioning.Adapters;
 
 public sealed class DomainActivationPipeline(DomainActivationQueue jobs,TenantDomainRegistry domains,MobileIdentityRegistry identities,
     IProvisioningQueue onboarding,PortableOnboardingOptions deployment,PortableDeploymentGuard guard,CloudflareTenantDomains cloudflare,
-    PortableTenantPublicationStep publication,StoreInstallerStep installer)
+    PortableTenantPublicationStep publication,StoreInstallerStep installer,AndroidBuildQueue? builds=null,IosBuildQueue? iosBuilds=null)
 {
     public async Task ExecuteAsync(DomainActivationLease lease,CancellationToken ct)
     {
@@ -47,8 +47,16 @@ public sealed class DomainActivationPipeline(DomainActivationQueue jobs,TenantDo
                 var active=(await identities.ListAsync(plan.TenantId,plan.OwnerSubject,ct)).Single(x=>x.State=="Active");
                 if(active.Request.AndroidPackageName==plan.NewPackageName && active.Request.IosBundleId==plan.NewPackageName)
                     return new("MobileIdentity",new Dictionary<string,string>{{"identityId",active.Request.Id.ToString("N")},{"state","Active"}});
+                var branding=active.Request.Branding;
+                if(builds!=null)
+                {
+                    var iosReleases=iosBuilds==null?Array.Empty<IosReleaseJob>():await iosBuilds.ListAsync(plan.TenantId,ct);
+                    branding=(await builds.ListAsync(plan.TenantId,ct)).Where(x=>x.State=="Succeeded" && x.Scope?.IdentityId==active.Request.Id &&
+                        (original.Request.MobileReleaseProfile!="AndroidIosAppDistribution" || iosReleases.Any(i=>i.Plan.ReleaseId==x.Id && i.State=="Succeeded")))
+                        .OrderByDescending(x=>x.BuildNumber).FirstOrDefault()?.Scope?.Branding??branding;
+                }
                 var mobile=new MobileIdentityRequest(plan.Id,plan.TenantId,plan.BusinessAppId,plan.OwnerSubject,plan.DeploymentId,
-                    plan.NewPackageName!,plan.NewPackageName!,deployment.StoreUrl(request),plan.Domain,active.Request.Id,plan.OriginalRequestSha256,1);
+                    plan.NewPackageName!,plan.NewPackageName!,deployment.StoreUrl(request),plan.Domain,active.Request.Id,plan.OriginalRequestSha256,1){Branding=branding};
                 var version=await identities.EnqueueAsync(mobile,ct);
                 return new("MobileIdentity",new Dictionary<string,string>{{"identityId",version.Request.Id.ToString("N")}});
             });

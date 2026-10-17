@@ -44,8 +44,16 @@ class OptimizedCacheImage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final fallback = errorWidget ?? const Icon(Icons.broken_image_outlined);
+    if (imageUrl.trim().isEmpty || Uri.tryParse(imageUrl) == null) {
+      return SizedBox(
+        width: sizeConfig.width,
+        height: sizeConfig.height,
+        child: fallback,
+      );
+    }
     var optimizedUrl = imageUrl;
-    if (path.extension(Uri.dataFromString(optimizedUrl).path) == '.svg') {
+    if (path.extension(Uri.parse(optimizedUrl).path).toLowerCase() == '.svg') {
       if (optimizedUrl.startsWith("assets")) {
         return SvgPicture.asset(
           optimizedUrl,
@@ -60,6 +68,13 @@ class OptimizedCacheImage extends ConsumerWidget {
           (cacheManager) => cacheManager.getSingleFile(optimizedUrl),
         ),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return SizedBox(
+              width: sizeConfig.width,
+              height: sizeConfig.height,
+              child: fallback,
+            );
+          }
           if (snapshot.connectionState == ConnectionState.waiting ||
               !snapshot.hasData) {
             return placeholder ??
@@ -69,13 +84,6 @@ class OptimizedCacheImage extends ConsumerWidget {
                 );
           }
 
-          if (snapshot.hasError) {
-            return errorWidget ??
-                Container(
-                  color: Colors.grey[300],
-                  child: const Icon(Icons.error),
-                );
-          }
           return SvgPicture.file(
             snapshot.data!,
             width: sizeConfig.width,
@@ -104,16 +112,18 @@ class OptimizedCacheImage extends ConsumerWidget {
       );
     }
     if (!isAbsolute && !imageUrl.contains('no-image')) {
-      // optimizedUrl = sizeConfig.getOptimizedUrl(imageUrl);
+      optimizedUrl = sizeConfig.getOptimizedUrl(imageUrl);
     }
-    optimizedUrl = sizeConfig.getOptimizedUrl(imageUrl);
     return switch (ref.watch(getTokensProvider)) {
       AsyncData<AuthTokens?>() => CachedNetworkImage(
         imageUrl: optimizedUrl,
         width: sizeConfig.width,
         height: sizeConfig.height,
         cacheManager: getIt<CustomCacheManager>(),
-        memCacheWidth: (sizeConfig.width.round()) * 5,
+        memCacheWidth:
+            sizeConfig.width.isFinite && sizeConfig.width > 0
+                ? sizeConfig.width.round() * 5
+                : null,
         filterQuality: FilterQuality.high,
         alignment: alignment,
         fit: fit,

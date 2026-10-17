@@ -11,9 +11,11 @@ public sealed record TenantProvisioningRequest(
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public TenantDomainSelection? Domain { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public MobileBranding? Branding { get; init; }
     public void Validate()
     {
-        Domain?.Validate();
+        Domain?.Validate();Branding?.Validate();
         if (!Guid.TryParseExact(TenantId, "N", out var id) || id == Guid.Empty || id.ToString("N") != TenantId)
             throw new ArgumentException("TenantId must be a nonempty canonical business ID.");
         if (!Regex.IsMatch(Slug, "^[a-z][a-z0-9-]{1,38}[a-z0-9]$"))

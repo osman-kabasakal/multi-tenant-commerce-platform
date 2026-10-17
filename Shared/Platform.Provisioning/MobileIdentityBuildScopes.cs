@@ -26,6 +26,6 @@ public static class MobileIdentityBuildScopes
         }
         var selected=domain??(storeUrl==request.StoreUrl?request.Domain:null);
         if(selected!=null && selected.OwnerSubject!=request.OwnerSubject)throw new ProvisioningConflictException();
-        scope=scope with {Domain=selected};scope.Validate(request.TenantId,request.DeploymentId);return scope;
+        scope=scope with {Domain=selected,Branding=request.Branding};scope.Validate(request.TenantId,request.DeploymentId);return scope;
     }
 }

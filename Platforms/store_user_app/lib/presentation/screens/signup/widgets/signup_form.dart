@@ -34,6 +34,13 @@ class SignupForm extends HookConsumerWidget {
             fit: BoxFit.contain,
             alignment: Alignment.center,
             imageUrl: AppConfig.instance.storeLogo,
+            errorWidget: Center(
+              child: Text(
+                AppConfig.instance.appTitle,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
             sizeConfig: ImageSizeConfig(
               width: MediaQuery.of(context).size.width,
               height: MediaQuery.of(context).size.height * 0.2,

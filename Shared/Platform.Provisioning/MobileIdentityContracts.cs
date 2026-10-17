@@ -5,9 +5,11 @@ namespace Platform.Provisioning;
 public sealed record MobileIdentityRequest(Guid Id,string TenantId,Guid BusinessAppId,Guid OwnerSubject,string DeploymentId,
     string AndroidPackageName,string IosBundleId,string StoreUrl,TenantDomainSelection? Domain,Guid? ExpectedActiveId,string OriginalRequestSha256,int PackagePolicyVersion)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public MobileBranding? Branding {get;init;}
     public void Validate(bool legacy=false)
     {
-        IosReleasePlan.Tenant(TenantId);Domain?.Validate();
+        IosReleasePlan.Tenant(TenantId);Domain?.Validate();Branding?.Validate();
         if(Id==Guid.Empty || BusinessAppId==Guid.Empty || OwnerSubject==Guid.Empty || ExpectedActiveId==Guid.Empty ||
             !Regex.IsMatch(DeploymentId,"^[a-z][a-z0-9-]{2,39}\\z") || !IosReleasePlan.Digest(OriginalRequestSha256) ||
             AndroidPackageName.Length>200 || !Regex.IsMatch(AndroidPackageName,"^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+\\z") ||
@@ -27,6 +29,7 @@ public sealed record PreparedMobileIdentity(string ProjectId,string ProjectNumbe
     public void Validate(MobileIdentityRequest request)
     {
         request.Validate();IosPlan.Validate();
+        if(IosPlan.Branding!=request.Branding)throw new ArgumentException("The prepared iOS branding differs from its frozen identity request.");
         if(FirebaseSecretName!=request.FirebaseSecretName || AndroidSigningSecretName!="android-package-signing-v1-"+Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(request.AndroidPackageName))).ToLowerInvariant() ||
             !IosReleasePlan.Digest(AndroidCertificateSha256) || !IosReleasePlan.Digest(AndroidSourceHash) || AndroidBuildNumber<1 ||
             IosPlan.MobileIdentityId!=request.Id || IosPlan.TenantId!=request.TenantId || IosPlan.DeploymentId!=request.DeploymentId ||
@@ -37,10 +40,10 @@ public sealed record PreparedMobileIdentity(string ProjectId,string ProjectNumbe
     public void ValidateAndroid(MobileIdentityRequest request,ProvisioningStepResult receipt)
     {
         Validate(request);var r=receipt.Resources;
-        var allowed=new HashSet<string>(StringComparer.Ordinal){"androidAppId","androidApplicationId","buildNumber","sourceHash","fileSize","sha256","signingCertificateSha256","release","storeUrl"};
+        var allowed=new HashSet<string>(StringComparer.Ordinal){"androidAppId","androidApplicationId","buildNumber","sourceHash","fileSize","sha256","signingCertificateSha256","release","storeUrl","brandingSha256"};
         if(receipt.Provider!="AndroidAppDistribution" || r.Keys.Any(k=>!allowed.Contains(k)) || r.GetValueOrDefault("androidAppId")!=AndroidAppId ||
             r.GetValueOrDefault("androidApplicationId")!=request.AndroidPackageName || r.GetValueOrDefault("storeUrl")!=request.StoreUrl ||
-            r.GetValueOrDefault("sourceHash")!=AndroidSourceHash || r.GetValueOrDefault("signingCertificateSha256")!=AndroidCertificateSha256 ||
+            r.GetValueOrDefault("brandingSha256")!=request.Branding?.Sha256 || r.GetValueOrDefault("sourceHash")!=AndroidSourceHash || r.GetValueOrDefault("signingCertificateSha256")!=AndroidCertificateSha256 ||
             r.GetValueOrDefault("buildNumber")!=AndroidBuildNumber.ToString(System.Globalization.CultureInfo.InvariantCulture) || !IosReleasePlan.Digest(r.GetValueOrDefault("sha256")) ||
             !Regex.IsMatch(r.GetValueOrDefault("release")??"","^projects/"+Regex.Escape(ProjectNumber)+"/apps/"+Regex.Escape(AndroidAppId)+"/releases/[A-Za-z0-9_-]+\\z"))
             throw new ArgumentException("The Android result differs from the prepared package, endpoint or signing certificate.");
@@ -59,9 +62,11 @@ public sealed record AndroidBuildScope(Guid IdentityId,bool Legacy,string Androi
     string AndroidAppId,string StoreUrl,string? SourceHash=null)
 {
     public TenantDomainSelection? Domain { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public MobileBranding? Branding { get; init; }
     public void Validate(string tenant,string deployment)
     {
-        Domain?.Validate();
+        Domain?.Validate();Branding?.Validate();
         IosReleasePlan.Tenant(tenant);
         var keyName="android-package-signing-v1-"+Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(AndroidPackageName))).ToLowerInvariant();
         if(IdentityId==Guid.Empty || Domain!=null && StoreUrl!="https://"+Domain.StoreHost || !IosReleasePlan.Digest(CertificateSha256) || SourceHash!=null && !IosReleasePlan.Digest(SourceHash) ||
@@ -80,7 +85,7 @@ public sealed record AndroidBuildScope(Guid IdentityId,bool Legacy,string Androi
         var values=receipt.Resources;
         if(receipt.Provider!="AndroidAppDistribution" || values.GetValueOrDefault("androidApplicationId")!=AndroidPackageName ||
             values.GetValueOrDefault("androidAppId")!=AndroidAppId || values.GetValueOrDefault("signingCertificateSha256")!=CertificateSha256 ||
-            values.GetValueOrDefault("storeUrl")!=StoreUrl || SourceHash!=null && values.GetValueOrDefault("sourceHash")!=SourceHash ||
+            values.GetValueOrDefault("storeUrl")!=StoreUrl || values.GetValueOrDefault("brandingSha256")!=Branding?.Sha256 || SourceHash!=null && values.GetValueOrDefault("sourceHash")!=SourceHash ||
             values.GetValueOrDefault("buildNumber")!=buildNumber.ToString(System.Globalization.CultureInfo.InvariantCulture))
             throw new InvalidOperationException("The Android receipt differs from its queued identity.");
     }

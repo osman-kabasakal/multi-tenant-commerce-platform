@@ -6,9 +6,17 @@ namespace Platform.Provisioning.Adapters;
 
 public sealed record AndroidReleasePlan(int Version,string TenantId,string DeploymentId,string AndroidApplicationId,
     string ProjectId,string ProjectNumber,string AndroidAppId,string StoreUrl,int BuildNumber,string SourceHash,
-    string SigningCertificateSha256,string ArtifactDirectory);
+    string SigningCertificateSha256,string ArtifactDirectory)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public MobileBranding? Branding {get;init;}
+}
 public sealed record AndroidReleaseReceipt(string TenantId,string AndroidApplicationId,string ProjectId,string ProjectNumber,
-    string AndroidAppId,string StoreUrl,int BuildNumber,string SourceHash,string SigningCertificateSha256,string Sha256);
+    string AndroidAppId,string StoreUrl,int BuildNumber,string SourceHash,string SigningCertificateSha256,string Sha256)
+{
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public MobileBranding? Branding {get;init;}
+}
 public sealed record AndroidBuiltArtifact(string Path,AndroidReleaseReceipt Receipt,string? AttemptDirectory=null);
 
 public interface IAndroidReleaseBuilder
@@ -19,7 +27,7 @@ public interface IAndroidReleaseBuilder
     Task<AndroidReleaseReceipt> VerifyAsync(string path,AndroidReleaseReceipt expected,CancellationToken ct);
 }
 
-public sealed class AndroidReleaseBuilder(AndroidReleaseOptions options) : IAndroidReleaseBuilder
+public sealed class AndroidReleaseBuilder(AndroidReleaseOptions options,MobileBrandingStore? branding=null) : IAndroidReleaseBuilder
 {
     public async Task<string> SourceHashAsync(CancellationToken ct)
     {
@@ -43,9 +51,10 @@ public sealed class AndroidReleaseBuilder(AndroidReleaseOptions options) : IAndr
         try
         {
             await FirebaseClientFiles.ExportAsync(firebase,inputs,ct);
+            await MobileBrandingFiles.ExportAsync(branding,request.TenantId,plan.Branding,inputs,ct);
             var manifest=Path.Combine(inputs,"tenant.json");
             await MobileReleaseFiles.WriteAsync(manifest,JsonSerializer.SerializeToUtf8Bytes(new {
-                tenantId=request.TenantId,slug=request.Slug,displayName=request.StoreName,baseUrl=plan.StoreUrl,localDemo=false,verifiedDomain=request.Domain,
+                tenantId=request.TenantId,slug=request.Slug,displayName=request.StoreName,baseUrl=plan.StoreUrl,localDemo=false,verifiedDomain=request.Domain,branding=plan.Branding,
                 androidApplicationId=firebase.AndroidPackageName,iosBundleId=firebase.IosBundleId,
                 firebase=new{enabled=true,projectId=firebase.ProjectId,projectNumber=firebase.ProjectNumber,androidAppId=firebase.AndroidAppId,iosAppId=firebase.IosAppId}
             },MobileReleaseFiles.Json),ct);

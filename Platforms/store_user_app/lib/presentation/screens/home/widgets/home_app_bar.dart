@@ -50,13 +50,19 @@ class _HomeAppBarState extends ConsumerState<HomeAppBar> {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: getIt<ThemeController>().isDarkMode ? cardDark : colorGrey50,
+                    color:
+                        getIt<ThemeController>().isDarkMode
+                            ? cardDark
+                            : colorGrey50,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
                     Icons.menu,
                     size: 20,
-                    color: getIt<ThemeController>().isDarkMode ? whiteColor : textColor,
+                    color:
+                        getIt<ThemeController>().isDarkMode
+                            ? whiteColor
+                            : textColor,
                   ),
                 ),
               ),
@@ -68,23 +74,36 @@ class _HomeAppBarState extends ConsumerState<HomeAppBar> {
                   },
                   child: SizedBox(
                     height: 32,
-                    child: AppConfig.instance.storeLogo.isEmpty
-                        ? const Center(child: Text('Commerce Demo', overflow: TextOverflow.ellipsis))
-                        : OptimizedCacheImage(
-                      imageUrl: AppConfig.instance.storeLogo,
-                      fit: BoxFit.fitHeight,
-                      sizeConfig: ImageSizeConfig(
-                        height: 32,
-                        width: 32,
-                      ),
-                      placeholder: Container(
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: colorGrey100,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ),
+                    child:
+                        AppConfig.instance.storeLogo.isEmpty
+                            ? const Center(
+                              child: Text(
+                                'Commerce Demo',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            )
+                            : OptimizedCacheImage(
+                              imageUrl: AppConfig.instance.storeLogo,
+                              errorWidget: Center(
+                                child: Text(
+                                  AppConfig.instance.appTitle,
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                              ),
+                              fit: BoxFit.fitHeight,
+                              sizeConfig: ImageSizeConfig(
+                                height: 32,
+                                width: 32,
+                              ),
+                              placeholder: Container(
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: colorGrey100,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                            ),
                   ),
                 ),
               ),

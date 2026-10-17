@@ -57,11 +57,14 @@
               </span>
           </td>
           <td class="px-6 py-4 whitespace-nowrap">{{ build.buildDate | date:'yyyy-MM-dd' }}</td>
-          <td class="px-6 py-4 whitespace-nowrap">{{ formatFileSize(build.fileSize!) }}</td>
+          <td class="px-6 py-4 whitespace-nowrap">{{ build.platform === 'Ios' ? '—' : formatFileSize(build.fileSize!) }}</td>
           <td class="px-6 py-4 whitespace-nowrap">
             <div class="flex space-x-2">
+              <span *ngIf="build.platform === 'Ios' && build.buildStatus === 'Built'" class="text-sm text-gray-600">Firebase App Distribution</span>
               <button
+                *ngIf="build.platform !== 'Ios'"
                 type="button"
+                aria-label="Android uygulamasını indir"
                 class="text-blue-500 hover:text-blue-700"
                 [disabled]="build.buildStatus !== 'Built'"
                 (click)="downloadAppBuild(build.id!)"

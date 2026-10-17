@@ -25,7 +25,7 @@ public class GetNewBuildVmQueryHandler(IApplicationDbContext context,IWorkContex
         {
             RequestId=Guid.NewGuid(),BusinessAppId=app?.Id??Guid.Empty,Version=app?.Version??"",BuildNumber=state?.NextBuildNumber??(app?.BuildNumber??0)+1,
             BuildStatus="Queued",CanBuild=eligibility.Allowed && (state?.Ready??true) && !busy,HasActiveBuild=busy,
-            BlockReason=reason,UsesExistingBranding=portable!=null,
+            BlockReason=reason,UsesExistingBranding=state?.HasBranding??false,
             Platforms=[new DropdownListItem{Text="Android",Value=BuildPlatform.Android.ToString()}]
         });
     }

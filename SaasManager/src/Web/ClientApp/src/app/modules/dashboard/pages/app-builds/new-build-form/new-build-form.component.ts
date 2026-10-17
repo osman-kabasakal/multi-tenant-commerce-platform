@@ -22,6 +22,7 @@ export class NewBuildFormComponent {
   error: string | null = null;
   logoFile: File | null = null;
   iconFile: File | null = null;
+  splashFile: File | null = null;
 
   constructor(
     private fb: FormBuilder,
@@ -76,6 +77,10 @@ export class NewBuildFormComponent {
     }
   }
 
+  onSplashSelected(files: File[]): void {
+    this.splashFile = files[0] ?? null;
+  }
+
   submitForm(): void {
     if (this.buildForm.invalid) {
       this.markAllAsTouched();
@@ -91,21 +96,17 @@ export class NewBuildFormComponent {
     this.error = null;
     const formValue = this.buildForm.value;
 
-    // First upload the logo and icon files
-    const uploads = this.newBuildVm?.usesExistingBranding ? [of(null)] : [
-      this.blobStorageService.uploadFile(
-        this.logoFile!,
-        formValue.businessAppId,
-        AppMediaAssetType.Logo,
-        "Android"
-      ),
-      this.blobStorageService.uploadFile(
-        this.iconFile!,
-        formValue.businessAppId,
-        AppMediaAssetType.Icon,
-        "Android"
-      )
-    ];
+    const uploads = [];
+    for (const platform of ['Android', 'Ios']) {
+      for (const [file, type] of [
+        [this.logoFile, AppMediaAssetType.Logo],
+        [this.iconFile, AppMediaAssetType.Icon],
+        [this.splashFile, AppMediaAssetType.WelcomeScreen]
+      ] as const) {
+        if (file) uploads.push(this.blobStorageService.uploadFile(file, formValue.businessAppId, type, platform));
+      }
+    }
+    if (!uploads.length) uploads.push(of(null));
 
     forkJoin(uploads)
       .pipe(

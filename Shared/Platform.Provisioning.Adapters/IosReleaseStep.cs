@@ -91,7 +91,7 @@ public sealed class IosReleaseCoordinator(IosReleaseBindingOptions options, Port
         var plan = new IosReleasePlan(request.TenantId, deployment.DeploymentId, firebase.IosBundleId, options.DevelopmentTeam,
             options.SigningCertificateSha256, options.ExpectedSourceHash, options.BuildNumber, firebase.ProjectId, firebase.ProjectNumber,
             firebase.IosAppId, IosReleaseOptions.SdkHash(firebase), deployment.StoreUrl(request))
-            { IosPushTransport = firebase.IosPushTransport == "Apns" ? "Apns" : null };
+            { Branding=request.Branding,IosPushTransport = firebase.IosPushTransport == "Apns" ? "Apns" : null };
         plan.Validate(); return (plan, firebase);
     }
     private static ProvisioningStepResult Enqueued(IosReleasePlan plan) => WithTransport(plan, new("IosQueue", new Dictionary<string, string> {

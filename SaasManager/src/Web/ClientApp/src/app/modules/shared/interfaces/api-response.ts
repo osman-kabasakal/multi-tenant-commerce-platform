@@ -78,5 +78,5 @@ export interface SubscriptionPlan {
 export enum AppMediaAssetType {
   Logo = 'Logo',
   Icon = 'Icon',
-  Splash = 'Splash'
+  WelcomeScreen = 'WelcomeScreen'
 }

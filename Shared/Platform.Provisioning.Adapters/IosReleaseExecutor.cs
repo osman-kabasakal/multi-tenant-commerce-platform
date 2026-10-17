@@ -6,7 +6,7 @@ namespace Platform.Provisioning.Adapters;
 
 /// <summary>Use one durable native artifact for symbols and App Distribution, including after Mac restart.</summary>
 public sealed class IosReleaseExecutor(IosReleaseOptions options, GoogleCloudOptions google, IProvisioningQueue parents,
-    ITenantSecrets secrets, AppleTenantProvisioner apple, IIosReleaseBuilder builder, FirebaseAppDistribution distribution,MobileIdentityRegistry? identities=null) : IIosReleaseExecutor
+    ITenantSecrets secrets, AppleTenantProvisioner apple, IIosReleaseBuilder builder, FirebaseAppDistribution distribution,MobileIdentityRegistry? identities=null,AndroidBuildQueue? androidBuilds=null,IosBuildQueue? iosBuilds=null) : IIosReleaseExecutor
 {
     public const string ArtifactSecret = "ios-initial-release-artifact-v1";
     public const string SymbolsSecret = "ios-initial-release-symbols-v1";
@@ -41,13 +41,29 @@ public sealed class IosReleaseExecutor(IosReleaseOptions options, GoogleCloudOpt
         var request = parent.Request; request.Validate();
         var firebaseName=TenantFirebaseConfiguration.SecretName;
         ProvisioningStepResult cloud;
-        if(plan.MobileIdentityId is {} versionId)
+        if(plan.ReleaseId is {} releaseId)
+        {
+            var android=androidBuilds==null?null:(await androidBuilds.ListAsync(plan.TenantId,ct)).SingleOrDefault(x=>x.Id==releaseId);
+            var queued=iosBuilds==null?null:(await iosBuilds.ListAsync(plan.TenantId,ct)).SingleOrDefault(x=>x.Plan.ReleaseId==releaseId);
+            var version=identities==null || plan.MobileIdentityId==null?null:await identities.GetForWorkerAsync(plan.TenantId,plan.MobileIdentityId.Value,ct);
+            if(queued?.State!="Running" || queued.Plan!=plan || android?.State!="Succeeded" || android.Receipt==null || android.Scope==null ||
+                android.DeploymentId!=plan.DeploymentId || android.BuildNumber!=plan.BuildNumber || android.Scope.IdentityId!=plan.MobileIdentityId ||
+                android.Scope.StoreUrl!=plan.StoreUrl || android.Scope.Branding!=plan.Branding || android.Scope.IosBundleId!=plan.IosBundleId ||
+                version==null || version.State is not ("Active" or "Retired") || version.Request.BusinessAppId!=android.AppId || parent.State!="Succeeded" ||
+                version.Request.OriginalRequestSha256!=DomainActivationPlan.Digest(parent.Request))throw new ProvisioningConflictException();
+            android.Scope.Validate(plan.TenantId,plan.DeploymentId);android.Scope.ValidateReceipt(android.Receipt,plan.BuildNumber);
+            if((MobileIdentityBuildScopes.Android(version,parent,android.Scope.StoreUrl,domain:android.Scope.Domain) with {Branding=android.Scope.Branding})!=android.Scope)throw new ProvisioningConflictException();
+            request=request with {AndroidPackageName=android.Scope.AndroidPackageName,IosBundleId=android.Scope.IosBundleId,Domain=android.Scope.Domain,Branding=plan.Branding};
+            firebaseName=android.Scope.FirebaseSecretName;
+            cloud=new("Google",new Dictionary<string,string>{{"projectId",android.Scope.ProjectId},{"iosAppId",plan.IosAppId}});
+        }
+        else if(plan.MobileIdentityId is {} versionId)
         {
             var version=identities==null?null:await identities.GetForWorkerAsync(plan.TenantId,versionId,ct);
             if(version==null || version.State!="WaitingBuilds" || version.Prepared?.IosPlan!=plan || parent.State!="Succeeded" ||
                 version.Request.OriginalRequestSha256!=DomainActivationPlan.Digest(parent.Request))throw new ProvisioningConflictException();
             version.Prepared.Validate(version.Request);
-            request=request with {AndroidPackageName=version.Request.AndroidPackageName,IosBundleId=version.Request.IosBundleId,Domain=version.Request.Domain};
+            request=request with {AndroidPackageName=version.Request.AndroidPackageName,IosBundleId=version.Request.IosBundleId,Domain=version.Request.Domain,Branding=plan.Branding};
             firebaseName=version.Prepared.FirebaseSecretName;
             cloud=new("Google",new Dictionary<string,string>{{"projectId",version.Prepared.ProjectId},{"iosAppId",version.Prepared.IosAppId}});
         }
@@ -70,7 +86,7 @@ public sealed class IosReleaseExecutor(IosReleaseOptions options, GoogleCloudOpt
             throw new InvalidOperationException("The authoritative Firebase SDK or target differs from the immutable iOS plan.");
         // Check remote ownership before Apple provisioning or Crashlytics submission, not only at IPA upload.
         await distribution.VerifyTargetAsync(firebase, "ios", ct);
-        string Scoped(string name)=>plan.MobileIdentityId is {} identity ? name.Replace("initial","identity-"+identity.ToString("N"),StringComparison.Ordinal):name;
+        string Scoped(string name)=>plan.ReleaseId is {} release ? name.Replace("initial","build-"+release.ToString("N"),StringComparison.Ordinal) : plan.MobileIdentityId is {} identity ? name.Replace("initial","identity-"+identity.ToString("N"),StringComparison.Ordinal):name;
         var saved = await FindAsync(plan.TenantId, Scoped(ArtifactSecret), ct);
         if (saved == null)
         {
@@ -109,7 +125,7 @@ public sealed class IosReleaseExecutor(IosReleaseOptions options, GoogleCloudOpt
         // Retain a successful distribution receipt even if this final read temporarily fails.
         await distribution.VerifyReleaseAsync(firebase, "ios", release, plan.BuildNumber.ToString(System.Globalization.CultureInfo.InvariantCulture), ct);
         var receipt = new IosReleaseReceipt(artifact.IpaSha256, plan.SourceHash, plan.SigningCertificateSha256, plan.FirebaseSdkSha256, plan.BuildNumber,
-            artifact.ApplicationProfileUuid, artifact.ExtensionProfileUuid, release, true);
+            artifact.ApplicationProfileUuid, artifact.ExtensionProfileUuid, release, true){BrandingSha256=plan.Branding?.Sha256};
         receipt.Validate(plan); return receipt;
     }
 }

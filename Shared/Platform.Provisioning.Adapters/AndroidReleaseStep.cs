@@ -45,7 +45,7 @@ public sealed class AndroidReleasePipeline(AndroidReleaseOptions options,Portabl
     {
         if(!MobileReleaseFiles.Digest(source))throw new InvalidOperationException("Invalid mobile source fingerprint.");
         return new(1,request.TenantId,deployment.DeploymentId,firebase.AndroidPackageName,firebase.ProjectId,firebase.ProjectNumber,
-            firebase.AndroidAppId,scope?.StoreUrl??deployment.StoreUrl(request),buildNumber??options.BuildNumber,source,key.CertificateSha256,Path.GetFullPath(options.ArtifactDirectory));
+            firebase.AndroidAppId,scope?.StoreUrl??deployment.StoreUrl(request),buildNumber??options.BuildNumber,source,key.CertificateSha256,Path.GetFullPath(options.ArtifactDirectory)){Branding=scope?.Branding??request.Branding};
     }
     public async Task ValidateSavedPlanAsync(TenantProvisioningRequest request,bool checkpoint,CancellationToken ct,Guid? releaseId=null,int? buildNumber=null,AndroidBuildScope? scope=null)
     {
@@ -62,7 +62,7 @@ public sealed class AndroidReleasePipeline(AndroidReleaseOptions options,Portabl
     {
         if(receipt.TenantId!=plan.TenantId || receipt.AndroidApplicationId!=plan.AndroidApplicationId || receipt.ProjectId!=plan.ProjectId ||
             receipt.ProjectNumber!=plan.ProjectNumber || receipt.AndroidAppId!=plan.AndroidAppId || receipt.StoreUrl!=plan.StoreUrl ||
-            receipt.BuildNumber!=plan.BuildNumber || receipt.SourceHash!=plan.SourceHash || receipt.SigningCertificateSha256!=plan.SigningCertificateSha256 ||
+            receipt.Branding!=plan.Branding || receipt.BuildNumber!=plan.BuildNumber || receipt.SourceHash!=plan.SourceHash || receipt.SigningCertificateSha256!=plan.SigningCertificateSha256 ||
             !MobileReleaseFiles.Digest(receipt.Sha256))throw new InvalidOperationException("The built Android artifact does not match its immutable tenant release plan.");
     }
     private string ArtifactPath(AndroidReleaseReceipt receipt)
@@ -158,6 +158,7 @@ public sealed class AndroidReleasePipeline(AndroidReleaseOptions options,Portabl
             ["buildNumber"]=plan.BuildNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),["sourceHash"]=plan.SourceHash,
             ["fileSize"]=new FileInfo(binary).Length.ToString(System.Globalization.CultureInfo.InvariantCulture),["sha256"]=receipt.Sha256,["signingCertificateSha256"]=plan.SigningCertificateSha256,["release"]=release});
         if(scope!=null)result=result with {Resources=new Dictionary<string,string>(result.Resources){["storeUrl"]=plan.StoreUrl}};
+        if(plan.Branding!=null)result=result with {Resources=new Dictionary<string,string>(result.Resources){["brandingSha256"]=plan.Branding.Sha256}};
         scope?.ValidateReceipt(result,plan.BuildNumber);return result;
         }
         finally{BuildLane.Release();}

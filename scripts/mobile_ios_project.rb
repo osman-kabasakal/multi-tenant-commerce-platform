@@ -40,6 +40,7 @@ copy = ->(value) { Marshal.load(Marshal.dump(value)) }
     config.base_configuration_reference = nil
     config.build_settings['DEVELOPMENT_TEAM'] = team
     if target == runner
+      config.build_settings['ASSETCATALOG_COMPILER_APPICON_NAME'] = 'AppIcon' if tenant['branding']
       relative = 'Flutter/tenant' + mode + '.xcconfig'
       contents = '#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.' + name.downcase + '.xcconfig"' + "\n" + '#include "Generated.xcconfig"' + "\n"
       File.write(File.join(ios, relative), contents)

@@ -59,25 +59,34 @@
         </div>
       </div>
 
-      <div *ngIf="!newBuildVm?.usesExistingBranding">
+      <div>
         <div class="space-y-4">
           <div class="form-group">
             <app-file-upload-component
-              label="Uygulama Logosu (PNG)"
-              accept="image/png"
-              fileHint="PNG dosyası, maksimum boyut: 1MB (1024x1024px önerilir)"
-              [maxSize]="1024 * 1024"
+              label="İşletme logosu"
+              accept="image/png,image/jpeg"
+              fileHint="PNG/JPEG, en fazla 5 MiB ve 4096×4096 piksel. Menü ve giriş ekranlarında kullanılır."
+              [maxSize]="5 * 1024 * 1024"
               (fileSelected)="onLogoSelected($event)"
             ></app-file-upload-component>
           </div>
 
           <div class="form-group">
             <app-file-upload-component
-              label="Uygulama İkonu (PNG)"
-              accept="image/png"
-              fileHint="PNG dosyası, maksimum boyut: 1MB (iOS için 1024x1024px, Android için 512x512px)"
-              [maxSize]="1024 * 1024"
+              label="Uygulama ikonu"
+              accept="image/png,image/jpeg"
+              fileHint="Kare PNG/JPEG, en az 512×512; 1024×1024 önerilir. En fazla 5 MiB."
+              [maxSize]="5 * 1024 * 1024"
               (fileSelected)="onIconSelected($event)"
+            ></app-file-upload-component>
+          </div>
+          <div class="form-group">
+            <app-file-upload-component
+              label="Açılış ekranı görseli (isteğe bağlı)"
+              accept="image/png,image/jpeg"
+              fileHint="Yüklenmezse işletme logosu kullanılır. PNG/JPEG, en fazla 5 MiB ve 4096×4096 piksel."
+              [maxSize]="5 * 1024 * 1024"
+              (fileSelected)="onSplashSelected($event)"
             ></app-file-upload-component>
           </div>
         </div>
@@ -85,7 +94,7 @@
     </div>
 
     <p *ngIf="newBuildVm?.usesExistingBranding" class="mt-4 text-sm text-gray-600">
-      Mevcut uygulama yapılandırmanızla yeni bir Android sürümü oluşturulur. Firebase bağlantısı, uygulama kimliği ve imzalama anahtarınız korunur.
+      Yeni görseller Android ve iOS için kullanılır; değiştirmediğiniz görseller korunur. İlk markalı derleme için logo ve ikon yükleyin. Uygulama kimliği, Firebase bağlantısı ve imzalama anahtarları korunur. iOS etkinse Android tamamlandıktan sonra bağlı Mac’te derlenir.
     </p>
 
     <div class="mt-6 flex justify-end">

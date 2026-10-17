@@ -27,7 +27,7 @@ public sealed class MobileIdentityPreparation(GoogleTenantProvisioner google,Goo
         if(firebase.IosDevelopmentTeam!=ios.DevelopmentTeam)throw new InvalidOperationException("Use the same Apple team for Firebase and signing.");
         var plan=new IosReleasePlan(request.TenantId,request.DeploymentId,request.IosBundleId,ios.DevelopmentTeam,
             ios.SigningCertificateSha256,ios.ExpectedSourceHash,1,firebase.ProjectId,firebase.ProjectNumber,firebase.IosAppId,
-            IosReleaseOptions.SdkHash(firebase),request.StoreUrl){MobileIdentityId=request.Id,IosPushTransport=firebase.IosPushTransport=="Apns"?"Apns":null};
+            IosReleaseOptions.SdkHash(firebase),request.StoreUrl){MobileIdentityId=request.Id,Branding=request.Branding,IosPushTransport=firebase.IosPushTransport=="Apns"?"Apns":null};
         var result=new PreparedMobileIdentity(firebase.ProjectId,firebase.ProjectNumber,firebase.AndroidAppId,firebase.IosAppId,
             request.FirebaseSecretName,TenantAndroidSigningKeys.PackageSecretName(request.AndroidPackageName),key.CertificateSha256,
             await android.SourceHashAsync(ct),1,plan);

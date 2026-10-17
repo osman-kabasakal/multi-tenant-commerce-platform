@@ -28,3 +28,8 @@ GRANT UPDATE(state,attempts,error_code,available_at,updated_at) ON platform_prov
 
 GRANT SELECT,INSERT ON platform_provisioning.mobile_identity_source_repairs TO platform_worker;
 GRANT SELECT ON platform_provisioning.mobile_identity_source_repairs TO platform_reader;
+
+GRANT SELECT,INSERT ON platform_provisioning.mobile_brand_images TO platform_saas;
+GRANT SELECT ON platform_provisioning.mobile_brand_images TO platform_worker;
+GRANT SELECT,INSERT ON platform_provisioning.ios_build_jobs TO platform_saas;
+GRANT SELECT,UPDATE ON platform_provisioning.ios_build_jobs TO platform_worker;

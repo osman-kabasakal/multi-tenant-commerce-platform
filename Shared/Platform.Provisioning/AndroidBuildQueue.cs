@@ -24,6 +24,7 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
                 UNIQUE(tenant_id,build_number), CHECK(state <> 'Succeeded' OR receipt IS NOT NULL)
             );
             ALTER TABLE platform_provisioning.android_build_jobs ADD COLUMN IF NOT EXISTS scope jsonb;
+            CREATE UNIQUE INDEX IF NOT EXISTS android_build_jobs_tenant_identity ON platform_provisioning.android_build_jobs(id,tenant_id);
             CREATE UNIQUE INDEX IF NOT EXISTS android_build_jobs_one_active ON platform_provisioning.android_build_jobs(tenant_id) WHERE state IN ('Pending','Running');
             CREATE INDEX IF NOT EXISTS android_build_jobs_available ON platform_provisioning.android_build_jobs(deployment_id,available_at,id) WHERE state IN ('Pending','Running');
             CREATE OR REPLACE FUNCTION platform_provisioning.immutable_android_build_v1()
@@ -51,9 +52,11 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
         await using var reader = await command.ExecuteReaderAsync(ct);
         var result = new List<AndroidBuildJob>(); while(await reader.ReadAsync(ct)) result.Add(Read(reader)); return result;
     }
-    public async Task<AndroidBuildJob> EnqueueAsync(Guid id, string tenant, Guid app, string deployment, int expectedNumber, CancellationToken ct = default, AndroidBuildScope? scope = null)
+    public async Task<AndroidBuildJob> EnqueueAsync(Guid id, string tenant, Guid app, string deployment, int expectedNumber, CancellationToken ct = default, AndroidBuildScope? scope = null,IosReleasePlan? iosPlan=null)
     {
-        IosReleasePlan.Tenant(tenant);scope?.Validate(tenant,deployment);
+        IosReleasePlan.Tenant(tenant);scope?.Validate(tenant,deployment);iosPlan?.Validate();
+        if(iosPlan!=null && (scope==null || iosPlan.ReleaseId!=id || iosPlan.TenantId!=tenant || iosPlan.DeploymentId!=deployment || iosPlan.MobileIdentityId!=scope.IdentityId ||
+            iosPlan.BuildNumber!=expectedNumber || iosPlan.IosBundleId!=scope.IosBundleId || iosPlan.ProjectId!=scope.ProjectId || iosPlan.StoreUrl!=scope.StoreUrl || iosPlan.Branding!=scope.Branding))throw new ProvisioningConflictException();
         if(id==Guid.Empty || app==Guid.Empty || expectedNumber<1) throw new ArgumentException("A release identity and version are required.");
         await using var connection = await db.OpenConnectionAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
@@ -62,12 +65,17 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
         {
             original.Parameters.AddWithValue(tenant);await using var reader=await original.ExecuteReaderAsync(ct);
             if(!await reader.ReadAsync(ct) || reader.GetString(0)!="Succeeded" || reader.GetString(1)!=deployment ||
-                reader.GetString(2) is not ("AndroidAppDistribution" or "AndroidIosAppDistribution") || reader.IsDBNull(3)) throw new ProvisioningConflictException();
+                reader.GetString(2) is not ("AndroidAppDistribution" or "AndroidIosAppDistribution") || reader.IsDBNull(3) || iosPlan!=null && reader.GetString(2)!="AndroidIosAppDistribution") throw new ProvisioningConflictException();
         }
         var prior=(await ListAsync(tenant,ct)).FirstOrDefault(j=>j.Id==id);
         if(prior!=null)
         {
             if(prior.AppId!=app || prior.DeploymentId!=deployment || prior.BuildNumber!=expectedNumber || prior.Scope!=scope)throw new ProvisioningConflictException();
+            await using(var paired=new NpgsqlCommand("SELECT request::text FROM platform_provisioning.ios_build_jobs WHERE id=$1",connection,transaction))
+            {
+                paired.Parameters.AddWithValue(id);var json=await paired.ExecuteScalarAsync(ct) as string;
+                if((json==null?null:JsonSerializer.Deserialize<IosReleasePlan>(json,new JsonSerializerOptions(JsonSerializerDefaults.Web)))!=iosPlan)throw new ProvisioningConflictException();
+            }
             await transaction.CommitAsync(ct);return prior;
         }
         // Promotion and canonical domain changes use the same tenant lock. Queueing freezes the selected active identity.
@@ -84,6 +92,7 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
                 AND $5=1+GREATEST((j.steps->'mobile-android-release'->'Resources'->>'buildNumber')::integer,
                     COALESCE((SELECT max(build_number) FROM platform_provisioning.android_build_jobs WHERE tenant_id=$2),0))
                 AND NOT EXISTS(SELECT 1 FROM platform_provisioning.android_build_jobs WHERE tenant_id=$2 AND state IN ('Pending','Running'))
+                AND NOT EXISTS(SELECT 1 FROM platform_provisioning.ios_build_jobs WHERE tenant_id=$2 AND state IN ('Pending','Running'))
             """,connection,transaction))
         {
             insert.Parameters.AddWithValue(id);insert.Parameters.AddWithValue(tenant);insert.Parameters.AddWithValue(app);
@@ -91,6 +100,7 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
             insert.Parameters.Add(new NpgsqlParameter {NpgsqlDbType=NpgsqlTypes.NpgsqlDbType.Jsonb,Value=scope==null?DBNull.Value:JsonSerializer.Serialize(scope)});
             if(await insert.ExecuteNonQueryAsync(ct)!=1)throw new ProvisioningConflictException();
         }
+        if(iosPlan!=null)await IosBuildQueue.AddAsync(connection,transaction,iosPlan,ct);
         await transaction.CommitAsync(ct);return (await ListAsync(tenant,ct)).Single(j=>j.Id==id);
     }
     public async Task<AndroidBuildLease?> ClaimAsync(string deployment, CancellationToken ct)

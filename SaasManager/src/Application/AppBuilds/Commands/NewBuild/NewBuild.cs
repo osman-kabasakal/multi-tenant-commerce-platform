@@ -82,6 +82,8 @@ public class NewBuildCommandHandler : IRequestHandler<NewBuildCommand, ServiceRe
             if (request.NewBuild.RequestId == Guid.Empty || request.NewBuild.BuildNumber < 1)
                 return ServiceResponse<NewBuildDto>.Error("invalid_build", "Derleme bilgileri geçersiz. Sayfayı yenileyin.");
             try { return ServiceResponse<NewBuildDto>.Success(await _portable.EnqueueAsync(businessApp, request.NewBuild, cancellationToken)); }
+            catch (ArgumentException)
+            { return ServiceResponse<NewBuildDto>.Error("invalid_branding", "İşletme logosunu ve en az 512×512 piksel kare PNG/JPEG uygulama ikonunu yükleyin. Görseller en fazla 5 MiB ve 4096×4096 piksel olabilir."); }
             catch (Platform.Provisioning.ProvisioningConflictException)
             { return ServiceResponse<NewBuildDto>.Error("build_unavailable", "Derleme durumu değişti. Sayfayı yenileyip tekrar deneyin."); }
         }

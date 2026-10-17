@@ -5,7 +5,8 @@ using SaasManager.Domain.Entities.Organization;
 
 namespace SaasManager.Application.AppBuilds;
 
-public sealed record PortableBuildState(bool Ready, bool Busy, int NextBuildNumber, string? BlockReason);
+public sealed record PortableBuildState(bool Ready, bool Busy, int NextBuildNumber, string? BlockReason)
+{ public bool HasBranding {get;init;}=true; }
 public interface IPortableAppBuilds
 {
     Task<PortableBuildState> StateAsync(BusinessApp app, CancellationToken ct);

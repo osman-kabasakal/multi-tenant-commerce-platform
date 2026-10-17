@@ -25,7 +25,7 @@ public sealed class IosReleaseWorkerOptions
 
 /// <summary>One sequential Mac build lane. Lease loss cancels its own child build; completion writes remain fenced.</summary>
 public sealed class IosReleaseWorker(PostgresIosReleaseQueue queue, IIosReleaseExecutor executor,
-    IosReleaseWorkerOptions options, ILogger<IosReleaseWorker> logger,MobileIdentityRegistry? identities=null) : BackgroundService
+    IosReleaseWorkerOptions options, ILogger<IosReleaseWorker> logger,MobileIdentityRegistry? identities=null,IosBuildQueue? builds=null) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -38,6 +38,8 @@ public sealed class IosReleaseWorker(PostgresIosReleaseQueue queue, IIosReleaseE
                 if(lease!=null)await RunAsync(lease,stoppingToken);
                 else if(identities!=null && await identities.ClaimIosAsync(options.Identity,stoppingToken) is {} identityLease)
                     await RunIdentityAsync(identityLease,stoppingToken);
+                else if(builds!=null && await builds.ClaimAsync(options.Identity,options.LeaseDuration,stoppingToken) is {} buildLease)
+                    await RunAsync(buildLease,stoppingToken);
                 else await Task.Delay(options.PollInterval,stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
@@ -60,10 +62,11 @@ public sealed class IosReleaseWorker(PostgresIosReleaseQueue queue, IIosReleaseE
         try
         {
             // Recheck the token before provider work, including direct/recovered invocation.
-            await queue.RenewAsync(lease, options.LeaseDuration, owned.Token);
+            await RenewAsync(lease,owned.Token);
             var receipt = await executor.ExecuteAsync(plan, owned.Token);
             owned.Token.ThrowIfCancellationRequested();
-            await queue.CompleteAsync(lease, receipt, owned.Token);
+            if(plan.ReleaseId!=null)await (builds??throw new InvalidOperationException("Configure the manual iOS queue.")).CompleteAsync(lease,receipt,owned.Token);
+            else await queue.CompleteAsync(lease, receipt, owned.Token);
             logger.LogInformation("Tenant {TenantId}: iOS release completed", plan.TenantId);
         }
         catch (OperationCanceledException) when (owned.IsCancellationRequested) { }
@@ -72,7 +75,8 @@ public sealed class IosReleaseWorker(PostgresIosReleaseQueue queue, IIosReleaseE
         {
             var code = "ios-release:" + error.GetType().Name;
             logger.LogWarning("Tenant {TenantId}: iOS release failed ({ErrorCode})", plan.TenantId, code);
-            try { await queue.FailAsync(lease, code, options.MaxAttempts, ct); }
+            try { if(plan.ReleaseId!=null)await (builds??throw new InvalidOperationException("Configure the manual iOS queue.")).FailAsync(lease,code,options.MaxAttempts,ct);
+                else await queue.FailAsync(lease, code, options.MaxAttempts, ct); }
             catch (ProvisioningLeaseLostException) { }
         }
         finally
@@ -106,6 +110,9 @@ public sealed class IosReleaseWorker(PostgresIosReleaseQueue queue, IIosReleaseE
         }
         finally{owned.Cancel();await heartbeat;}
     }
+    private Task RenewAsync(IosReleaseLease lease,CancellationToken ct)=>lease.Job.Plan.ReleaseId!=null
+        ? (builds??throw new InvalidOperationException("Configure the manual iOS queue.")).RenewAsync(lease,options.LeaseDuration,ct)
+        : queue.RenewAsync(lease,options.LeaseDuration,ct);
     private async Task KeepLeaseAsync(IosReleaseLease lease, CancellationTokenSource owned)
     {
         try
@@ -113,7 +120,7 @@ public sealed class IosReleaseWorker(PostgresIosReleaseQueue queue, IIosReleaseE
             while (!owned.IsCancellationRequested)
             {
                 await Task.Delay(options.LeaseDuration / 3, owned.Token);
-                await queue.RenewAsync(lease, options.LeaseDuration, owned.Token);
+                await RenewAsync(lease,owned.Token);
             }
         }
         catch (OperationCanceledException) when (owned.IsCancellationRequested) { }

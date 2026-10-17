@@ -6,6 +6,8 @@ Bu rehber, repoyu ilk kez kuran platform işletmecisini ve SaaS üzerinden mağa
 
 **Sürüm durumu — 17 Ekim 2026:** gerçek genel HTTPS/OIDC SaaS kaydıyla yeni bir Android etkin işletme oluşturuldu. Kalıcı kuyruğun 11 adımı; ayrı veritabanı, 23 etkin eklenti ve 168 işletme ayarı, kimlik, Google/Firebase, alan adları, HTTPS mağaza ve imzalı Android App Distribution yayınıyla tamamlandı. Firebase’den indirilen APK’nın imzası, Firebase/Crashlytics kaynakları ve dosya özeti bağımsız salt okunur Linux süreçten doğrulandı. Servisler yeniden başladıktan sonra aynı mağaza parolası, APK, imzalama kimliği ve tamamlanmış iş korundu; yeni durum ve veri birimlerinin tutarlı yedeği de alınıp ayrı makineye aktarılarak doğrulandı. Bu Oracle yedeğinde boş hedefe geri dönüş testi yapılmadı; önceki üç işletmeli Linux kabulü ayrı bir soğuk geri dönüş kanıtıdır. İmzalı iOS, bu APK’nın cihazda açılışı, cihazdaki crash/bildirim ve sürekli background görevleri bekliyor. [Son Android kanıtı](validation/oracle-saas-android-20261017.json) ve [doğrulama geçmişi](VALIDATION.md) ayrıntıları ve sınırları içerir.
 
+Sonraki özel alan adı/mobil kimlik kabulünde gerçek imzalı iOS teslimi ve fiziksel iPhone’da ilk mağaza içeriği ayrıca doğrulandı; bu, yukarıdaki ilk Android APK’sının cihaz kabulü değildir. Menü/logo düzeltmeleri ve işletmeye özel görsellerle yeni sürüm üretimi [mobil markalama rehberinde](MOBILE_BRANDING.md) açıklanır. İlk görseller ve sonraki markalı sürümler için bu adımları da uygulayın.
+
 ## A. Platform işletmecisinin bir kez yapacağı kurulum
 
 ### 1. Kullanılacak kapsamı seçin

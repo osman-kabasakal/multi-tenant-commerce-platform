@@ -195,7 +195,98 @@ def source_hash(root=ROOT):
     return hash_sources(list(source_files(root)))
 
 
-def prepare(manifest_path, firebase_directory, workspace, build_number, root=ROOT):
+
+def branding_digest(value):
+    if not isinstance(value, dict) or set(value) != {'android', 'ios'}:
+        raise ValueError('Use the frozen Android and iOS branding snapshot.')
+    parts = ['branding-v1']
+    for platform in ('android', 'ios'):
+        images = value[platform]
+        if not isinstance(images, dict) or set(images) != {'logo', 'icon', 'splash'}:
+            raise ValueError('Invalid tenant branding slots.')
+        for role in ('logo', 'icon', 'splash'):
+            digest = images[role]
+            if not isinstance(digest, str) or not re.fullmatch('[a-f0-9]{64}', digest):
+                raise ValueError('Invalid tenant branding content digest.')
+            parts.append(digest)
+    return hashlib.sha256(('\n'.join(parts) + '\n').encode()).hexdigest()
+
+
+def branding_image(path, expected):
+    path = Path(path)
+    if path.is_symlink() or not path.is_file() or not 24 <= path.stat().st_size <= 5 * 1024**2:
+        raise ValueError('Use a bounded regular frozen branding image.')
+    if file_hash(path) != expected:
+        raise ValueError('Tenant branding bytes differ from the selected release.')
+    with path.open('rb') as stream:
+        header = stream.read(24)
+    if header.startswith(b'\x89PNG\r\n\x1a\n') and header[8:16] == b'\x00\x00\x00\x0dIHDR':
+        if not all(1 <= int.from_bytes(header[offset:offset+4], 'big') <= 4096 for offset in (16, 20)):
+            raise ValueError('Branding image dimensions exceed the supported range.')
+        return 'png'
+    if header.startswith(b'\xff\xd8\xff'):
+        # The shared store checks JPEG dimensions; the pinned generator decodes it before compilation.
+        return 'jpg'
+    raise ValueError('Use PNG or JPEG branding bytes.')
+
+
+def prepare_branding(manifest, inputs, app, platform):
+    value = manifest.get('branding')
+    if value is None:
+        return {}
+    digest = branding_digest(value)
+    if platform not in ('android', 'ios'):
+        raise ValueError('Choose one native branding platform.')
+    directory = app / 'assets/tenant_branding'
+    directory.mkdir(mode=0o700)
+    paths = {}
+    for role, expected in value[platform].items():
+        source = inputs / 'branding' / (expected + '.image')
+        extension = branding_image(source, expected)
+        target = directory / (role + '.' + extension)
+        shutil.copyfile(source, target)
+        target.chmod(0o600)
+        paths[role] = target.relative_to(app).as_posix()
+    pubspec = app / 'pubspec.yaml'
+    text = pubspec.read_text()
+    if text.count('    - assets/\n') != 1:
+        raise ValueError('Expected one tracked root assets declaration.')
+    pubspec.write_text(text.replace('    - assets/\n', '    - assets/\n    - assets/tenant_branding/\n', 1))
+    private_json(app / 'platform_launcher_icons.yaml', {'flutter_launcher_icons': {
+        'android': platform == 'android', 'ios': platform == 'ios', 'image_path': paths['icon'],
+        'remove_alpha_ios': True, 'background_color_ios': '#FFFFFF',
+        'adaptive_icon_background': '#FFFFFF', 'adaptive_icon_foreground': paths['icon'],
+    }})
+    private_json(app / 'platform_native_splash.yaml', {'flutter_native_splash': {
+        'android': platform == 'android', 'ios': platform == 'ios', 'web': False,
+        'color': '#FFFFFF', 'image': paths['splash'], 'color_dark': '#FFFFFF', 'image_dark': paths['splash'],
+        'android_12': {'color': '#FFFFFF', 'image': paths['icon'], 'color_dark': '#FFFFFF', 'image_dark': paths['icon']},
+    }})
+    return {'branding': value, 'brandingSha256': digest, 'brandingPlatform': platform, 'storeLogo': paths['logo']}
+
+
+def branding_commands(flutter, tenant):
+    if not tenant.get('branding'):
+        return []
+    branding_digest(tenant['branding'])
+    return [[flutter, 'pub', 'run', 'flutter_launcher_icons', '-f', 'platform_launcher_icons.yaml'],
+            [flutter, 'pub', 'run', 'flutter_native_splash:create', '--path=platform_native_splash.yaml']]
+
+
+def verify_branding_assets(binary, tenant):
+    if not tenant.get('branding'):
+        return
+    import zipfile
+    branding_digest(tenant['branding'])
+    with zipfile.ZipFile(binary) as archive:
+        for role, expected in tenant['branding']['android'].items():
+            names = [name for name in archive.namelist() if name in [
+                'assets/flutter_assets/assets/tenant_branding/' + role + '.' + extension for extension in ('png', 'jpg')]]
+            if len(names) != 1 or archive.getinfo(names[0]).file_size > 5 * 1024**2 or hashlib.sha256(archive.read(names[0])).hexdigest() != expected:
+                raise ValueError('The compiled APK lost its selected tenant branding image.')
+
+
+def prepare(manifest_path, firebase_directory, workspace, build_number, root=ROOT, branding_platform="android"):
     manifest = read_json(manifest_path)
     client = read_json(Path(firebase_directory) / 'firebase-client.json')
     android = read_json(Path(firebase_directory) / 'google-services.json')
@@ -229,11 +320,12 @@ def prepare(manifest_path, firebase_directory, workspace, build_number, root=ROO
     strings = app / 'android/app/src/tenant/res/values/strings.xml'
     strings.parent.mkdir(parents=True, exist_ok=True)
     strings.write_bytes(ET.tostring(resources, encoding='utf-8', xml_declaration=True))
+    tenant.update(prepare_branding(manifest, Path(manifest_path).parent, app, branding_platform))
     # Paths embedded in manifests are never read or used as executable commands.
     private_json(workspace / 'tenant-build.json', dict(tenant, buildNumber=build_number))
     private_json(workspace / 'tenant.defines.json', {
         'LOCAL_DEMO': 'false', 'TENANT_ID': tenant['tenantId'], 'STORE_URL': tenant['storeUrl'],
-        'APP_TITLE': tenant['displayName'], 'PACKAGE_NAME_ANDROID': tenant['androidApplicationId'],
+        'APP_TITLE': tenant['displayName'], 'STORE_LOGO': tenant.get('storeLogo', ''), 'PACKAGE_NAME_ANDROID': tenant['androidApplicationId'],
         'PACKAGE_NAME_IOS': client['iosBundleId'], 'FIREBASE_PROJECT_ID': tenant['projectId'],
         'FIREBASE_PROJECT_NUMBER': tenant['projectNumber'], 'FIREBASE_ANDROID_APP_ID': tenant['androidAppId'],
         'FIREBASE_IOS_APP_ID': tenant['iosAppId'],
@@ -282,6 +374,7 @@ def build(workspace, tenant, signing, flutter, sdk, build_number, log):
     locked_dependencies = file_hash(lockfile)
     commands = [
         [flutter, 'pub', 'get', '--enforce-lockfile'],
+        *branding_commands(flutter, tenant),
         [flutter, 'build', 'apk', '--release', '--flavor', 'tenant', '--target-platform', 'android-arm64', '--build-number', str(build_number), '--dart-define-from-file=' + str(workspace / 'tenant.defines.json')],
     ]
     for command in commands:
@@ -310,6 +403,7 @@ def verify_binary(binary, tenant, sdk, build_number, environment=None):
         digest = hashlib.sha256()
         for block in iter(lambda: stream.read(1024 * 1024), b''):
             digest.update(block)
+    verify_branding_assets(binary, tenant)
     return dict(tenant, buildNumber=build_number, sha256=digest.hexdigest(), signingCertificateSha256=fingerprint.group(1).lower(), distributed=False)
 
 

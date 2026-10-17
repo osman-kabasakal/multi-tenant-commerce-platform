@@ -48,6 +48,13 @@ class AppDrawer extends HookConsumerWidget {
                 children: [
                   OptimizedCacheImage(
                     imageUrl: AppConfig.instance.storeLogo,
+                    errorWidget: Center(
+                      child: Text(
+                        AppConfig.instance.appTitle,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
                     fit: BoxFit.fitHeight,
                     sizeConfig: const ImageSizeConfig(
                       width: double.infinity,
@@ -159,42 +166,42 @@ class AppDrawer extends HookConsumerWidget {
                                   footerModelSnap.data!.facebookLink!,
                                 ),
                           ),
-                          if (footerModelSnap.data!.instagramLink != null &&
+                        if (footerModelSnap.data!.instagramLink != null &&
                             footerModelSnap.data!.instagramLink!.isNotEmpty)
-                        IconButton(
-                          icon: SvgPicture.asset(
-                            instagramIcon,
-                            width: 24,
-                            height: 24,
-                            colorFilter: ColorFilter.mode(
-                              isDarkMode ? whiteColor : colorGrey600,
-                              BlendMode.srcIn,
-                            ),
-                          ),
-                          onPressed:
-                              () => _launchSocialMedia(footerModelSnap.data!.instagramLink!,
+                          IconButton(
+                            icon: SvgPicture.asset(
+                              instagramIcon,
+                              width: 24,
+                              height: 24,
+                              colorFilter: ColorFilter.mode(
+                                isDarkMode ? whiteColor : colorGrey600,
+                                BlendMode.srcIn,
                               ),
-                        ),
+                            ),
+                            onPressed:
+                                () => _launchSocialMedia(
+                                  footerModelSnap.data!.instagramLink!,
+                                ),
+                          ),
                         if (footerModelSnap.data!.twitterLink != null &&
                             footerModelSnap.data!.twitterLink!.isNotEmpty)
-                        IconButton(
-                          icon: SvgPicture.asset(
-                            twitterIcon,
-                            width: 24,
-                            height: 24,
-                            colorFilter: ColorFilter.mode(
-                              isDarkMode ? whiteColor : colorGrey600,
-                              BlendMode.srcIn,
-                            ),
-                          ),
-                          onPressed:
-                              () => _launchSocialMedia(footerModelSnap.data!.twitterLink!,
+                          IconButton(
+                            icon: SvgPicture.asset(
+                              twitterIcon,
+                              width: 24,
+                              height: 24,
+                              colorFilter: ColorFilter.mode(
+                                isDarkMode ? whiteColor : colorGrey600,
+                                BlendMode.srcIn,
                               ),
-                        ),
+                            ),
+                            onPressed:
+                                () => _launchSocialMedia(
+                                  footerModelSnap.data!.twitterLink!,
+                                ),
+                          ),
                       ],
-                      if (!footerModelSnap.hasData) ...[
-                        Text("..."),
-                      ],
+                      if (!footerModelSnap.hasData) ...[Text("...")],
                     ],
                   ),
                 ],

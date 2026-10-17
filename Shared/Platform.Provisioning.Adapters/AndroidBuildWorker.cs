@@ -37,7 +37,7 @@ public sealed class AndroidBuildWorker(AndroidBuildQueue builds,IProvisioningQue
             {
                 var version=identities==null?null:await identities.GetForWorkerAsync(lease.Job.TenantId,binding.IdentityId,owned.Token);
                 if(version==null || version.State is not ("Active" or "Retired") ||
-                    MobileIdentityBuildScopes.Android(version,original,binding.StoreUrl,domain:binding.Domain)!=binding)throw new ProvisioningConflictException();
+                    (MobileIdentityBuildScopes.Android(version,original,binding.StoreUrl,domain:binding.Domain) with {Branding=binding.Branding})!=binding)throw new ProvisioningConflictException();
                 if(binding.Domain is {} selected)
                 {
                     var domain=domains==null?null:await domains.RequireVerifiedAsync(selected.Id,version.Request.OwnerSubject,lease.Job.TenantId,deployment.DeploymentId,owned.Token);

@@ -79,12 +79,14 @@ def prepare(manifest_path, firebase_directory, workspace, team, build_number=1, 
     tenant = validate(manifest, client, android, ios, team, build_number)
     # Validate all inputs before common.prepare creates an isolated source copy.
     entries = source_entries(root)
-    workspace, _ = common.prepare(manifest_path, firebase_directory, workspace, build_number, root)
+    tracked_source_hash = common.hash_sources(entries)
+    workspace, _ = common.prepare(manifest_path, firebase_directory, workspace, build_number, root, branding_platform="ios")
     for name in TOOLS:
         destination = workspace / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(root / name, destination)
-    tenant["sourceHash"] = common.hash_sources([(workspace / name, name) for _, name in entries])
+    tenant.update({key: value for key, value in common.read_json(workspace / "tenant-build.json").items() if key in ("branding", "brandingSha256", "brandingPlatform", "storeLogo")})
+    tenant["sourceHash"] = tracked_source_hash
     app = workspace / "Platforms/store_user_app"
     match = re.search(r"^version:\s*([0-9]+\.[0-9]+\.[0-9]+)(?:\+[0-9]+)?\s*$", (app / "pubspec.yaml").read_text(), re.MULTILINE)
     if not match:
@@ -133,6 +135,13 @@ def verify_compiled_app(binary, tenant):
         raise ValueError("Compiled Firebase configuration differs from this tenant build.")
     if hashlib.sha256(plistlib.dumps(ios, sort_keys=True)).hexdigest() != tenant.get("iosSdkSha256"):
         raise ValueError("Compiled Firebase SDK content differs from the owned export.")
+    if tenant.get("branding"):
+        common.branding_digest(tenant["branding"])
+        for role, expected in tenant["branding"]["ios"].items():
+            matches = [binary / "Frameworks/App.framework/flutter_assets/assets/tenant_branding" / (role + "." + extension) for extension in ("png", "jpg")]
+            matches = [item for item in matches if item.is_file() and not item.is_symlink()]
+            if len(matches) != 1 or common.file_hash(matches[0]) != expected:
+                raise ValueError("The compiled iOS application lost its selected tenant branding image.")
     extension = binary / "PlugIns/NotificationServiceExtension.appex"
     extension_info = read_plist(extension / "Info.plist")
     if extension.is_symlink() or extension_info.get("CFBundleIdentifier") != tenant["extensionBundleId"] or extension_info.get("CFBundleVersion") != str(tenant["buildNumber"]) or extension_info.get("CFBundleShortVersionString") != tenant["buildName"]:
@@ -168,6 +177,7 @@ def compile_unsigned(workspace, tenant, flutter, log):
     digest = common.file_hash(lock)
     environment = dict(os.environ, COCOAPODS_DISABLE_STATS="true", CI="true")
     commands = [[flutter, "pub", "get", "--enforce-lockfile"],
+                *common.branding_commands(flutter, tenant),
                 [flutter, "build", "ios", "--release", "--no-codesign", "--flavor", "tenant",
                  "--build-name", tenant["buildName"], "--build-number", str(tenant["buildNumber"]),
                  "--dart-define-from-file=" + str(workspace / "tenant.defines.json")]]

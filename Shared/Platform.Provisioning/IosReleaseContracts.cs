@@ -11,6 +11,10 @@ public sealed record IosReleasePlan(string TenantId, string DeploymentId, string
     public string? IosPushTransport { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public Guid? MobileIdentityId { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Guid? ReleaseId {get;init;}
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public MobileBranding? Branding {get;init;}
     [System.Text.Json.Serialization.JsonIgnore]
     public string PushTransport => IosPushTransport ?? "Fcm";
     internal static bool Digest(string? value) => Regex.IsMatch(value ?? "", "^[a-f0-9]{64}\\z");
@@ -22,7 +26,8 @@ public sealed record IosReleasePlan(string TenantId, string DeploymentId, string
     public void Validate()
     {
         if (IosPushTransport is not (null or "Fcm" or "Apns")) throw new ArgumentException("Invalid immutable iOS push transport.");
-        Tenant(TenantId);
+        Tenant(TenantId);Branding?.Validate();
+        if(ReleaseId==Guid.Empty || ReleaseId!=null && (MobileIdentityId==null || BuildNumber<2))throw new ArgumentException("A subsequent iOS release requires a frozen application identity and increasing version.");
         if(MobileIdentityId==Guid.Empty)throw new ArgumentException("Use a nonempty mobile identity version id.");
         new IosWorkerIdentity(DeploymentId, DevelopmentTeam, SigningCertificateSha256, SourceHash).Validate();
         if (IosBundleId.Length > 220 || !Regex.IsMatch(IosBundleId, "^[A-Za-z][A-Za-z0-9-]*(\\.[A-Za-z][A-Za-z0-9-]*)+\\z") ||
@@ -53,10 +58,12 @@ public sealed record IosReleaseReceipt(string IpaSha256, string SourceHash, stri
     string FirebaseSdkSha256, int BuildNumber, string ApplicationProfileUuid, string ExtensionProfileUuid,
     string ReleaseResource, bool SymbolsUploaded)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? BrandingSha256 {get;init;}
     public void Validate(IosReleasePlan plan)
     {
         plan.Validate();
-        if (!IosReleasePlan.Digest(IpaSha256) || SourceHash != plan.SourceHash ||
+        if (BrandingSha256!=plan.Branding?.Sha256 || !IosReleasePlan.Digest(IpaSha256) || SourceHash != plan.SourceHash ||
             SigningCertificateSha256 != plan.SigningCertificateSha256 || FirebaseSdkSha256 != plan.FirebaseSdkSha256 ||
             BuildNumber != plan.BuildNumber || !SymbolsUploaded ||
             !Guid.TryParseExact(ApplicationProfileUuid, "D", out var app) || app == Guid.Empty ||
