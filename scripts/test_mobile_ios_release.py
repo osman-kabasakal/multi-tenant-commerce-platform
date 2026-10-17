@@ -65,6 +65,21 @@ class IosReleaseTests(unittest.TestCase):
         value["Entitlements"]["application-identifier"] = "ZZZZZ99999.dev.commerce.fixture"
         self.assertEqual(self.profile(value)["entitlements"]["application-identifier"], "ZZZZZ99999.dev.commerce.fixture")
 
+    def test_current_apple_multiplatform_profiles_authorize_the_same_ios_application(self):
+        for platforms in [["iOS", "xrOS", "visionOS"], ["iOS", "visionOS"], ["xrOS", "iOS"]]:
+            with self.subTest(platforms=platforms):
+                value = copy.deepcopy(self.value); value["Platform"] = platforms
+                result = self.profile(value)
+                self.assertEqual(result["entitlements"]["application-identifier"], "ABCDE12345.dev.commerce.fixture")
+                self.assertEqual(result["deviceCount"], 1)
+
+    def test_profile_platforms_reject_unknown_non_ios_duplicate_and_malformed_values(self):
+        for platforms in [[], ["xrOS", "visionOS"], ["iOS", "macOS"], ["iOS", "tvOS"],
+                          ["iOS", "iOS"], ["iOS", {}], None, "iOS", {"iOS": True}]:
+            with self.subTest(platforms=platforms):
+                value = copy.deepcopy(self.value); value["Platform"] = platforms
+                with self.assertRaises(ValueError): self.profile(value)
+
     def test_wrong_team_bundle_signer_expired_debug_enterprise_and_missing_device_profiles_fail(self):
         mutations = [
             {"TeamIdentifier": ["ZZZZZ99999"]}, {"Platform": ["macOS"]}, {"ProvisionsAllDevices": True},

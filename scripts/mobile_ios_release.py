@@ -93,7 +93,12 @@ def profile_guard(value, bundle, settings, application, now=None):
     expiry = value.get("ExpirationDate")
     if not isinstance(expiry, datetime) or expiry.replace(tzinfo=timezone.utc) <= now:
         raise ValueError("Provisioning profile is expired or has no valid expiry.")
-    if value.get("Platform") != ["iOS"] or value.get("ProvisionsAllDevices", False) is not False or value.get("TeamIdentifier") != [settings["DevelopmentTeam"]]:
+    # Current Apple iOS profiles also list the visionOS platform aliases.
+    platforms = value.get("Platform")
+    if (not isinstance(platforms, list) or "iOS" not in platforms or
+            any(not isinstance(item, str) or item not in ("iOS", "xrOS", "visionOS") for item in platforms) or
+            len(platforms) != len(set(platforms)) or value.get("ProvisionsAllDevices", False) is not False or
+            value.get("TeamIdentifier") != [settings["DevelopmentTeam"]]):
         raise ValueError("Use an iOS ad hoc profile belonging to the selected team.")
     try:
         profile_id = str(uuid.UUID(value.get("UUID", "")))

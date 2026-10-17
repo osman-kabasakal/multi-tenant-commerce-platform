@@ -82,9 +82,10 @@ public sealed class AppleTenantProvisioner(AppleApiOptions options, AppleApiClie
     {
         var fields = collection == "bundleIds" ? "identifier,name,platform" : "name,profileType,profileState,uuid,profileContent,expirationDate";
         var values = await api.ListAsync(AppleApiClient.Query("v1/" + collection, ("filter[" + field + "]", expected), ("limit", "200"), ("fields[" + collection + "]", fields)), ct);
-        if (values.Count > 1 || values.Any(x => AppleApiClient.Text(Attributes(x, collection), field) != expected))
-            throw new InvalidOperationException("Apple returned an ambiguous tenant resource.");
-        return values.SingleOrDefault();
+        // Apple's identifier filter also returns prefix siblings such as the notification extension.
+        var exact = values.Where(x => AppleApiClient.Text(Attributes(x, collection), field) == expected).ToArray();
+        if (exact.Length > 1) throw new InvalidOperationException("Apple returned an ambiguous tenant resource.");
+        return exact.SingleOrDefault();
     }
     private sealed record CreateIntent(string TenantId, string DeploymentId, string Collection, string BodySha256, string AttemptId);
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -122,7 +123,7 @@ public sealed class AppleTenantProvisioner(AppleApiOptions options, AppleApiClie
     {
         async Task<JsonObject?> Find()
         {
-            var all = await api.ListAsync($"v1/bundleIds/{bundle}/bundleIdCapabilities?limit=200", ct);
+            var all = await api.ListAsync($"v1/bundleIds/{bundle}/bundleIdCapabilities", ct);
             var matches = all.Where(x => AppleApiClient.Text(Attributes(x, "bundleIdCapabilities"), "capabilityType") == "PUSH_NOTIFICATIONS").ToArray();
             if (matches.Length > 1) throw new InvalidOperationException("Apple returned ambiguous push capabilities.");
             return matches.SingleOrDefault();
@@ -150,7 +151,7 @@ public sealed class AppleTenantProvisioner(AppleApiOptions options, AppleApiClie
             throw new InvalidOperationException("The Apple profile belongs to another bundle.");
         async Task<string[]> Links(string kind)
         {
-            var values = await api.ListAsync($"v1/profiles/{id}/relationships/{kind}?limit=200", ct);
+            var values = await api.ListAsync($"v1/profiles/{id}/relationships/{kind}", ct);
             if (values.Any(x => AppleApiClient.Text(x, "type") != kind)) throw new InvalidOperationException("The Apple profile returned another relationship type.");
             return values.Select(AppleApiClient.Id).Order(StringComparer.Ordinal).ToArray();
         }

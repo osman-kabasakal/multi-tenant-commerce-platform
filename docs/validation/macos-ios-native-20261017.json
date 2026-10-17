@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "checkedAtUtc": "2026-10-17T09:18:08.663000+00:00",
+  "baseCommit": "14776567633c2095fa667d39ba30921b61c8504b",
+  "mobileSourceHash": "e122904f56ce38d2ad925f31166c4e9f85b98f51fbe8d3cb7f65bf2054b395cd",
+  "toolchain": {
+    "flutter": "3.44.6",
+    "xcode": "26.6",
+    "iPhoneOsSdk": "26.5",
+    "xcodeproj": "1.27.0"
+  },
+  "runtimeMaintenance": {
+    "removedIosRuntime": "18.5",
+    "preservedIosRuntime": "26.5"
+  },
+  "macPrerequisitesPassed": true,
+  "distributionPrivateKeyProbePassed": true,
+  "nativeDeviceBuild": {
+    "syntheticTenantInputs": true,
+    "iosPushTransport": "Apns",
+    "compiledIosApp": true,
+    "nativeTargetsVerified": true,
+    "schemeVerified": true,
+    "firebaseResourceMembershipVerified": true,
+    "nativePushConfigurationVerified": true,
+    "privacyManifestMembershipVerified": true,
+    "manualSigningBindingsVerified": true,
+    "nativeExecutableSha256": "5d26feb24ab8d023a7187435e99334a7799177fa20b2e810ed198463c52aa7da"
+  },
+  "diskReserveStopped": false,
+  "minimumFreeGiBDuringBuild": 18.91,
+  "temporaryWorkspaceRemoved": true,
+  "signedIpaBuilt": false,
+  "symbolsUploaded": false,
+  "distributed": false,
+  "physicalDeviceInstallationVerified": false,
+  "liveCloudWrites": 0,
+  "externalMessagesSent": 0,
+  "remoteGithubActionsExecuted": false
+}

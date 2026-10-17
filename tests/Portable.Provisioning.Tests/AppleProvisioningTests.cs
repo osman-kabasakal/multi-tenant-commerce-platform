@@ -146,6 +146,37 @@ public sealed class AppleProvisioningTests
         Assert.IsFalse(fixture.Secrets.Values.Values.Any(value => value.Contains("BEGIN PRIVATE KEY") || value.Contains(new string('A', 40))));
     }
     [TestMethod]
+    public async Task PrefixSiblingIsPreservedWhileTheExactOwnedApplicationIsCreatedAndReplayed()
+    {
+        using var fixture = new AppleFixture();
+        fixture.Server.Bundles["FOREIGN"] = AppleServer.Resource("bundleIds", "FOREIGN", new {
+            identifier = fixture.Plan.IosBundleId + ".other", name = "Existing Sibling App", platform = "IOS" });
+        var first = await fixture.Provisioner().PrepareAsync(fixture.Plan);
+        var replay = await fixture.Provisioner().PrepareAsync(fixture.Plan);
+        Assert.AreEqual(first.Application.ResourceId, replay.Application.ResourceId);
+        Assert.AreEqual(5, fixture.Server.Writes); Assert.AreEqual(3, fixture.Server.Bundles.Count);
+        Assert.AreEqual("Existing Sibling App", fixture.Server.Bundles["FOREIGN"]["attributes"]!["name"]!.GetValue<string>());
+    }
+    [TestMethod]
+    public async Task ExistingApplicationAndExtensionResumeAfterACapabilityReadFailure()
+    {
+        using var fixture = new AppleFixture(); fixture.Server.FailNextCapabilityRead = true;
+        await Assert.ThrowsExceptionAsync<AppleApiException>(() => fixture.Provisioner().PrepareAsync(fixture.Plan));
+        Assert.AreEqual(2, fixture.Server.Writes); Assert.AreEqual(2, fixture.Server.Bundles.Count);
+        await fixture.Provisioner().PrepareAsync(fixture.Plan);
+        Assert.AreEqual(5, fixture.Server.Writes); Assert.AreEqual(2, fixture.Server.Profiles.Count);
+    }
+    [TestMethod]
+    public async Task DuplicateExactBundleMatchesStopBeforeAnyWrite()
+    {
+        using var fixture = new AppleFixture();
+        foreach (var id in new[] { "DUPLICATE1", "DUPLICATE2" })
+            fixture.Server.Bundles[id] = AppleServer.Resource("bundleIds", id, new {
+                identifier = fixture.Plan.IosBundleId, name = "Duplicate App", platform = "IOS" });
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => fixture.Provisioner().PrepareAsync(fixture.Plan));
+        Assert.AreEqual(0, fixture.Server.Writes); Assert.AreEqual(0, fixture.Secrets.Values.Count);
+    }
+    [TestMethod]
     public async Task ExistingMerchantBundleIsNeverRenamedOrAdopted()
     {
         using var fixture = new AppleFixture();
@@ -247,7 +278,7 @@ internal sealed class AppleServer(byte[] certificate) : HttpMessageHandler
     public readonly Dictionary<string, JsonObject> Bundles = new();
     public readonly Dictionary<string, AppleProfileState> Profiles = new();
     public readonly HashSet<string> PushBundles = [];
-    public bool DeviceEnabled = true, LoseFirstBundleReply, HideBundles;
+    public bool DeviceEnabled = true, LoseFirstBundleReply, HideBundles, FailNextCapabilityRead;
     public int Requests, Writes;
     public Func<HttpRequestMessage, HttpResponseMessage>? Override;
     public static JsonObject Resource(string type, string id, object attributes) => JsonSerializer.SerializeToNode(new { type, id, attributes })!.AsObject();
@@ -263,8 +294,14 @@ internal sealed class AppleServer(byte[] certificate) : HttpMessageHandler
         {
             if (path == "/v1/certificates") return Items([Resource("certificates", "C1", new { certificateType = "DISTRIBUTION", expirationDate = DateTimeOffset.UtcNow.AddDays(100), certificateContent = Convert.ToBase64String(certificate) })]);
             if (path == "/v1/devices") return Items([Resource("devices", "D1", new { udid = new string('A', 40), platform = "IOS", status = DeviceEnabled ? "ENABLED" : "DISABLED" })]);
-            if (path == "/v1/bundleIds") return Items(HideBundles ? [] : Bundles.Values.Where(x => !query.ContainsKey("filter[identifier]") || x["attributes"]!["identifier"]!.GetValue<string>() == query["filter[identifier]"]));
-            if (parts.Length == 4 && parts[1] == "bundleIds") return Items(PushBundles.Contains(parts[2]) ? [Resource("bundleIdCapabilities", "PUSH" + parts[2], new { capabilityType = "PUSH_NOTIFICATIONS" })] : []);
+            if (path == "/v1/bundleIds") return Items(HideBundles ? [] : Bundles.Values.Where(x => !query.ContainsKey("filter[identifier]") || x["attributes"]!["identifier"]!.GetValue<string>().StartsWith(query["filter[identifier]"], StringComparison.Ordinal)));
+            if ((parts.Length == 4 && parts[1] == "bundleIds" || parts.Length == 5 && parts[1] == "profiles") && query.ContainsKey("limit"))
+                return Reply(new { errors = new[] { new { code = "PARAMETER_ERROR.ILLEGAL", source = new { parameter = "limit" } } } }, HttpStatusCode.BadRequest);
+            if (parts.Length == 4 && parts[1] == "bundleIds")
+            {
+                if (FailNextCapabilityRead) { FailNextCapabilityRead = false; return Reply(new { errors = new[] { new { code = "SYNTHETIC_UNAVAILABLE" } } }, HttpStatusCode.ServiceUnavailable); }
+                return Items(PushBundles.Contains(parts[2]) ? [Resource("bundleIdCapabilities", "PUSH" + parts[2], new { capabilityType = "PUSH_NOTIFICATIONS" })] : []);
+            }
             if (path == "/v1/profiles") return Items(Profiles.Values.Select(x => x.Value).Where(x => !query.ContainsKey("filter[name]") || x["attributes"]!["name"]!.GetValue<string>() == query["filter[name]"]));
             if (parts.Length == 5 && parts[1] == "profiles")
             {

@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "checkedAtUtc": "2026-10-17T09:37:05.267172+00:00",
+  "baseCommit": "14776567633c2095fa667d39ba30921b61c8504b",
+  "portableProvisioningTestsPassed": 131,
+  "pythonIosTestsPassed": 52,
+  "regressionsFailedBeforeFix": true,
+  "liveApple": {
+    "selectedDeviceVerified": true,
+    "selectedDeviceCount": 1,
+    "existingDistributionCertificateVerified": true,
+    "ownedApplicationAndExtensionVerified": true,
+    "productionPushCapabilityVerified": true,
+    "applicationAndExtensionProfilesVerified": true,
+    "cmsProfilesVerifiedOnMac": true,
+    "profilesInstalled": true,
+    "profilePlatforms": [
+      "iOS",
+      "xrOS",
+      "visionOS"
+    ],
+    "replayGetRequests": 14,
+    "replayProviderWrites": 0,
+    "replayProfileBytesUnchanged": true,
+    "certificateCreatedOrRevoked": false
+  },
+  "signedIpaBuilt": false,
+  "distributed": false,
+  "physicalDeviceInstallationVerified": false,
+  "externalMessagesSent": 0,
+  "remoteGithubActionsExecuted": false,
+  "optimisedDockerfileFullBuildVerified": false,
+  "sourceFiles": [
+    {
+      "path": "Shared/Platform.Provisioning.Adapters/AppleTenantProvisioner.cs",
+      "sha256": "69001a279416981aa019c1e4375fa31b9ca09ea77f4a6f63eea686d06deaeb85"
+    },
+    {
+      "path": "scripts/mobile_ios_release.py",
+      "sha256": "0efbf645f94e8c7aac9166dc29484b55836f2556fdd20d95ad584f10b4aa7b48"
+    },
+    {
+      "path": "tests/Portable.Provisioning.Tests/AppleProvisioningTests.cs",
+      "sha256": "7967680042dd4b7f4050f3328b75270443ee674368ea466bfcedce147eed5ff2"
+    },
+    {
+      "path": "scripts/test_mobile_ios_release.py",
+      "sha256": "79047b3b6916c88efaf3454b7b05a744a8c1fb6e426a3e636b533eaf873af443"
+    },
+    {
+      "path": "infra/production/Dockerfile",
+      "sha256": "43a5185813061334aa75dc509e0d5ae3eb6483d866b743cc86882db197eb0734"
+    }
+  ]
+}
