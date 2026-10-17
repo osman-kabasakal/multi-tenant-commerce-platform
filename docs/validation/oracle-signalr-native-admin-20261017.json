@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "utc": "2026-10-17T04:18:06Z",
+  "baseRuntimeRevision": "b7567d2f2fa17b3508e3ef3563866016383a5816",
+  "newCleanBackendPackage": true,
+  "allStandardAndAdminPluginsPublished": true,
+  "actualNativeAdminPasswordLogin": true,
+  "actualProductList": true,
+  "actualCookieWebSocketHub": true,
+  "independentActualResendTaskPublication": true,
+  "realRedisCrossProcessReceipt": true,
+  "tlsVerifiedWithExplicitFixtureCa": true,
+  "publicDnsOrTlsChanged": false,
+  "humanTenantWrites": false,
+  "syntheticTenantLoginOnly": true,
+  "mobilePushDisabledInFixture": true,
+  "externalNotifications": 0,
+  "newCloudResources": 0,
+  "backendPackageSha256": "32a543c2a67a64ba0b1fd247b30c5cd2dd4a101a52dbd664db0ae73bfa405a97",
+  "productionRolloutEnabled": false,
+  "githubActionsExecuted": false,
+  "scope": "Full clean Backend mounted into the existing Linux runtime; private verified TLS endpoint, dedicated synthetic tenant native login/cookie and independent task publication; mobile senders disabled"
+}

@@ -6,6 +6,7 @@ using Grand.Business.Core.Interfaces.Cms;
 using Grand.Business.Core.Interfaces.System.ScheduleTasks;
 using Grand.Data;
 using Grand.Infrastructure;
+using Grand.Infrastructure.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -37,7 +38,7 @@ public class NotificationStartup: IStartupApplication
         services.AddScoped<IScheduleTask, ResendUnseenNotificationsTask>();
         
         // Add SignalR
-        services.AddSignalR();
+        services.AddPlatformSignalR(configuration);
     }
 
     public void Configure(IApplicationBuilder application, IWebHostEnvironment webHostEnvironment)

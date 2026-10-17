@@ -26,7 +26,7 @@ public class NotificationHub: Hub
     public override async Task OnConnectedAsync()
     {
         var httpContext = Context.GetHttpContext();
-        if (httpContext == null || Context.User==null)
+        if (httpContext == null || Context.User?.Identity?.IsAuthenticated != true)
         {
             // Reject connection if no HttpContext or User is available
             Context.Abort();
@@ -48,6 +48,13 @@ public class NotificationHub: Hub
             IPermissionService _permissionService = httpContext.RequestServices.GetRequiredService<IPermissionService>();
             IWorkContextSetter _workContextSetter = httpContext.RequestServices.GetRequiredService<IWorkContextSetter>();
             IOrderNotificationService _orderNotificationService = httpContext.RequestServices.GetRequiredService<IOrderNotificationService>();
+
+            var workContext = httpContext.RequestServices.GetRequiredService<IWorkContext>();
+            if (workContext.CurrentStore == null || workContext.CurrentStore.Id != storeId.ToString())
+            {
+                Context.Abort();
+                return;
+            }
 
             // Set current customer and verify permissions
             var customer = await _workContextSetter.SetCurrentCustomer();

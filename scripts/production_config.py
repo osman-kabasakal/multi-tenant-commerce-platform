@@ -273,6 +273,7 @@ def render(p, state, record, image):
         FrontendAPI={'Enabled': True, 'JsonContentType': True, 'SecretKey': c['frontend']},
         BackendAPI={'Enabled': True, 'SecretKey': c['backend']},
         Extensions=plugin_configuration('Frontend'), MultitenantTask={'Enabled': False},
+        PlatformSignalR={'Provider': 'Redis', 'DeploymentId': ident},
         Notifications=p['Providers']['Notifications'], Provisioning={'ReadinessEndpoint': True, 'ManagedRuntime': True},
         Proxy=proxy([ip(11)]), AllowedHosts='*.' + p['StoreParentDomain'])
     if p['Providers']['Notifications'].get('Provider') == 'FcmApns':

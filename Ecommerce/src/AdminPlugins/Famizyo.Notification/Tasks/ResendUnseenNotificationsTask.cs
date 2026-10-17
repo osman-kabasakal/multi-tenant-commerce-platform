@@ -6,6 +6,7 @@ using Grand.Business.Core.Interfaces.System.ScheduleTasks;
 using Grand.Domain.Stores;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 
 namespace Famizyo.Notification.Tasks;
 
@@ -15,6 +16,7 @@ namespace Famizyo.Notification.Tasks;
 public class ResendUnseenNotificationsTask : IScheduleTask
 {
     private readonly IOrderNotificationService _orderNotificationService;
+    private readonly IConfiguration _configuration;
     private readonly IStoreService _storeService;
     private readonly IHubContext<NotificationHub> _hubContext;
     private readonly ILogger<ResendUnseenNotificationsTask> _logger;
@@ -23,12 +25,14 @@ public class ResendUnseenNotificationsTask : IScheduleTask
         IOrderNotificationService orderNotificationService,
         IStoreService storeService,
         IHubContext<NotificationHub> hubContext,
-        ILogger<ResendUnseenNotificationsTask> logger)
+        ILogger<ResendUnseenNotificationsTask> logger,
+        IConfiguration configuration)
     {
         _orderNotificationService = orderNotificationService;
         _storeService = storeService;
         _hubContext = hubContext;
         _logger = logger;
+        _configuration = configuration;
     }
 
     /// <summary>
@@ -36,6 +40,8 @@ public class ResendUnseenNotificationsTask : IScheduleTask
     /// </summary>
     public async Task Execute()
     {
+        if (_configuration.GetValue<bool>("Provisioning:ManagedRuntime") && _configuration["PlatformSignalR:Provider"] != "Redis")
+            throw new InvalidOperationException("Managed notification tasks require shared Redis SignalR before recording send attempts.");
         try
         {
             // Get all stores
@@ -48,7 +54,8 @@ public class ResendUnseenNotificationsTask : IScheduleTask
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error executing ResendUnseenNotificationsTask");
+            _logger.LogError("Notification task failed: {ErrorType}", ex.GetType().Name);
+            throw;
         }
     }
 
@@ -85,7 +92,8 @@ public class ResendUnseenNotificationsTask : IScheduleTask
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error resending notifications for store {StoreId}", store.Id);
+            _logger.LogError("Notification resend failed for store {StoreId}: {ErrorType}", store.Id, ex.GetType().Name);
+            throw;
         }
     }
 

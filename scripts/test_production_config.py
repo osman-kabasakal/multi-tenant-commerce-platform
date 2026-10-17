@@ -89,6 +89,10 @@ class ProductionConfigTests(unittest.TestCase):
         child = json.loads((state / 'config/task-installer.json').read_text())
         self.assertNotIn('StoreEmail', child['Provisioning'])
         self.assertEqual(child['Extensions'], config.plugin_configuration('Installer'))
+        for role in ('admin', 'installer', 'task-installer'):
+            settings = json.loads((state / 'config' / (role + '.json')).read_text())
+            self.assertEqual(settings['PlatformSignalR'], {'Provider': 'Redis', 'DeploymentId': plan['DeploymentId']})
+            self.assertIn('password=', settings['Redis']['RedisPubSubConnectionString'])
         for invalid in ({'Enabled': 'true'}, {'Enabled': True, 'PollSeconds': 0}, {'Enabled': True, 'TenantIds': ['../foreign']}):
             plan['Providers']['TenantTasks'] = invalid
             with self.assertRaises(ValueError): config.validate(plan)

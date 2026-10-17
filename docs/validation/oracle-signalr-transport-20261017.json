@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "utc": "2026-10-17T03:55:49.103256+00:00",
+  "baseRuntimeRevision": "b7567d2f2fa17b3508e3ef3563866016383a5816",
+  "realRedis": true,
+  "realWebSockets": true,
+  "webProcesses": 3,
+  "independentTaskProcesses": 3,
+  "actualNotificationHubAndResendTask": true,
+  "controlledIdentityFixture": true,
+  "newCloudResources": 0,
+  "externalNotifications": 0,
+  "productionTenantWrites": false,
+  "checks": 13,
+  "passed": true,
+  "scope": "Real Redis and WebSocket transport with actual linked hub/resend code and controlled identity/storage fixtures; native admin acceptance is separate",
+  "signalRRedisPackage": "8.0.32",
+  "productionRolloutEnabled": false,
+  "githubActionsExecuted": false
+}

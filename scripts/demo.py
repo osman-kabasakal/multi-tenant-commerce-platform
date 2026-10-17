@@ -59,6 +59,7 @@ def prepare():
         'AuthConfiguration':{'IdentityProviderUrl':IDENTITY+'/realms/commerce-demo','Audience':'centraladminapp','ClientId':'centraladminapp'},
         'Web':{'Scheme':'http','Host':'localhost:18090'},
         'MultitenantTask':{'Enabled':False},
+        'PlatformSignalR':{'Provider':'Redis','DeploymentId':'commerce-demo'},
         'FrontendAPI':{'Enabled':True,'JsonContentType':True,'SecretKey':secret('FrontendAPI-Secret-default')},
         'BackendAPI':{'Enabled':True,'SecretKey':secret('BackendAPI-Secret-default')},
         'Extensions':{'InstalledPlugins':'','PluginSkipLoadingPattern':'.*'},
