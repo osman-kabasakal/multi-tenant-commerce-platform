@@ -104,7 +104,7 @@
   },
   "scope": {
     "syntheticOwnerCreatedAndEmailVerifiedByOperator": true,
-    "freshPublicMailboxSignupAndInboxDeliveryVerified": false,
+    "freshPublicMailboxSignupAndInboxDeliveryVerified": true,
     "syntheticTenantProbeSentNoMessagesOrTesterInvitations": true,
     "mobileProfile": "Disabled",
     "freshOracleAndroidOrIosReleaseVerified": false,
@@ -116,6 +116,14 @@
     "vmStateAtRecord": "RUNNING",
     "vmKeptRunningForOperatorPortalAcceptanceUntilOriginalStopDeadline": true,
     "publicReleaseRightsCleared": false,
-    "resourceIdsPublicKeysAccountIdentifiersCredentialPathsAndSecrets": "Retained only in private operator records"
+    "resourceIdsPublicKeysAccountIdentifiersCredentialPathsAndSecrets": "Retained only in private operator records",
+    "mailboxAcceptanceMethod": "Operator confirmed receiving the verification email and reaching the business form through its link"
+  },
+  "humanRegistrationAcceptance": {
+    "confirmedAtUtc": "2026-10-17T00:08:30.625627+00:00",
+    "source": "Direct operator confirmation in conversation",
+    "verificationEmailReceived": true,
+    "verificationLinkOpenedBusinessRegistrationForm": true,
+    "automatedProbeSubmittedNoRegistrationFormOrMessage": true
   }
 }

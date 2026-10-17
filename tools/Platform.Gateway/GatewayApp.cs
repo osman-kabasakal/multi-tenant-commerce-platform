@@ -28,28 +28,31 @@ public static class GatewayApp
         builder.Services.AddSingleton(new HttpMessageInvoker(handler, disposeHandler: true));
         var app = builder.Build();
         app.UseTrustedProxy(app.Configuration);
-        app.Run(async context => {
-            if (context.Request.Path == "/_gateway/health" && context.Connection.RemoteIpAddress is {} address && IPAddress.IsLoopback(address))
-            { context.Response.StatusCode = 200; await context.Response.WriteAsync("Healthy"); return; }
-            if (!context.Request.IsHttps) { context.Response.StatusCode = 400; return; }
-            try
-            {
-                var route = await context.RequestServices.GetRequiredService<TenantRoutes>().ResolveAsync(context.Request.Host, context.RequestAborted);
-                if (route == null) { context.Response.StatusCode = 404; return; }
-                var token = route.Admin ? null : await context.RequestServices.GetRequiredService<TenantTokens>().GetAsync(route, context.RequestAborted);
-                var error = await context.RequestServices.GetRequiredService<IHttpForwarder>().SendAsync(context,
-                    route.Admin ? options.AdminUpstream : options.CommerceUpstream, context.RequestServices.GetRequiredService<HttpMessageInvoker>(),
-                    new ForwarderRequestConfig { ActivityTimeout = TimeSpan.FromMinutes(2) }, new TenantTransformer(route, token));
-                if (error != ForwarderError.None && !context.Response.HasStarted) context.Response.StatusCode = 502;
-            }
-            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { }
-            catch (Exception error)
-            {
-                app.Logger.LogWarning("Tenant forwarding failed ({ErrorType}).", error.GetType().Name);
-                if (!context.Response.HasStarted) { context.Response.Clear(); context.Response.StatusCode = 503; }
-                else context.Abort();
-            }
-        });
+        app.Run(Forwarder(options, app.Logger));
         return app;
     }
+
+    public static RequestDelegate Forwarder(GatewayOptions options, ILogger logger) => async context => {
+        if (context.Request.Path == "/_gateway/health" && context.Connection.RemoteIpAddress is {} address && IPAddress.IsLoopback(address))
+        { context.Response.StatusCode = 200; await context.Response.WriteAsync("Healthy"); return; }
+        if (!context.Request.IsHttps) { context.Response.StatusCode = 400; return; }
+        try
+        {
+            var route = await context.RequestServices.GetRequiredService<TenantRoutes>().ResolveAsync(context.Request.Host, context.RequestAborted);
+            if (route == null || (!route.Admin && context.Request.Path.StartsWithSegments("/Admin", StringComparison.OrdinalIgnoreCase)))
+            { context.Response.StatusCode = 404; return; }
+            var token = route.Admin ? null : await context.RequestServices.GetRequiredService<TenantTokens>().GetAsync(route, context.RequestAborted);
+            var error = await context.RequestServices.GetRequiredService<IHttpForwarder>().SendAsync(context,
+                route.Admin ? options.AdminUpstream : options.CommerceUpstream, context.RequestServices.GetRequiredService<HttpMessageInvoker>(),
+                new ForwarderRequestConfig { ActivityTimeout = TimeSpan.FromMinutes(2) }, new TenantTransformer(route, token));
+            if (error != ForwarderError.None && !context.Response.HasStarted) context.Response.StatusCode = 502;
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { }
+        catch (Exception error)
+        {
+            logger.LogWarning("Tenant forwarding failed ({ErrorType}).", error.GetType().Name);
+            if (!context.Response.HasStarted) { context.Response.Clear(); context.Response.StatusCode = 503; }
+            else context.Abort();
+        }
+    };
 }

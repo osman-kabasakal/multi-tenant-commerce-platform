@@ -242,3 +242,12 @@ Oracle profilinde 30, Production yapılandırmasında 14 yerel kontrol geçti. S
 SMTP sağlayıcısının geçerli TLS 465 bağlantısı ve kimlik doğrulaması Mac ve Oracle’dan geçti. Keycloak kaydı ile e-posta doğrulaması açıldı ve gerçek Register bağlantısı/kayıt formu okundu. Test aracı kayıt formu göndermedi veya e-posta yollamadı; gerçek posta kutusu teslimi ayrı kontroldür. Kullanıcı portalı incelerken servisler açık tutuldu ve ilk otomatik durdurma saati değiştirilmedi.
 
 Kaynak sürümleri, gerçek altyapı ve uygulama kontrol sonuçları [doğrulama kayıtlarından](VALIDATION.md) takip edilir. [Bu canlı denemenin kaynak kaydı](validation/oracle-credit-20261017.json) ilk kısmi hatayı, onarımları ve doğrulama sınırlarını birlikte saklar. Genel kurulum tarifi kişisel hesap, IP, parola veya private key içermez; her operatör kendi özel girdilerini hazırlar.
+
+Operatör daha sonra gerçek kayıt denemesinde doğrulama e-postasını aldığını ve bağlantı üzerinden işletme formuna geçtiğini onayladı. Bu insan tarafından doğrulanan posta kutusu kabulü, otomatik SMTP bağlantı ve form okuma kontrolünden ayrı olarak [canlı kayda](validation/oracle-credit-20261017.json) işlendi.
+
+
+## Mağaza ve yönetim yollarının ayrılması
+
+Mağaza alan adındaki `/Admin` ve alt yolları geçitte 404 ile kapanır; istek için tenant token alınmaz ve commerce/admin uygulamasına iletilmez. Yönetim bağlantısı tenant’ın `manage` alan adıdır. GrandNode’un kendi yönetim oturumu ve yetki kontrolü bu alanda devam eder.
+
+GrandNode yönetim CSS/JavaScript ve font kaynakları `Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/` altında bulunur. Bu klasör adı üretilmiş mobil çıktılarla aynı olduğu için Git ve Docker’ın genel `build` hariç tutma kuralından dar bir istisnayla korunur. Klasördeki kaynaklar Git’te yer almalı ve yayımlanan imajda `admin/wwwroot/_content/Grand.SharedUIResources/administration/build/` altında bulunmalıdır. `production_image.py verify` temel CSS, jQuery, moment, yönetim JavaScript’i ve ikon fontunun boş olmadığını denetler. CSS/JS için 404 veya HTML yanıtını MIME başlığını zorlayarak düzeltmeyin; eksik kaynağı yayın paketine dahil edin.

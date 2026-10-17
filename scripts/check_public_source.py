@@ -9,7 +9,11 @@ files=subprocess.check_output(['git','ls-files','-z'],cwd=ROOT).decode().split('
 forbidden=re.compile(r'(^|/)(\.local|\.codegraph|node_modules|bin|obj|build|Pods|\.dart_tool|\.playwright-cli)(/|$)|(^|/)(google-services\.json|GoogleService-Info\.plist|firebase_options\.dart|key\.properties|local\.properties|Generated\.xcconfig)$|\.(p8|p12|pfx|pem|key|jks|keystore|mobileprovision|mmdb)$|service[-_]?account.*\.json$',re.I)
 errors=[]
 for name in filter(None,files):
-    if forbidden.search(name) and not name.startswith("Ecommerce/src/Build/"):errors.append(name)
+    # Exempt only the known source directory component; secret names and nested outputs still fail.
+    checked=name
+    for prefix in ('Ecommerce/src/Build/', 'Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/'):
+        if checked.startswith(prefix):checked='source-inputs/'+checked[len(prefix):];break
+    if forbidden.search(checked):errors.append(name)
     if '/wwwroot/assets/files/exportimport/' in name and Path(name).name != 'Index.htm':errors.append(name)
     if '/wwwroot/assets/images/uploaded/' in name and Path(name).name != 'placeholder.txt':errors.append(name)
     base=Path(name).name

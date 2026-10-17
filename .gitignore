@@ -53,3 +53,7 @@ output/
 !**/wwwroot/assets/files/exportimport/Index.htm
 **/wwwroot/assets/images/uploaded/*
 !**/wwwroot/assets/images/uploaded/placeholder.txt
+
+# GrandNode ships source UI assets in a directory named build.
+!Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/
+!Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/**
