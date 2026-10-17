@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "recordedAtUtc": "2026-10-17T02:05:24.514932+00:00",
+  "runtimeRevision": "b7567d2f2fa17b3508e3ef3563866016383a5816",
+  "runtimeImage": "commerce-platform:b7567d2f2fa1",
+  "compiledPluginCounts": {
+    "Frontend": 19,
+    "Backend": 24,
+    "Installer": 24
+  },
+  "buildTypePathsActuallyEvaluated": [
+    "Frontend",
+    "Backend",
+    "Installer",
+    "Background",
+    "Uploader"
+  ],
+  "tenantReconciliation": [
+    {
+      "label": "synthetic",
+      "runtimeRevision": "7425a7fbfe648e475969ced201bf376d4a86d928",
+      "pluginsInstalled": 23,
+      "verifiedOriginalBusinessSettings": 168,
+      "addressFields": [
+        "adres_tarifi",
+        "bno",
+        "dno",
+        "kno",
+        "lat",
+        "long"
+      ],
+      "taxRates": [
+        1,
+        10,
+        20
+      ],
+      "primaryCurrency": "TRY",
+      "productOrderCustomerIdsPreserved": true,
+      "productAndOrderContentPreserved": true,
+      "existingTaxCategoriesPreserved": true,
+      "sameStorePreserved": true,
+      "smtpPasswordIsSharedSecretReference": true,
+      "checkpointReplayUnchanged": true
+    },
+    {
+      "label": "reported",
+      "runtimeRevision": "7425a7fbfe648e475969ced201bf376d4a86d928",
+      "pluginsInstalled": 23,
+      "verifiedOriginalBusinessSettings": 168,
+      "addressFields": [
+        "adres_tarifi",
+        "bno",
+        "dno",
+        "kno",
+        "lat",
+        "long"
+      ],
+      "taxRates": [
+        1,
+        10,
+        20
+      ],
+      "primaryCurrency": "TRY",
+      "productOrderCustomerIdsPreserved": true,
+      "productAndOrderContentPreserved": true,
+      "existingTaxCategoriesPreserved": true,
+      "sameStorePreserved": true,
+      "smtpPasswordIsSharedSecretReference": true,
+      "checkpointReplayUnchanged": true
+    }
+  ],
+  "initializedOwnedAdmin": {
+    "primaryCurrency": "TRY",
+    "primaryExchangeCurrency": "TRY",
+    "taxProviders": [
+      "Tax.CountryStateZip",
+      "Tax.FixedRate"
+    ],
+    "requiredMobileAddressFields": [
+      "adres_tarifi",
+      "bno",
+      "dno",
+      "kno",
+      "lat",
+      "long"
+    ],
+    "taxProviderConfigurationPageHttpStatus": 200
+  },
+  "realOwnedFixtureAdminLoginAndProductPagePassed": true,
+  "sameOriginProductPageAssetCount": 38,
+  "reportedTenantLoginAssetCount": 11,
+  "storeAdminBoundaries": [
+    {
+      "path": "/Admin",
+      "httpStatus": 404
+    },
+    {
+      "path": "/admin/",
+      "httpStatus": 404
+    },
+    {
+      "path": "/ADMIN/Product/List",
+      "httpStatus": 404
+    },
+    {
+      "path": "/Admin",
+      "httpStatus": 404
+    },
+    {
+      "path": "/admin/",
+      "httpStatus": 404
+    },
+    {
+      "path": "/ADMIN/Product/List",
+      "httpStatus": 404
+    }
+  ],
+  "realOfflineReadOnlyNonRootImageVerificationPassed": true,
+  "localTests": {
+    "portableProvisioning": 128,
+    "productionConfiguration": 15,
+    "buildTypeAndPluginInventory": 3,
+    "customerTokenAndPasswordCompatibility": 33
+  },
+  "snapshotSourceGuardPassed": true,
+  "snapshotSecretScanFindings": 0,
+  "coordinatedBackupAndPrivateOffsiteChecksumVerificationPassed": true,
+  "sameOriginalVmResourcesAndStopDeadline": true,
+  "messagesSentDuringAcceptance": false,
+  "scope": "Existing succeeded synthetic and reported tenant reconciliation plus real admin/image acceptance. This is not a fresh mobile-enabled SaaS enrollment, device push, signed iOS, cold restore of this VM, continuous tenant scheduler or public asset-rights acceptance."
+}

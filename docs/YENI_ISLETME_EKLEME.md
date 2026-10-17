@@ -192,21 +192,26 @@ Ekranda **“Mağazanız hazırlanıyor”** görünür. Sayfayı kapatsanız da
 | Sıra | Otomatik işlem | Beklenen sonuç |
 | --- | --- | --- |
 | 1 | İşletme, abonelik ve tenant secret kaydı | Aynı işletmeye bağlı kalıcı kimlik ve şifreli bilgiler |
-| 2 | Veritabanı ve mağaza kurulumu | Ayrı MongoDB ve sınırlı kullanıcı; ilk mağaza/yönetici |
-| 3 | Keycloak istemcisi, domain ve yönlendirme | Tenant'a bağlı sunucu kimliği ve sahip olunan mağaza adresleri |
-| 4 | Google/Firebase, seçildiyse | Ayrı proje, Android/iOS uygulamaları, SDK ayarları, tester grubu ve gönderici yetkisi |
-| 5 | Web yayını doğrulaması | Gerçek HTTPS mağaza yanıtı ve sahip yönetici girişi |
-| 6 | Mobil yayın, seçildiyse | Android derlemesi/dağıtımı; birleşik profilde paralel Mac iOS işi |
-| 7 | Sonuçların uzlaştırılması | Gerekli tüm sonuçlardan sonra işletmenin hazır durumu; açıksa hazır e-postası |
+| 2 | Veritabanı ve temel mağaza kurulumu | Ayrı MongoDB ve sınırlı kullanıcı; ilk mağaza/yönetici |
+| 3 | Eklentiler → migration'lar → işletme ayarları | Portable profilde üç ayrı kalıcı görev; TRY, mobil adres alanları, vergi sağlayıcıları ve eski işletme profili veritabanından doğrulanır |
+| 4 | Keycloak istemcisi | Tenant'a bağlı sunucu kimliği |
+| 5 | Google/Firebase, seçildiyse | Ayrı proje, Android/iOS uygulamaları, SDK ayarları, tester grubu ve gönderici yetkisi |
+| 6 | Domain ve yönlendirme | Sahip olunan mağaza/yönetim adresleri |
+| 7 | Web yayını doğrulaması | Gerçek HTTPS mağaza yanıtı ve sahip yönetici girişi |
+| 8 | Mobil yayın, seçildiyse | Android derlemesi/dağıtımı; birleşik profilde paralel Mac iOS işi |
+| 9 | Sonuçların uzlaştırılması | Gerekli tüm sonuçlardan sonra işletmenin hazır durumu; açıksa hazır e-postası |
 
 Google veya mobil sağlayıcı `Disabled` ise ilgili gerçek bulut işlemi yapılmaz. Web'in hazır olması kapalı sağlayıcının da çalıştığı anlamına gelmez. Birleşik mobil profilde Android bitse bile iOS sonucu beklenir; Mac için “sırada/hazırlanıyor” görünmesi tek başına hata değildir.
+
+Portable kurulumun üçüncü satırındaki görevler tenant başına sırayla çalışır. Bunlar sürekli senkronizasyon yapan ayrı background görevleri değildir. Eklentilerin hangi hedefe derlendiği, 168 eski işletme ayarı ve mevcut mağazayı veri silmeden tamamlama komutu [tenant kurulum rehberindedir](TENANT_INITIALIZATION.md).
 
 ### 11. Mağazayı açın ve yönetici girişini deneyin
 
 1. **“Mağazanız hazır”** ekranındaki **“Mağazayı aç”** bağlantısını açın. Adresi tahmin etmek yerine bu bağlantıyı kullanın.
 2. **“Mağaza yönetimi”** bağlantısını açın. Sahip hesabının e-posta adresi ve 9. adımda seçtiğiniz **mağaza parolasıyla** giriş yapın.
 3. Bir test ürünü oluşturun; mağazada ürün ayrıntısı ve sepete eklemeyi deneyin. İşletme adı ve içerik doğru mağazaya ait olmalıdır.
-4. **“İşletme paneline devam et”** ile SaaS paneline dönün. Yeni tenant için tüm platformu yeniden başlatmanız gerekmez.
+4. Portable profilde yönetimden TRY'nin ana mağaza ve kur para birimi olduğunu; iki vergi sağlayıcısının ve %1/%10/%20 oranlarının bulunduğunu kontrol edin. Adres özelliklerinde `lat`, `long`, `bno`, `dno`, `kno`, `adres_tarifi` alanları zorunlu olmalıdır. Harici ödeme/entegrasyon hesabı isteyen eklentileri ayrıca yapılandırın.
+5. **“İşletme paneline devam et”** ile SaaS paneline dönün. Yeni tenant için tüm platformu yeniden başlatmanız gerekmez.
 
 ### 12. Mobil test sürümlerini teslim alın
 
