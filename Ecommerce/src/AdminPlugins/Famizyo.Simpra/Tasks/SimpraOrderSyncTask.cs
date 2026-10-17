@@ -6,6 +6,7 @@ using Grand.Business.Core.Interfaces.System.ScheduleTasks;
 using Grand.Data;
 using Grand.Domain.Orders;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver.Linq;
 
 namespace Famizyo.Simpra.Tasks;
@@ -14,18 +15,18 @@ public class SimpraOrderSyncTask : IScheduleTask
 {
     private readonly IRepository<Order> _orderRepository;
     private readonly ISettingService _settingService;
-    private readonly ISimpraOrderService _simpraOrderService;
+    private readonly IServiceProvider _services;
     private readonly ILogger<SimpraOrderSyncTask> _logger;
 
     public SimpraOrderSyncTask(
         IRepository<Order> orderRepository,
         ISettingService settingService,
-        ISimpraOrderService simpraOrderService,
+        IServiceProvider services,
         ILogger<SimpraOrderSyncTask> logger)
     {
         _orderRepository = orderRepository;
         _settingService = settingService;
-        _simpraOrderService = simpraOrderService;
+        _services = services;
         _logger = logger;
     }
 
@@ -48,21 +49,24 @@ public class SimpraOrderSyncTask : IScheduleTask
                 return;
             }
             
+            var simpraOrderService = _services.GetRequiredService<ISimpraOrderService>();
+
             // Send new orders to Simpra (only orders in Preparing status)
-            await SendPendingOrdersToSimpraAsync();
+            await SendPendingOrdersToSimpraAsync(simpraOrderService);
 
             // Sync order status from Simpra to GrandNode
-            await _simpraOrderService.SyncOrderStatusAsync();
+            await simpraOrderService.SyncOrderStatusAsync();
             
             _logger.LogInformation("Simpra order synchronization task completed successfully");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error executing Simpra order sync task");
+            _logger.LogError("Simpra synchronization failed ({ErrorType})", ex.GetType().Name);
+            throw;
         }
     }
 
-    private async Task SendPendingOrdersToSimpraAsync()
+    private async Task SendPendingOrdersToSimpraAsync(ISimpraOrderService simpraOrderService)
     {
         try
         {
@@ -78,9 +82,9 @@ public class SimpraOrderSyncTask : IScheduleTask
             {
                 try
                 {
-                    if (await _simpraOrderService.CanSendOrderToSimpraAsync(order))
+                    if (await simpraOrderService.CanSendOrderToSimpraAsync(order))
                     {
-                        await _simpraOrderService.SendOrderToSimpraAsync(order);
+                        await simpraOrderService.SendOrderToSimpraAsync(order);
                         _logger.LogDebug("Order {OrderId} sent to Simpra successfully", order.Id);
                     }
                     else

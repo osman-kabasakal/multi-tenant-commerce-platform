@@ -37,7 +37,7 @@ public class PushNotificationsController(
             MessageText = translationService.GetResource("Admin.PushNotifications.MessageTextPlaceholder"),
             Title = translationService.GetResource("Admin.PushNotifications.MessageTitlePlaceholder"),
             PictureId = pushNotificationsSettings.PictureId,
-            ClickUrl = string.IsNullOrWhiteSpace(pushNotificationsSettings.ClickUrl) ? store.Url : pushNotificationsSettings.ClickUrl
+            ClickUrl = Grand.Web.Admin.Infrastructure.StorePushLinks.Default(store.Url, store.Domains.Select(x => x.Url), pushNotificationsSettings.ClickUrl, notificationOptions.Provider == "LocalSink")
         };
 
         return View(model);
@@ -51,8 +51,8 @@ public class PushNotificationsController(
         {
             var targetStore = await storeService.GetStoreById(workContext.CurrentStore.Id);
             if (string.IsNullOrWhiteSpace(model.ClickUrl)) model.ClickUrl = targetStore.Url;
-            if (!Uri.TryCreate(model.ClickUrl, UriKind.Absolute, out var link) || link.Scheme != "https" || !string.IsNullOrEmpty(link.UserInfo) ||
-                !targetStore.Domains.Any(x => Uri.TryCreate(x.Url, UriKind.Absolute, out var origin) && origin.Authority.Equals(link.Authority, StringComparison.OrdinalIgnoreCase) && x.Primary))
+            if (!Uri.TryCreate(model.ClickUrl, UriKind.Absolute, out var link) || (link.Scheme != "https" && !(notificationOptions.Provider == "LocalSink" && link.Scheme == "http")) || !string.IsNullOrEmpty(link.UserInfo) ||
+                !Uri.TryCreate(targetStore.Url, UriKind.Absolute, out var origin) || !origin.Authority.Equals(link.Authority, StringComparison.OrdinalIgnoreCase))
             {
                 Error("Bildirim bağlantısı işletmenizin aktif mağaza alan adında olmalıdır.");
                 return RedirectToAction("Send");

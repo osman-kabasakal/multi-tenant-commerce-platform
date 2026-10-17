@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net8.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><IsTestProject>true</IsTestProject><IsPackable>false</IsPackable></PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../Ecommerce/src/AdminPlugins/Famizyo.Simpra/Famizyo.Simpra.csproj" AdditionalProperties="BuildType=Backend" />
+    <Compile Include="../../Ecommerce/src/Web/Grand.Web.Admin/Infrastructure/StorePushLinks.cs" Link="Production/StorePushLinks.cs" />
     <ProjectReference Include="../../Shared/Platform.Notifications/Platform.Notifications.csproj" />
     <ProjectReference Include="../../Ecommerce/src/Business/Grand.Business.Marketing/Grand.Business.Marketing.csproj" />
     <PackageReference Include="Moq" Version="4.20.72" />
