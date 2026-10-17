@@ -314,6 +314,7 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
       if (event.oldTokens?.email != event.entity.email ||
           event.oldTokens?.guestId != event.entity.guestId) {
         _authTokens.value = event.entity;
+        unawaited(_refreshNotificationRegistration());
 
         // Kullanıcı giriş-çıkış durumunu Analytics'e bildir
         if (event.entity.email != null && event.oldTokens?.email == null) {
@@ -342,7 +343,7 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
     switch (state) {
       case AppLifecycleState.resumed:
       // Check token validity when app comes to foreground
-        _refreshAuthTokenIfNeeded();
+        unawaited(_refreshForegroundState());
         break;
       case AppLifecycleState.paused:
       // Secure sensitive data when app goes to background
@@ -350,6 +351,20 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
         break;
       default:
         break;
+    }
+  }
+
+  Future<void> _refreshForegroundState() async {
+    await _refreshAuthTokenIfNeeded();
+    await _refreshNotificationRegistration();
+  }
+
+  Future<void> _refreshNotificationRegistration() async {
+    if (LocalDemo.enabled) return;
+    try {
+      await (await getIt.getAsync<FCMService>()).initialize();
+    } catch (_) {
+      LoggerService.warning('Notification registration will be retried');
     }
   }
 

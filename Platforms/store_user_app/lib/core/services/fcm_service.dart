@@ -37,6 +37,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 @lazySingleton
 class FCMService {
   ApnsNotificationBridge? _apns;
+  Future<void>? _initializing;
   StreamSubscription<String>? _tokenSubscription;
   bool _messageListenersReady = false;
   final FlutterSecureStorage _secureStorage;
@@ -57,7 +58,15 @@ class FCMService {
   bool get isInitialized => _isInitialized;
 
   /// FCM servisini başlatır ve konfigüre eder
-  Future<void> initialize() async {
+  Future<void> initialize() {
+    final pending = _initializing;
+    if (pending != null) return pending;
+    final operation = _initialize();
+    _initializing = operation;
+    return operation.whenComplete(() => _initializing = null);
+  }
+
+  Future<void> _initialize() async {
     if (LocalDemo.enabled) return;
     if (ApnsNotificationBridge.enabled) {
       try {

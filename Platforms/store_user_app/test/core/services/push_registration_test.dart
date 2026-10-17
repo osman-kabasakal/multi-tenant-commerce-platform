@@ -160,4 +160,9 @@ void main() {
       );
     },
   );
+  test('concurrent startup and foreground refresh register the current customer only once', () async {
+    await Future.wait([service.initialize(), service.initialize()]);
+    expect(server.requests, hasLength(1));
+  });
+
 }
