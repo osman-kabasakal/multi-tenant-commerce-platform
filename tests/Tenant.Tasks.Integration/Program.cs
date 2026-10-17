@@ -14,6 +14,33 @@ var tasks = database.GetCollection<BsonDocument>("ScheduleTask");
 var leases = database.GetCollection<BsonDocument>("PlatformScheduleLease");
 var checks = 0;
 void Check(bool condition, string name) { if (!condition) throw new InvalidOperationException("FAILED: " + name); checks++; Console.WriteLine("PASS: " + name); }
+// Real initializer receipts are sufficient before and after an optional domain activation.
+var receipts = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(args[0]))!, "receipts-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(receipts);
+try
+{
+    var tenant = new string('a', 32); var slug = "fixture-shop"; var output = Path.Combine(receipts, slug + ".json");
+    var metadata = new { profile = "Portable", tenantId = tenant, slug, storeId = "store-a" };
+    await File.WriteAllTextAsync(output, System.Text.Json.JsonSerializer.Serialize(metadata));
+    foreach (var task in ManagedTenantInitialization.Tasks)
+        await File.WriteAllTextAsync(Path.Combine(receipts, slug + "." + task + ".json"),
+            System.Text.Json.JsonSerializer.Serialize(new { metadata.profile, metadata.tenantId, metadata.slug, metadata.storeId, version = 1, task }));
+    await ManagedTenantInitialization.VerifyAsync(output, tenant, slug, "store-a");
+    Check(true, "a completed tenant initializer permits scheduling without an optional domain receipt");
+    await File.WriteAllTextAsync(Path.Combine(receipts, slug + ".tenant-domain." + Guid.NewGuid().ToString("N") + ".json"), "{}");
+    await ManagedTenantInitialization.VerifyAsync(output, tenant, slug, "store-a");
+    Check(true, "a later identity-specific domain receipt does not block ordinary scheduling");
+    var rejectedForeign = false;
+    try { await ManagedTenantInitialization.VerifyAsync(output, tenant, slug, "store-b"); }
+    catch (InvalidOperationException) { rejectedForeign = true; }
+    Check(rejectedForeign, "initializer receipts cannot authorize another store");
+    File.Delete(Path.Combine(receipts, slug + ".tenant-settings.json"));
+    var rejectedIncomplete = false;
+    try { await ManagedTenantInitialization.VerifyAsync(output, tenant, slug, "store-a"); }
+    catch (FileNotFoundException) { rejectedIncomplete = true; }
+    Check(rejectedIncomplete, "a missing mandatory initializer still blocks scheduling");
+}
+finally { Directory.Delete(receipts, true); }
 BsonDocument TaskRow(string id, bool enabled = true) => new() {
     ["_id"] = id, ["Enabled"] = enabled, ["Type"] = "Fixture", ["StoreId"] = "store-a", ["TimeInterval"] = 1, ["StopOnError"] = false,
     ["LastStartUtc"] = BsonNull.Value, ["LastSuccessUtc"] = BsonNull.Value, ["LastNonSuccessEndUtc"] = BsonNull.Value,

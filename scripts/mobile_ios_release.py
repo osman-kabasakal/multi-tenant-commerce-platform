@@ -165,6 +165,8 @@ def signing_plan(settings, tenant, expected_certificate_sha256=None):
         raw = read_bytes(settings[field], private=True)
         decoded = plistlib.loads(apple(["/usr/bin/security", "cms", "-D", "-i", settings[field]]))
         value = profile_guard(decoded, bundle, settings, kind == "application")
+        if kind == "application" and not authorize(["applinks:" + tenant["deepLinkHost"]], value["entitlements"].get("com.apple.developer.associated-domains", [])):
+            raise ValueError("The application profile must authorize the tenant's associated domain.")
         value.update(raw=raw, sha256=hashlib.sha256(raw).hexdigest(), bundle=bundle)
         result[kind] = value
     if result["application"]["certificate"] != result["extension"]["certificate"]:
@@ -278,6 +280,9 @@ def verify_ipa(binary, tenant, settings, plan, verify_native, archive):
         if sorted(x.name for x in (app / "PlugIns").iterdir()) != ["NotificationServiceExtension.appex"]:
             raise ValueError("IPA contains unexpected app extensions.")
         check_signature(app, plan["application"], settings, plan["certificateSha256"])
+        signed = plistlib.loads(apple(["/usr/bin/codesign", "--display", "--entitlements", "-", "--xml", str(app)]))
+        if signed.get("com.apple.developer.associated-domains") != ["applinks:" + tenant["deepLinkHost"]]:
+            raise ValueError("The signed application is missing the exact tenant associated domain.")
         check_signature(app / "PlugIns/NotificationServiceExtension.appex", plan["extension"], settings, plan["certificateSha256"])
         symbols, symbol_hashes = verify_symbols(app, archive)
     return dict(result, signatureVerified=True, signedIpaBuilt=False, xcodeExported=False, deviceInstallationVerified=False,

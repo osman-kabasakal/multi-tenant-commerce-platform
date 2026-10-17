@@ -35,6 +35,8 @@ using Grand.Web.Common.Filters;
 using Grand.Web.Common.Security.Authorization;
 using Grand.Web.Common.Security.Captcha;
 using Grand.Web.Common.Themes;
+using Platform.Notifications;
+using Grand.Business.Core.Interfaces.Marketing.PushNotifications;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -54,7 +56,9 @@ public class SettingController(
     IMerchandiseReturnService merchandiseReturnService,
     ILanguageService languageService,
     IOrderStatusService orderStatusService,
-    ICacheBase cacheBase)
+    ICacheBase cacheBase,
+    NotificationOptions notificationOptions,
+    IPushNotificationsService pushNotificationsService)
     : BaseAdminController
 {
     #region Fields
@@ -751,6 +755,8 @@ public class SettingController(
         // Server credentials belong to deployment identity, never to browser settings models.
         model.ServiceAccountJson = null;
         model.PrivateApiKey = null;
+        model.MobileProvider = notificationOptions.Provider;
+        model.MobileReceivers = await pushNotificationsService.GetAllowedReceivers();
 
         return View(model);
     }

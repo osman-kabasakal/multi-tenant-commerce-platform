@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Grand.Business.Core.Interfaces.Common.Stores;
 using Grand.Business.Core.Interfaces.Customers;
 using Grand.Business.Core.Interfaces.System.ScheduleTasks;
@@ -24,22 +23,8 @@ public static class ManagedScheduledTasks
         if (!Guid.TryParseExact(message.TenantId, "N", out var tenant) || tenant == Guid.Empty || tenant.ToString("N") != message.TenantId)
             throw new InvalidOperationException("Choose a canonical owned tenant.");
         var output = config["Provisioning:TenantOutput"]!;
-        using var metadata = JsonDocument.Parse(await File.ReadAllTextAsync(output));
         var store = scope.ServiceProvider.GetRequiredService<IRepository<Store>>().Table.Single();
-        void Verify(JsonElement receipt)
-        {
-            if (receipt.GetProperty("profile").GetString() != "Portable" || receipt.GetProperty("tenantId").GetString() != message.TenantId ||
-                receipt.GetProperty("slug").GetString() != message.StoreSubDomain || receipt.GetProperty("storeId").GetString() != store.Id)
-                throw new InvalidOperationException("Scheduled tenant ownership changed.");
-        }
-        Verify(metadata.RootElement);
-        foreach (var phase in ManagedTenantTasks.Names)
-        {
-            using var receipt = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(Path.GetDirectoryName(output)!, message.StoreSubDomain + "." + phase + ".json")));
-            Verify(receipt.RootElement);
-            if (receipt.RootElement.GetProperty("version").GetInt32() != 1 || receipt.RootElement.GetProperty("task").GetString() != phase)
-                throw new InvalidOperationException("Complete the ordered tenant initializer before scheduled tasks.");
-        }
+        await ManagedTenantInitialization.VerifyAsync(output, message.TenantId, message.StoreSubDomain, store.Id);
         var secrets = scope.ServiceProvider.GetRequiredService<ITenantSecrets>();
         if (await secrets.ResolveAsync(store.Id) != message.TenantId) throw new InvalidOperationException("Store alias ownership changed.");
         var mongo = new MongoUrl(message.MongoConnectionString);

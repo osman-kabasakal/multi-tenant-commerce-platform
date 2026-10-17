@@ -38,6 +38,23 @@ class IosTenantTests(unittest.TestCase):
         copy_sources.assert_not_called()
         self.assertFalse((self.root / "never-created").exists())
 
+    def test_prepared_workspace_contains_the_exact_tenant_universal_link_entitlement(self):
+        workspace = self.root / "workspace"
+        app = workspace / "Platforms/store_user_app"
+        native = app / "ios/Runner"; native.mkdir(parents=True)
+        (native / "Info.plist").write_bytes(plistlib.dumps({"CFBundleURLTypes": [{"CFBundleURLSchemes": ["https"]}]}))
+        (app / "pubspec.yaml").write_text("version: 1.0.0+1\n")
+        tenant = self.tenant()
+        (workspace / "tenant-build.json").write_text(json.dumps(tenant))
+        with patch.object(ios, "source_entries", return_value=[]), patch.object(ios.common, "prepare", return_value=(workspace, tenant)), \
+             patch.object(ios.shutil, "copy2"), patch.object(ios.common, "run_private"):
+            _, result = ios.prepare(self.manifest_path, self.manifest_path.parent, workspace, "ABCDE12345", root=self.root)
+        entitlements = plistlib.loads((native / "Runner.entitlements").read_bytes())
+        self.assertEqual(entitlements["com.apple.developer.associated-domains"], ["applinks:" + result["deepLinkHost"]])
+        info = plistlib.loads((native / "Info.plist").read_bytes())
+        self.assertTrue(info["FlutterDeepLinkingEnabled"])
+        self.assertNotIn("CFBundleURLTypes", info)
+
     def test_numeric_connect_team_invalid_native_bundle_and_build_number_rejected(self):
         for team in ["123456789", "abcde12345", "", "$(TEAM)"]:
             with self.subTest(team=team):

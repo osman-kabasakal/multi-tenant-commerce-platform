@@ -28,7 +28,7 @@ namespace Grand.Installer.Cli.Services;
 
 public static class ManagedTenantTasks
 {
-    public static readonly string[] Names = ["tenant-plugins", "tenant-migrations", "tenant-settings", "tenant-domain"];
+    public static readonly string[] Names = [..ManagedTenantInitialization.Tasks, "tenant-domain"];
     public static readonly string[] AddressFields = ["lat", "long", "bno", "dno", "kno", "adres_tarifi"];
 
     private static int VerifyOriginalSettings(IServiceScope scope)

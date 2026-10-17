@@ -99,12 +99,15 @@ def prepare(manifest_path, firebase_directory, workspace, team, build_number=1, 
     info = read_plist(native / "Runner/Info.plist")
     info["CFBundleDisplayName"] = tenant["displayName"]
     info["CFBundleName"] = "Runner"
+    info["FlutterDeepLinkingEnabled"] = True
+    # HTTPS universal links use associated domains, never a globally claimed custom URL scheme.
+    info.pop("CFBundleURLTypes", None)
     info["PlatformIosPushTransport"] = tenant['iosPushTransport']
     info["PlatformIosDevelopmentTeam"] = team
     info["PlatformMobileIdentityId"] = tenant.get("mobileIdentityId", "")
     info["FirebaseMessagingAutoInitEnabled"] = tenant['iosPushTransport'] != 'Apns'
     (native / "Runner/Info.plist").write_bytes(plistlib.dumps(info))
-    (native / "Runner/Runner.entitlements").write_bytes(plistlib.dumps({"aps-environment": "production"}))
+    (native / "Runner/Runner.entitlements").write_bytes(plistlib.dumps({"aps-environment": "production", "com.apple.developer.associated-domains": ["applinks:" + tenant["deepLinkHost"]]}))
     common.private_json(workspace / "ios-tenant-build.json", tenant)
     with private_log(workspace / "ios-prepare.log") as log:
         common.run_private([ruby, str(workspace / "scripts/mobile_ios_project.rb"),

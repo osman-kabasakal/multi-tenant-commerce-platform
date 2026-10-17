@@ -19,6 +19,8 @@ public static class GatewayApp
         builder.Services.AddPlatformSecurity(builder.Configuration, builder.Environment.EnvironmentName);
         builder.Services.AddTrustedProxy(builder.Configuration);
         builder.Services.AddHttpForwarder();
+        builder.Services.AddSingleton<IMobileAssociationSource>(_ => new PostgresMobileAssociationSource(
+            builder.Configuration["PlatformSecurity:ConnectionString"] ?? throw new InvalidOperationException("Configure read-only tenant identity storage.")));
         builder.Services.AddSingleton<TenantRoutes>(); builder.Services.AddSingleton<TenantTokens>();
         builder.Services.AddHttpClient("gateway-identity").ConfigurePrimaryHttpMessageHandler(() =>
             PrivateCertificateAuthority.CreateHandler(options.IdentityRootCertificateFile) ?? new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false });
@@ -56,6 +58,11 @@ public static class GatewayApp
             var route = await context.RequestServices.GetRequiredService<TenantRoutes>().ResolveAsync(context.Request.Host, context.RequestAborted);
             if (route == null || (!route.Admin && context.Request.Path.StartsWithSegments("/Admin", StringComparison.OrdinalIgnoreCase)))
             { context.Response.StatusCode = 404; return; }
+            if (MobileAssociations.Handles(context.Request.Path))
+            {
+                await MobileAssociations.WriteAsync(context, route, context.RequestServices.GetRequiredService<IMobileAssociationSource>());
+                return;
+            }
             var token = route.Admin ? null : await context.RequestServices.GetRequiredService<TenantTokens>().GetAsync(route, context.RequestAborted);
             var error = await context.RequestServices.GetRequiredService<IHttpForwarder>().SendAsync(context,
                 route.Admin ? options.AdminUpstream : options.CommerceUpstream, context.RequestServices.GetRequiredService<HttpMessageInvoker>(),

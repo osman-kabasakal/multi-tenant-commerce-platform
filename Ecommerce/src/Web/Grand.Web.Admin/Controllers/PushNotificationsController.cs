@@ -30,13 +30,14 @@ public class PushNotificationsController(
     IDateTimeService dateTimeService)
     : BaseAdminController
 {
-    public IActionResult Send()
+    public async Task<IActionResult> Send()
     {
+        var store = await storeService.GetStoreById(workContext.CurrentStore.Id);
         var model = new PushModel {
             MessageText = translationService.GetResource("Admin.PushNotifications.MessageTextPlaceholder"),
             Title = translationService.GetResource("Admin.PushNotifications.MessageTitlePlaceholder"),
             PictureId = pushNotificationsSettings.PictureId,
-            ClickUrl = pushNotificationsSettings.ClickUrl
+            ClickUrl = string.IsNullOrWhiteSpace(pushNotificationsSettings.ClickUrl) ? store.Url : pushNotificationsSettings.ClickUrl
         };
 
         return View(model);
@@ -48,12 +49,20 @@ public class PushNotificationsController(
     {
         if (notificationOptions.Provider != "Disabled" && !string.IsNullOrWhiteSpace(model.MessageText))
         {
+            var targetStore = await storeService.GetStoreById(workContext.CurrentStore.Id);
+            if (string.IsNullOrWhiteSpace(model.ClickUrl)) model.ClickUrl = targetStore.Url;
+            if (!Uri.TryCreate(model.ClickUrl, UriKind.Absolute, out var link) || link.Scheme != "https" || !string.IsNullOrEmpty(link.UserInfo) ||
+                !targetStore.Domains.Any(x => Uri.TryCreate(x.Url, UriKind.Absolute, out var origin) && origin.Authority.Equals(link.Authority, StringComparison.OrdinalIgnoreCase) && x.Primary))
+            {
+                Error("Bildirim bağlantısı işletmenizin aktif mağaza alan adında olmalıdır.");
+                return RedirectToAction("Send");
+            }
             pushNotificationsSettings.PictureId = model.PictureId;
             pushNotificationsSettings.ClickUrl = model.ClickUrl;
             await settingService.SaveSetting(pushNotificationsSettings);
             
             var store = await storeService.GetStoreById(workContext.CurrentStore.Id);
-            var storeDomain = store.Domains.FirstOrDefault();
+            var storeDomain = store.Domains.FirstOrDefault(x => x.Primary);
             string pictureUrl = null;
             if (!string.IsNullOrEmpty(model.PictureId))
             {

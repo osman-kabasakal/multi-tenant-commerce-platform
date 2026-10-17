@@ -135,14 +135,15 @@ public sealed class AppleProvisioningTests
     {
         using var fixture = new AppleFixture();
         var first = await fixture.Provisioner().PrepareAsync(fixture.Plan);
-        Assert.AreEqual(5, fixture.Server.Writes); Assert.AreEqual(2, fixture.Server.Bundles.Count); Assert.AreEqual(2, fixture.Server.Profiles.Count);
+        Assert.AreEqual(6, fixture.Server.Writes); Assert.AreEqual(2, fixture.Server.Bundles.Count); Assert.AreEqual(2, fixture.Server.Profiles.Count);
         Assert.AreEqual(1, fixture.Server.PushBundles.Count);
+        CollectionAssert.AreEquivalent(fixture.Server.PushBundles.ToArray(), fixture.Server.AssociatedBundles.ToArray());
         Assert.AreNotEqual(first.Application.Uuid, first.Extension.Uuid);
         Assert.AreEqual(fixture.Plan.SigningCertificateSha256, first.CertificateSha256);
         foreach (var profile in fixture.Server.Profiles.Values) CollectionAssert.AreEqual(new[] { "D1" }, profile.Devices);
         var second = await fixture.Provisioner().PrepareAsync(fixture.Plan);
-        Assert.AreEqual(first.Application.ResourceId, second.Application.ResourceId); Assert.AreEqual(5, fixture.Server.Writes);
-        Assert.AreEqual(5, fixture.Secrets.Values.Count);
+        Assert.AreEqual(first.Application.ResourceId, second.Application.ResourceId); Assert.AreEqual(6, fixture.Server.Writes);
+        Assert.AreEqual(6, fixture.Secrets.Values.Count);
         Assert.IsFalse(fixture.Secrets.Values.Values.Any(value => value.Contains("BEGIN PRIVATE KEY") || value.Contains(new string('A', 40))));
     }
     [TestMethod]
@@ -154,7 +155,7 @@ public sealed class AppleProvisioningTests
         var first = await fixture.Provisioner().PrepareAsync(fixture.Plan);
         var replay = await fixture.Provisioner().PrepareAsync(fixture.Plan);
         Assert.AreEqual(first.Application.ResourceId, replay.Application.ResourceId);
-        Assert.AreEqual(5, fixture.Server.Writes); Assert.AreEqual(3, fixture.Server.Bundles.Count);
+        Assert.AreEqual(6, fixture.Server.Writes); Assert.AreEqual(3, fixture.Server.Bundles.Count);
         Assert.AreEqual("Existing Sibling App", fixture.Server.Bundles["FOREIGN"]["attributes"]!["name"]!.GetValue<string>());
     }
     [TestMethod]
@@ -164,7 +165,7 @@ public sealed class AppleProvisioningTests
         await Assert.ThrowsExceptionAsync<AppleApiException>(() => fixture.Provisioner().PrepareAsync(fixture.Plan));
         Assert.AreEqual(2, fixture.Server.Writes); Assert.AreEqual(2, fixture.Server.Bundles.Count);
         await fixture.Provisioner().PrepareAsync(fixture.Plan);
-        Assert.AreEqual(5, fixture.Server.Writes); Assert.AreEqual(2, fixture.Server.Profiles.Count);
+        Assert.AreEqual(6, fixture.Server.Writes); Assert.AreEqual(2, fixture.Server.Profiles.Count);
     }
     [TestMethod]
     public async Task DuplicateExactBundleMatchesStopBeforeAnyWrite()
@@ -190,7 +191,7 @@ public sealed class AppleProvisioningTests
     {
         using var fixture = new AppleFixture(); fixture.Server.LoseFirstBundleReply = true;
         var result = await fixture.Provisioner().PrepareAsync(fixture.Plan);
-        Assert.IsNotNull(result.Application); Assert.AreEqual(5, fixture.Server.Writes); Assert.AreEqual(2, fixture.Server.Bundles.Count);
+        Assert.IsNotNull(result.Application); Assert.AreEqual(6, fixture.Server.Writes); Assert.AreEqual(2, fixture.Server.Bundles.Count);
     }
     [TestMethod]
     public async Task AmbiguousCreationCannotBeResubmittedByAnotherAttemptOrProcess()
@@ -201,7 +202,7 @@ public sealed class AppleProvisioningTests
         Assert.AreEqual(1, fixture.Server.Writes); Assert.AreEqual(1, fixture.Server.Bundles.Count);
         fixture.Server.HideBundles = false;
         await fixture.Provisioner().PrepareAsync(fixture.Plan);
-        Assert.AreEqual(5, fixture.Server.Writes);
+        Assert.AreEqual(6, fixture.Server.Writes);
     }
     [TestMethod]
     public async Task ChangedOrExpiredOwnedProfilesAreRejectedWithoutDeletingOrReplacingThem()
@@ -212,7 +213,7 @@ public sealed class AppleProvisioningTests
         await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => fixture.Provisioner().PrepareAsync(fixture.Plan));
         profile.Devices = ["D1"]; profile.Value["attributes"]!["profileState"] = "INVALID";
         await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => fixture.Provisioner().PrepareAsync(fixture.Plan));
-        Assert.AreEqual(5, fixture.Server.Writes); Assert.AreEqual(2, fixture.Server.Profiles.Count);
+        Assert.AreEqual(6, fixture.Server.Writes); Assert.AreEqual(2, fixture.Server.Profiles.Count);
     }
     [TestMethod]
     public async Task PaginationCannotMoveBearerTokensToAnotherHostOrLoopForever()
@@ -278,6 +279,7 @@ internal sealed class AppleServer(byte[] certificate) : HttpMessageHandler
     public readonly Dictionary<string, JsonObject> Bundles = new();
     public readonly Dictionary<string, AppleProfileState> Profiles = new();
     public readonly HashSet<string> PushBundles = [];
+    public readonly HashSet<string> AssociatedBundles = [];
     public bool DeviceEnabled = true, LoseFirstBundleReply, HideBundles, FailNextCapabilityRead;
     public int Requests, Writes;
     public Func<HttpRequestMessage, HttpResponseMessage>? Override;
@@ -300,7 +302,10 @@ internal sealed class AppleServer(byte[] certificate) : HttpMessageHandler
             if (parts.Length == 4 && parts[1] == "bundleIds")
             {
                 if (FailNextCapabilityRead) { FailNextCapabilityRead = false; return Reply(new { errors = new[] { new { code = "SYNTHETIC_UNAVAILABLE" } } }, HttpStatusCode.ServiceUnavailable); }
-                return Items(PushBundles.Contains(parts[2]) ? [Resource("bundleIdCapabilities", "PUSH" + parts[2], new { capabilityType = "PUSH_NOTIFICATIONS" })] : []);
+                var capabilities = new List<JsonObject>();
+                if (PushBundles.Contains(parts[2])) capabilities.Add(Resource("bundleIdCapabilities", "PUSH" + parts[2], new { capabilityType = "PUSH_NOTIFICATIONS" }));
+                if (AssociatedBundles.Contains(parts[2])) capabilities.Add(Resource("bundleIdCapabilities", "LINKS" + parts[2], new { capabilityType = "ASSOCIATED_DOMAINS" }));
+                return Items(capabilities);
             }
             if (path == "/v1/profiles") return Items(Profiles.Values.Select(x => x.Value).Where(x => !query.ContainsKey("filter[name]") || x["attributes"]!["name"]!.GetValue<string>() == query["filter[name]"]));
             if (parts.Length == 5 && parts[1] == "profiles")
@@ -322,7 +327,11 @@ internal sealed class AppleServer(byte[] certificate) : HttpMessageHandler
             }
             if (path == "/v1/bundleIdCapabilities")
             {
-                var bundle = data["relationships"]!["bundleId"]!["data"]!["id"]!.GetValue<string>(); PushBundles.Add(bundle);
+                var bundle = data["relationships"]!["bundleId"]!["data"]!["id"]!.GetValue<string>();
+                var capability = data["attributes"]!["capabilityType"]!.GetValue<string>();
+                if (capability == "PUSH_NOTIFICATIONS") PushBundles.Add(bundle);
+                else if (capability == "ASSOCIATED_DOMAINS") AssociatedBundles.Add(bundle);
+                else throw new InvalidOperationException("Unexpected capability.");
                 return Reply(new { data = Resource("bundleIdCapabilities", "PUSH" + bundle, data["attributes"]!) }, HttpStatusCode.Created);
             }
             if (path == "/v1/profiles")

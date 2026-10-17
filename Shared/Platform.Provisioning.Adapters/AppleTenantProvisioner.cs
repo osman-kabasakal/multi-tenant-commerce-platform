@@ -119,23 +119,23 @@ public sealed class AppleTenantProvisioner(AppleApiOptions options, AppleApiClie
             throw new InvalidOperationException("The existing Apple bundle belongs to another owner; it was not adopted or renamed.");
         return AppleApiClient.Id(value);
     }
-    private async Task PushAsync(IosReleasePlan plan, string bundle, CancellationToken ct)
+    private async Task CapabilityAsync(IosReleasePlan plan, string bundle, string capability, CancellationToken ct)
     {
         async Task<JsonObject?> Find()
         {
             var all = await api.ListAsync($"v1/bundleIds/{bundle}/bundleIdCapabilities", ct);
-            var matches = all.Where(x => AppleApiClient.Text(Attributes(x, "bundleIdCapabilities"), "capabilityType") == "PUSH_NOTIFICATIONS").ToArray();
-            if (matches.Length > 1) throw new InvalidOperationException("Apple returned ambiguous push capabilities.");
+            var matches = all.Where(x => AppleApiClient.Text(Attributes(x, "bundleIdCapabilities"), "capabilityType") == capability).ToArray();
+            if (matches.Length > 1) throw new InvalidOperationException("Apple returned ambiguous app capabilities.");
             return matches.SingleOrDefault();
         }
         if (await Find() != null) return;
-        await CreateAsync(plan, "bundleIdCapabilities", new { data = new { type = "bundleIdCapabilities", attributes = new { capabilityType = "PUSH_NOTIFICATIONS" },
+        await CreateAsync(plan, "bundleIdCapabilities", new { data = new { type = "bundleIdCapabilities", attributes = new { capabilityType = capability },
             relationships = new { bundleId = new { data = new { type = "bundleIds", id = bundle } } } } }, Find, ct);
-        if (await Find() == null) throw new InvalidOperationException("The tenant push capability was not verified after creation.");
+        if (await Find() == null) throw new InvalidOperationException("The tenant app capability was not verified after creation.");
     }
     private async Task<AppleSigningProfile> ProfileAsync(IosReleasePlan plan, string bundle, string kind, string certificate, string[] devices, CancellationToken ct)
     {
-        var name = "mtc-" + Hash(plan.DeploymentId + "\n" + plan.TenantId + "\n" + bundle + "\n" + plan.SigningCertificateSha256 + "\n" + string.Join('\n', devices))[..32] + "-" + kind;
+        var name = "mtc-" + Hash(plan.DeploymentId + "\n" + plan.TenantId + "\n" + bundle + "\n" + plan.SigningCertificateSha256 + "\n" + string.Join('\n', devices) + (kind == "app" ? "\nassociated-domains-v1" : ""))[..32] + "-" + kind;
         Task<JsonObject?> Find() => FindAsync("profiles", "name", name, ct);
         var value = await Find() ?? await CreateAsync(plan, "profiles", new { data = new { type = "profiles", attributes = new { name, profileType = "IOS_APP_ADHOC" },
             relationships = new { bundleId = new { data = new { type = "bundleIds", id = bundle } },
@@ -168,7 +168,8 @@ public sealed class AppleTenantProvisioner(AppleApiOptions options, AppleApiClie
         var certificate = await CertificateAsync(plan, ct); var devices = await DevicesAsync(ct);
         var app = await BundleAsync(plan, plan.IosBundleId, "app", ct);
         var extension = await BundleAsync(plan, plan.IosBundleId + ".NotificationServiceExtension", "nse", ct);
-        await PushAsync(plan, app, ct);
+        await CapabilityAsync(plan, app, "PUSH_NOTIFICATIONS", ct);
+        await CapabilityAsync(plan, app, "ASSOCIATED_DOMAINS", ct);
         return new(certificate.Sha1, plan.SigningCertificateSha256,
             await ProfileAsync(plan, app, "app", certificate.Id, devices, ct),
             await ProfileAsync(plan, extension, "nse", certificate.Id, devices, ct));

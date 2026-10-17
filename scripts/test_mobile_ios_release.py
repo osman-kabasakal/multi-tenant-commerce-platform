@@ -54,6 +54,21 @@ class IosReleaseTests(unittest.TestCase):
         path = self.config(); path.chmod(0o644)
         with self.assertRaises(ValueError): release.policy(path, self.tenant)
 
+    def test_signing_plan_requires_the_selected_store_domain_in_the_application_profile(self):
+        tenant = dict(self.tenant, deepLinkHost="shop.example.test")
+        value = copy.deepcopy(self.value)
+        def command(args):
+            if "find-identity" in args:
+                return ('  1) ' + self.settings["SigningCertificateSha1"].upper() + ' "Apple Distribution: Fixture (ABCDE12345)"\n').encode()
+            if "cms" in args:
+                return plistlib.dumps(value)
+            raise AssertionError("Unexpected signing preflight command")
+        with patch.object(release.platform, "system", return_value="Darwin"), patch.object(release, "apple", side_effect=command):
+            for allowed in (None, ["applinks:another.example.test"]):
+                value["Entitlements"]["com.apple.developer.associated-domains"] = allowed or []
+                with self.subTest(allowed=allowed), self.assertRaisesRegex(ValueError, "associated domain"):
+                    release.signing_plan(self.settings, tenant)
+
     def test_signing_cannot_start_on_linux(self):
         with patch.object(release.platform, "system", return_value="Linux"), patch.object(release, "apple") as apple:
             with self.assertRaises(ValueError): release.signing_plan(self.settings, self.tenant)

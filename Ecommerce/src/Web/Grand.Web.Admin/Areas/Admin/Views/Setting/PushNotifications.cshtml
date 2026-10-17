@@ -24,6 +24,16 @@
                 <div class="x_content form">
                     <div class="form-horizontal">
                         <div class="form-body">
+                            @if (Model.MobileProvider != "Disabled")
+                            {
+                                <div class="alert alert-success">
+                                    <p>Mobil uygulama bildirim sağlayıcısı sunucuda yapılandırıldı: @(Model.MobileProvider == "FcmApns" ? "Android ve iOS" : Model.MobileProvider == "Fcm" ? "Firebase" : "Yerel demo").</p>
+                                    <p>Bildirim izni veren alıcı sayısı: @Model.MobileReceivers. Cihazda izin verildiğinde alıcı kaydı otomatik eklenir.</p>
+                                    <a asp-area="@Constants.AreaAdmin" asp-controller="PushNotifications" asp-action="Send">Bildirim gönder</a>
+                                    · <a asp-area="@Constants.AreaAdmin" asp-controller="PushNotifications" asp-action="Receivers">Alıcıları görüntüle</a>
+                                </div>
+                            }
+                            <p>Alttaki Firebase tarayıcı ayarları, web bildirimleri içindir. Mobil bildirimler sunucudaki sağlayıcıyı kullanır; buraya özel anahtar yüklenmez.</p>
                             <div class="alert alert-info">
                                 <p>@Loc["Admin.Settings.PushNotifications.PushNotifications.Info"]</p>
                                 <p>@Loc["Admin.Settings.PushNotifications.ServerIdentityInfo"]</p>

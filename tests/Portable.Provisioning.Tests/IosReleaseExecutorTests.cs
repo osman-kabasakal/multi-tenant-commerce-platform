@@ -23,7 +23,7 @@ public sealed class IosReleaseExecutorTests
         var second = await f.Executor(restarted).ExecuteAsync(f.Plan, default);
         Assert.AreEqual(first, second); Assert.AreEqual(0, restarted.Builds); Assert.AreEqual(0, restarted.SymbolUploads);
         Assert.AreEqual(1, f.Android.Server.Uploads); Assert.AreEqual(2, f.Android.Server.ReleaseReads);
-        Assert.AreEqual(5, f.Apple.Server.Writes);
+        Assert.AreEqual(6, f.Apple.Server.Writes);
     }
     [TestMethod]
     public async Task FailedDistributionReusesTheCommittedIpaAndDoesNotUploadSymbolsAgain()

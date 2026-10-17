@@ -6,6 +6,10 @@ namespace Grand.Web.Admin.Models.Settings;
 
 public class PushNotificationsSettingsModel : BaseModel
 {
+    // Deployment status is display-only and is never mapped back into persisted browser settings.
+    public string MobileProvider { get; set; } = "Disabled";
+    public int MobileReceivers { get; set; }
+
     [GrandResourceDisplayName("Admin.Settings.PushNotifications.NotificationsEnabled")]
     public bool Enabled { get; set; }
 

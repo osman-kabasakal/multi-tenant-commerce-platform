@@ -85,7 +85,18 @@ class FCMService {
       }
       return;
     }
-    if (_isInitialized) return;
+    if (_isInitialized) {
+      // Authentication may have changed the current customer since the last registration.
+      try {
+        final token = await FirebaseMessaging.instance.getToken();
+        if (token != null) await _registerCurrentToken(token);
+      } catch (_) {
+        _logger.w(
+          'Notification registration will be retried on the next initialization',
+        );
+      }
+      return;
+    }
     try {
       FirebaseMessaging.onBackgroundMessage(
         _firebaseMessagingBackgroundHandler,
@@ -443,7 +454,7 @@ class FCMService {
       final bool allowed;
       if (ApnsNotificationBridge.enabled) {
         allowed = await _apns?.permission() ?? false;
-        if (allowed && !token.startsWith(ApnsNotificationBridge.prefix)) {
+        if (allowed && !(_apns?.ownsRegistration(token) ?? false)) {
           throw const FormatException('Expected a native APNs registration.');
         }
       } else {

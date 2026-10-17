@@ -55,7 +55,16 @@ class DeeplinkService {
   /// Parse the link and navigate accordingly
   Future<String?> handleIncomingLink(Uri uri) async {
     try {
-      LoggerService.info('Handling incoming link: $uri');
+      // Resolve paths against this installed tenant's API, including its retained older domain.
+      if (uri.userInfo.isNotEmpty ||
+          (uri.hasAuthority && !uri.hasScheme) ||
+          (uri.hasScheme && (uri.scheme != 'https' || !uri.hasAuthority)) ||
+          uri.path.toLowerCase() == '/admin' ||
+          uri.path.toLowerCase().startsWith('/admin/')) {
+        return null;
+      }
+      // Never log query strings: account activation and reset links may carry credentials.
+      LoggerService.info('Handling store link');
       final path = uri.path;
       final queryParams = uri.queryParameters;
 
@@ -74,40 +83,13 @@ class DeeplinkService {
 
   /// Check if the path appears to be a slug URL rather than a controller/action URL
   bool _isSlugUrl(String path) {
-    // Paths that don't match known controller routes are likely slug URLs
-    final knownPrefixes = [
-      '/Account/',
-      '/Vendor/',
-      '/Cart/',
-      '/Order/',
-      '/Customer/',
-      '/Product/',
-      '/Category',
-      '/Checkout/',
-      '/Search/',
-      '/Wishlist/',
-      '/Blog/',
-      '/News/',
-      '/Knowledgebase/',
-      '/ReturnRequest/',
-      '/Page/',
-    ];
-
-    // Remove leading slash for comparison if present
-    final normalizedPath = path.startsWith('/') ? path.substring(1) : path;
-
-    // See if this looks like a standard controller/action pattern
-    bool isStandardRoute = false;
-    for (var prefix in knownPrefixes) {
-      prefix = prefix.startsWith('/') ? prefix.substring(1) : prefix;
-      if (normalizedPath.startsWith(prefix)) {
-        isStandardRoute = true;
-        break;
-      }
-    }
-
-    // If it's not a standard route and isn't empty, it's probably a slug
-    return !isStandardRoute && normalizedPath.isNotEmpty;
+    const controllers = {
+      'account', 'vendor', 'cart', 'shoppingcart', 'order', 'orderdetails',
+      'customer', 'product', 'category', 'checkout', 'search', 'wishlist',
+      'blog', 'news', 'knowledgebase', 'returnrequest', 'page', 'home',
+    };
+    final segments = Uri(path: path).pathSegments.where((part) => part.isNotEmpty);
+    return segments.isNotEmpty && !controllers.contains(segments.first.toLowerCase());
   }
 
   /// Handle a slug-based URL by resolving it to the correct route
@@ -405,7 +387,7 @@ class DeeplinkService {
       String path,
       Map<String, String> queryParams,
       ) async {
-    LoggerService.debug('Mapping route: $path with params: $queryParams');
+    LoggerService.debug('Mapping store route');
     path = path.toLowerCase();
     // Home page
     if (path == '/' ||
@@ -463,37 +445,37 @@ class DeeplinkService {
 
   // Route type checkers
   bool _isProductRoute(String path) =>
-      path.startsWith('/Product') || path.contains('/Product/');
+      path.startsWith('/product') || path.contains('/product/');
 
   bool _isCategoryRoute(String path) =>
-      path.startsWith('/Category') || path.contains('/Category/');
+      path.startsWith('/category') || path.contains('/category/');
 
   bool _isAccountRoute(String path) =>
-      path.startsWith('/Account') || path.contains('/Account/');
+      path.startsWith('/account') || path.contains('/account/');
 
   bool _isOrderOrCheckoutRoute(String path) =>
-      path.startsWith('/Order') ||
-          path.contains('/Order/') ||
-          path.startsWith('/Checkout') ||
-          path.contains('/Checkout/');
+      path.startsWith('/order') ||
+          path.contains('/order/') ||
+          path.startsWith('/checkout') ||
+          path.contains('/checkout/');
 
   bool _isCartRoute(String path) =>
-      path.startsWith('/Cart') ||
-          path.contains('/Cart/') ||
-          path.startsWith('/ShoppingCart') ||
-          path.contains('/ShoppingCart/');
+      path.startsWith('/cart') ||
+          path.contains('/cart/') ||
+          path.startsWith('/shoppingcart') ||
+          path.contains('/shoppingcart/');
 
   bool _isSearchRoute(String path) =>
-      path.startsWith('/Search') || path.contains('/Search/');
+      path.startsWith('/search') || path.contains('/search/');
 
   bool _isWishlistRoute(String path) =>
-      path.startsWith('/Wishlist') || path.contains('/Wishlist/');
+      path.startsWith('/wishlist') || path.contains('/wishlist/');
 
   /// Product route handling (.NET Core MVC to Flutter)
   String? _handleProductRoutes(String path, Map<String, String> queryParams) {
     // Handle /Product/Detail?productId=X
-    if (path.contains('/Product/Detail') ||
-        path.contains('/Product/ProductDetails')) {
+    if (path.contains('/product/detail') ||
+        path.contains('/product/productdetails')) {
       String? productId = queryParams['productId'];
 
       // If productId is not in query params, try to extract from SEO friendly URL
@@ -539,53 +521,61 @@ class DeeplinkService {
       String path,
       Map<String, String> queryParams,
       ) async {
+    // Account activation is intentionally reachable before the customer has signed in.
+    if (path == '/account/activation' || path == '/account/accountactivation') {
+      final token = queryParams['token'] ?? '';
+      final email = queryParams['email'] ?? '';
+      return token.isNotEmpty && email.isNotEmpty
+          ? AppPaths.accountActivation(token: token, email: email)
+          : AppPaths.homeIndex();
+    }
     // Check if user is authenticated for protected routes
     var isAuthenticated = await _authService.isAuthenticated();
-    if (path.contains('/Account/Login')) {
+    if (path == '/account/login') {
       return AppPaths.signin(returnUrl: AppPaths.homeIndex());
-    } else if (path.contains('/Account/Register')) {
+    } else if (path == '/account/register') {
       return AppPaths.signup(returnUrl: AppPaths.homeIndex());
     } else if (!isAuthenticated) {
       // Redirect to login with returnUrl for protected routes
       return AppPaths.signin(returnUrl: AppPaths.homeIndex());
     }
     // Account info routes - only accessible if authenticated
-    else if (path.contains('/Account/Info')) {
+    else if (path.contains('/account/info')) {
       var accountInfo =
       await (await getIt.getAsync<AccountRepository>()).getAccountInfo();
       if (accountInfo != null && accountInfo.data != null) {
         return AppPaths.profileIndex();
       }
-    } else if (path.contains('/Account/Addresses')) {
+    } else if (path.contains('/account/addresses')) {
       return AppPaths.customerAddresses();
-    } else if (path.contains('/Account/Orders') ||
-        path.contains('/Order/History')) {
+    } else if (path.contains('/account/orders') ||
+        path.contains('/order/history')) {
       return AppPaths.customerOrders();
-    } else if (path.contains('/Account/Courses')) {
+    } else if (path.contains('/account/courses')) {
       return AppPaths.customerCourses();
-    } else if (path.contains('/Account/Auctions')) {
+    } else if (path.contains('/account/auctions')) {
       return AppPaths.customerAuctions();
-    } else if (path.contains('/Account/Notes')) {
+    } else if (path.contains('/account/notes')) {
       return AppPaths.customerNotes();
-    } else if (path.contains('/Account/Documents')) {
+    } else if (path.contains('/account/documents')) {
       return AppPaths.customerDocuments();
-    } else if (path.contains('/Account/ReturnRequests') ||
-        path.contains('/MerchandiseReturn/History')) {
+    } else if (path.contains('/account/returnrequests') ||
+        path.contains('/merchandisereturn/history')) {
       return AppPaths.customerMerchandiseReturn();
-    } else if (path.contains('/Account/DownloadableProducts')) {
+    } else if (path.contains('/account/downloadableproducts')) {
       return AppPaths.customerDownloadableProducts();
-    } else if (path.contains('/Account/BackInStockSubscriptions') ||
-        path.contains('/OutOfStockSubscriptions/Manage')) {
+    } else if (path.contains('/account/backinstocksubscriptions') ||
+        path.contains('/outofstocksubscriptions/manage')) {
       return AppPaths.customerOutOfStockSubscriptions();
-    } else if (path.contains('/Account/RewardPoints') ||
-        path.contains('/LoyaltyPoints/History')) {
+    } else if (path.contains('/account/rewardpoints') ||
+        path.contains('/loyaltypoints/history')) {
       return AppPaths.customerLoyaltyPoints();
-    } else if (path.contains('/Account/ChangePassword')) {
+    } else if (path.contains('/account/changepassword')) {
       return AppPaths.customerChangePassword();
-    } else if (path.contains('/Account/Reviews') ||
-        path.contains('/Account/ProductReviews')) {
+    } else if (path.contains('/account/reviews') ||
+        path.contains('/account/productreviews')) {
       return AppPaths.customerReviews();
-    } else if (path.contains('/Account/Activation') ||
+    } else if (path.contains('/account/activation') ||
         path.contains('/account/activation')) {
       // Handle account activation
       final token = queryParams['token'] ?? '';
@@ -603,25 +593,25 @@ class DeeplinkService {
 
   /// Order and checkout routes (.NET Core MVC to Flutter)
   String? _handleOrderRoutes(String path, Map<String, String> queryParams) {
-    if (path.contains('/Order/Details') || path.contains('/OrderDetails')) {
+    if (path.contains('/order/details') || path.contains('/orderdetails')) {
       final orderId = queryParams['orderId'] ?? queryParams['id'] ?? '';
       if (orderId.isNotEmpty) {
         return AppPaths.orderDetails(orderId: orderId);
       }
-    } else if (path.contains('/Order/Shipment') ||
-        path.contains('/OrderDetails/Shipment')) {
+    } else if (path.contains('/order/shipment') ||
+        path.contains('/orderdetails/shipment')) {
       final shipmentId = queryParams['shipmentId'] ?? queryParams['id'] ?? '';
       if (shipmentId.isNotEmpty) {
         return AppPaths.shipmentDetails(shipmentId: shipmentId);
       }
     } else if (path.contains('/ReturnRequest/Create') ||
-        path.contains('/MerchandiseReturn')) {
+        path.contains('/merchandisereturn')) {
       final orderId = queryParams['orderId'] ?? queryParams['id'] ?? '';
       if (orderId.isNotEmpty) {
         return AppPaths.merchandiseReturn(orderId: orderId);
       }
     } else if (path.contains('/ReturnRequest/Details') ||
-        path.contains('/MerchandiseReturnDetails')) {
+        path.contains('/merchandisereturndetails')) {
       final returnRequestId =
           queryParams['returnRequestId'] ??
               queryParams['merchandiseReturnId'] ??
@@ -632,7 +622,7 @@ class DeeplinkService {
           merchandiseReturnId: returnRequestId,
         );
       }
-    } else if (path.contains('/Checkout')) {
+    } else if (path.contains('/checkout')) {
       return AppPaths.checkout();
     } else {
       // Default to orders index

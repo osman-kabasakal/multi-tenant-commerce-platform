@@ -45,12 +45,30 @@ class ApnsNotificationBridge {
       throw const FormatException('Invalid APNs device token.');
     }
     if (identityId.isNotEmpty) {
-      if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(identityId) || identityId == '0' * 32) {
+      if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(identityId) ||
+          identityId == '0' * 32) {
         throw const FormatException('Invalid mobile identity reference.');
       }
       return 'apns-v2:production:$identityId:${token.toLowerCase()}';
     }
     return prefix + token.toLowerCase();
+  }
+
+  /// Accept only canonical registrations for this build's verified native identity.
+  bool ownsRegistration(String registration) {
+    if (!_verified) return false;
+    final marker =
+        identityId.isEmpty ? prefix : 'apns-v2:production:$identityId:';
+    if (!registration.startsWith(marker)) return false;
+    try {
+      return encode(
+            registration.substring(marker.length),
+            identityId: identityId,
+          ) ==
+          registration;
+    } on FormatException {
+      return false;
+    }
   }
 
   Future<ApnsRegistration> initialize() {
