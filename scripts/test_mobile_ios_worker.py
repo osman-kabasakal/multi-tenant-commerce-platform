@@ -112,9 +112,10 @@ class IosWorkerNativeTests(unittest.TestCase):
                          TeamIdentifier=[settings["DevelopmentTeam"]], ApplicationIdentifierPrefix=[settings["DevelopmentTeam"]],
                          ExpirationDate=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=90), ProvisionedDevices=["A" * 40],
                          DeveloperCertificates=[certificate], Entitlements={"application-identifier": settings["DevelopmentTeam"] + "." + bundle,
-                         "com.apple.developer.team-identifier": settings["DevelopmentTeam"], "get-task-allow": False, "aps-environment": "production"})
+                         "com.apple.developer.team-identifier": settings["DevelopmentTeam"], "get-task-allow": False, "aps-environment": "production",
+                         "com.apple.developer.associated-domains": "*"})
             profiles[str(path)] = plistlib.dumps(value)
-        tenant = dict(self.tenant, extensionBundleId=self.tenant["iosBundleId"] + ".NotificationServiceExtension")
+        tenant = dict(self.tenant, extensionBundleId=self.tenant["iosBundleId"] + ".NotificationServiceExtension", deepLinkHost="shop.example.test")
         def apple(args):
             if "find-identity" in args: return ('  1) ' + selector + ' "Apple Distribution: Synthetic (' + settings["DevelopmentTeam"] + ')"\n').encode()
             return profiles[args[-1]]

@@ -69,6 +69,20 @@ class IosReleaseTests(unittest.TestCase):
                 with self.subTest(allowed=allowed), self.assertRaisesRegex(ValueError, "associated domain"):
                     release.signing_plan(self.settings, tenant)
 
+    def test_apple_scalar_associated_domain_wildcard_authorizes_signed_array(self):
+        value = copy.deepcopy(self.value)
+        value["Entitlements"]["com.apple.developer.associated-domains"] = "*"
+        allowed = self.profile(value)["entitlements"]
+        actual = dict(allowed, **{"com.apple.developer.associated-domains": ["applinks:shop.example.test"]})
+        self.assertTrue(release.authorize(actual, allowed))
+        self.assertEqual(value["Entitlements"]["com.apple.developer.associated-domains"], "*")
+        actual["get-task-allow"] = True
+        self.assertFalse(release.authorize(actual, allowed))
+        for malformed in (True, "applinks:shop.example.test", {"*": True}):
+            value["Entitlements"]["com.apple.developer.associated-domains"] = malformed
+            allowed = self.profile(value)["entitlements"]
+            self.assertFalse(release.authorize(["applinks:shop.example.test"], allowed["com.apple.developer.associated-domains"]))
+
     def test_signing_cannot_start_on_linux(self):
         with patch.object(release.platform, "system", return_value="Linux"), patch.object(release, "apple") as apple:
             with self.assertRaises(ValueError): release.signing_plan(self.settings, self.tenant)

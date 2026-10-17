@@ -123,6 +123,10 @@ def profile_guard(value, bundle, settings, application, now=None):
     matches = [x for x in certificates if isinstance(x, bytes) and len(x) <= 65536 and hashlib.sha1(x).hexdigest() == settings["SigningCertificateSha1"]]
     if len(matches) != 1:
         raise ValueError("The selected signing certificate is not uniquely authorized by the profile.")
+    # Apple profiles may grant this array entitlement as the scalar "*".
+    # Normalize only that documented wildcard; retain strict shapes for every other permission.
+    if entitlements.get("com.apple.developer.associated-domains") == "*":
+        entitlements = dict(entitlements, **{"com.apple.developer.associated-domains": ["*"]})
     # Xcode matches a UUID selector case-sensitively. Preserve the signed CMS spelling.
     return {"uuid": value["UUID"], "entitlements": entitlements, "certificate": matches[0],
             "expiresAtUtc": expiry.replace(tzinfo=timezone.utc).isoformat(), "deviceCount": len(registered), "devices": registered, "application": application}
