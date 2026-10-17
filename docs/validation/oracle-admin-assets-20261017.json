@@ -1,0 +1,386 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-10-17T00:30:22.117015+00:00",
+  "deployedRevision": "5618475432e2647c458dcf12cf3a3b8ad66c4efb",
+  "dockerContextSourceRevision": "935e9df97c23d709c67cd71227dc62d54f8f182a",
+  "deployedSourceSha256": {
+    "tools/Platform.Gateway/GatewayApp.cs": "ccd158c476292c643fabdd257fe268963e1df2cc8497c3339e3fc6f488cce621",
+    "tests/Gateway.Tests/HostBoundaryTests.cs": "44a1b75bfb6ef7114c1921ced54c2d65ba73bf31a37f68fd5726eb19e47c4e9b",
+    "scripts/check_public_source.py": "d77cb4abecf2167f843660cba2c9ec04ff11982066c5a5f09c4f04906ced578d",
+    "scripts/production_image.py": "55f358725500cb0a916d3805661fdf5e78b7c217b6f04aba7fdae4e5078a205a",
+    ".gitignore": "47f6583e385fcc86837cd00bf8b648d044a218f63049c76c8e53afd91d8bf342",
+    ".dockerignore": "00fc164eb65fdf0f91aa86c177ccd1790f973830fe3102a723e68ec5ea808f8d"
+  },
+  "contextSourceSha256": {
+    "tools/Platform.Gateway/GatewayApp.cs": "ccd158c476292c643fabdd257fe268963e1df2cc8497c3339e3fc6f488cce621",
+    "tests/Gateway.Tests/HostBoundaryTests.cs": "44a1b75bfb6ef7114c1921ced54c2d65ba73bf31a37f68fd5726eb19e47c4e9b",
+    "scripts/check_public_source.py": "e3f20ebbb00e77543e070088064216501694da7c1c4690990bc7a791269280f4",
+    "scripts/production_image.py": "55f358725500cb0a916d3805661fdf5e78b7c217b6f04aba7fdae4e5078a205a",
+    ".gitignore": "4962655d51bc8c4e5cddf1c08becd0e3833c27f97b46e9236d4d7a8ff75a6da1",
+    ".dockerignore": "743cb83a6c8a20838630c273085aceff1df7322dabe34bd31d3e2a6bbb44d7c7"
+  },
+  "localChecks": {
+    "gatewayTestsPassed": 42,
+    "sourceGuardRegressionTestsPassed": 1,
+    "productionConfigurationTestsPassed": 15,
+    "cleanCommittedSourceInventoryAndFilenameGuardPassed": true,
+    "gitleaksCleanSnapshotFindings": 0
+  },
+  "runtime": {
+    "offlineNonRootImageExecutionAndRequiredAdminAssetFilesPassed": true,
+    "storeAdminPathChecks": [
+      {
+        "path": "/Admin",
+        "httpStatus": 404
+      },
+      {
+        "path": "/admin/",
+        "httpStatus": 404
+      },
+      {
+        "path": "/ADMIN/Product/List",
+        "httpStatus": 404
+      },
+      {
+        "path": "/Admin",
+        "httpStatus": 404
+      },
+      {
+        "path": "/admin/",
+        "httpStatus": 404
+      },
+      {
+        "path": "/ADMIN/Product/List",
+        "httpStatus": 404
+      }
+    ],
+    "authenticatedOwnedSyntheticTenantAdminLoginAndProductListPassed": true,
+    "productPageSameOriginAssets": [
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/admin.common.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 4342,
+        "sha256": "5fa4acd1dd55ee8868769a96ef23416427b7597cf467aa2f066ad2e9e740ae34"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/admin.search.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 6406,
+        "sha256": "b9b878d4f7f0de74bbfe8429c52c2b9a245937843b6c6b186d0a1ed98385e229"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/bootstrap/css/bootstrap.min.css",
+        "httpStatus": 200,
+        "contentType": "text/css",
+        "bytes": 160302,
+        "sha256": "5b0fbe5b7ad705f6a937c4998ad02f73d8f0d976fe231b74aef0ec996990c93a"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/bootstrap/css/daterangepicker.min.css",
+        "httpStatus": 200,
+        "contentType": "text/css",
+        "bytes": 5610,
+        "sha256": "20cfa9398db43dea8559d4ce351c0ec28706287d10daf77ecb84a2f3be266399"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/bootstrap/js/bootstrap.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 60044,
+        "sha256": "79c599dd760cec0c1621a1af49d9a2a49da5d45e1b37d4575bace0a5e0226582"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/bootstrap/js/daterangepicker.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 31594,
+        "sha256": "db8ada507e2c907f71c42bbda3aedeb77a318260c8713705386d5fc714027f7c"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/bootstrap/js/popper.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 25002,
+        "sha256": "1ce2bcae36489bdd7593b491d2fd2c5805460cb8ed7276c073cbcddf8694ed4c"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/build/css/custom.css",
+        "httpStatus": 200,
+        "contentType": "text/css",
+        "bytes": 149707,
+        "sha256": "738f6153b8a52727454ac7a55ddb060dc3e57851a67ef7be1ac9787e4fe18d09"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/build/css/font-awesome.min.css",
+        "httpStatus": 200,
+        "contentType": "text/css",
+        "bytes": 29063,
+        "sha256": "008a1d103902f15fdb1c191fcb1ce8954330e7b8de43d09abb08555ba609f420"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/build/js/custom.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 60182,
+        "sha256": "dd99d4af320f6ece6175985d7d9be4b07aae941daa23a92ebc5a989e19a50e71"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/build/js/jquery.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 85578,
+        "sha256": "05b85d96f41fff14d8f608dad03ab71e2c1017c2da0914d7c59291bad7a54f8e"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/build/js/moment.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 59610,
+        "sha256": "70ee1ac9df1b61cc5d8659668c475125c010c947323501113765dbb859822195"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/build/js/smartresize.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 960,
+        "sha256": "956859553f29c272f5a1b4ee69511f2bb6e8d25e4bc767996503fcf27a70c0b5"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/elfinder/css/elfinder.full.min.css",
+        "httpStatus": 200,
+        "contentType": "text/css",
+        "bytes": 95399,
+        "sha256": "b9a9b3b2e98a63cb06192f9074dc670eee117dc19625c56fcd4da01db7c19db1"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/elfinder/css/theme.css",
+        "httpStatus": 200,
+        "contentType": "text/css",
+        "bytes": 12073,
+        "sha256": "9e0b9ee27b4a0a54980caf82a42aa3a3be8ec90893908d3b8e6d70b18bf0979c"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/elfinder/js/elfinder.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 544361,
+        "sha256": "395197ed83b8a94aa4d2e40bceb221b13a09a2a409abafcd30c40fabbcc17b31"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/farbtastic/farbtastic.css",
+        "httpStatus": 200,
+        "contentType": "text/css",
+        "bytes": 1362,
+        "sha256": "ffa0ed2d768bee9c47b7a6e2a9abb88cbc6a15efa225e073c0c1490ff4c6fb09"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/farbtastic/farbtastic.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 9926,
+        "sha256": "a659065a547332de53770090a58168b4e5be4b0d67b1d3aa2587f46e13d6e6ea"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/jquery-ui-themes/smoothness/jquery-ui-1.10.3.custom.min.css",
+        "httpStatus": 200,
+        "contentType": "text/css",
+        "bytes": 27013,
+        "sha256": "553d1a7dc29580d5432dda91a0da518bcc80c13ac3c3d5a5db6ddef899efa810"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/jquery-ui/jquery-ui.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 253669,
+        "sha256": "28ce75d953678c4942df47a11707a15e3c756021cf89090e3e6aa7ad6b6971c3"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/jquery.tmpl.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 6007,
+        "sha256": "dfee1fe127c3a828a6f88e3ef6e8d1d7f8a3750e6f9d9e24520992a2294696a6"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/jquery.validate.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 21859,
+        "sha256": "a81ffaeda26ed1835522162ca1fb4c996756af2ac05f6aa5c617153384cf7616"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/jquery.validate.unobtrusive.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 6611,
+        "sha256": "eb8dc553420ab9198f5334683d5c8590f5f5d4c8d7a719fc3166117e379b22c2"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/kendo/scripts/2021.3.914/cultures/kendo.culture.tr-TR.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 2165,
+        "sha256": "2756a58d192e852a5bf1024f4c6bf0d47a96bfc3b8150b88a1d4845b3cac59fa"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/kendo/scripts/2021.3.914/kendo.grid.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 191944,
+        "sha256": "e64cb8f73f53b5dc8b336e9f3e13c59e3d2b92c41ed400c90e9ede271829571d"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/kendo/scripts/2021.3.914/kendo.ui.core.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 931078,
+        "sha256": "99e3222b61db0ffe924dac85df90810b24ab04c4b90d8096e0d50a281b67c630"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/kendo/styles/2021.3.914/kendo.common-material.min.css",
+        "httpStatus": 200,
+        "contentType": "text/css",
+        "bytes": 419579,
+        "sha256": "d763313c6bf65f1746bfc6ce8e9326a018053bd370315da3ff5d9df7ad0ab065"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/kendo/styles/2021.3.914/kendo.material.min.css",
+        "httpStatus": 200,
+        "contentType": "text/css",
+        "bytes": 117178,
+        "sha256": "46d744cd6b5d7180e26e2956a0f85aeccc6ef93bb1b6173ddeab49accace29c4"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/kendo/styles/2021.3.914/kendo.material.mobile.min.css",
+        "httpStatus": 200,
+        "contentType": "text/css",
+        "bytes": 122903,
+        "sha256": "3d0acc77cb4cd9da6e45a86348e31706eb5c48a9c2d571fb1c49b6cb2187bc8e"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/magnific-popup/jquery.magnific-popup.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 20216,
+        "sha256": "3fddc6d28aba3c13d64cfd4847c333ff48c71d4a5a58bd1a0494ca6ae8ac1bb4"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/magnific-popup/magnific-popup.min.css",
+        "httpStatus": 200,
+        "contentType": "text/css",
+        "bytes": 5259,
+        "sha256": "3d92e113ac3031b838001ddddf965d045f470ff748ff2e116b30378910eeaecb"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/simple-line-icons/simple-line-icons.min.css",
+        "httpStatus": 200,
+        "contentType": "text/css",
+        "bytes": 9397,
+        "sha256": "102f651296af9cf2db0f4faf7fd0f70d62ec5c105ca64ca761ed84de763f52e3"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/summernote/summernote.min.css",
+        "httpStatus": 200,
+        "contentType": "text/css",
+        "bytes": 19266,
+        "sha256": "9f760849875dad9986aab520be96b7c73c19c1cbefc9a65ca343dd3b250a035f"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/summernote/summernote.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 151092,
+        "sha256": "a0e221bfa30fc6e21f967f0837b9b072dea7ad486cec6d73bc898a431c242f4f"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/typeahead.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript",
+        "bytes": 96349,
+        "sha256": "28ce100ba6f5c05932080076b0d659b3d9de4af6dd1c49864de5c6d0c0bacb33"
+      }
+    ],
+    "reportedTenantLoginAssets": [
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/bootstrap/css/bootstrap.min.css",
+        "httpStatus": 200,
+        "contentType": "text/css"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/bootstrap/js/bootstrap.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/bootstrap/js/popper.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/build/css/custom.css",
+        "httpStatus": 200,
+        "contentType": "text/css"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/build/css/font-awesome.min.css",
+        "httpStatus": 200,
+        "contentType": "text/css"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/build/js/jquery.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/build/js/moment.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/jquery-ui/jquery-ui.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/jquery.validate.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/jquery.validate.unobtrusive.min.js",
+        "httpStatus": 200,
+        "contentType": "text/javascript"
+      },
+      {
+        "path": "/_content/Grand.SharedUIResources/administration/simple-line-icons/simple-line-icons.min.css",
+        "httpStatus": 200,
+        "contentType": "text/css"
+      }
+    ],
+    "reportedTenantProductEntryRequiresItsOwnLogin": true,
+    "freshBrowserReportedTenantLoginConsoleErrorsOrWarnings": 0
+  },
+  "dockerContext": {
+    "sourceRevision": "935e9df97c23d709c67cd71227dc62d54f8f182a",
+    "sourceTree": "6c3256710437b32a7fe1de0b6ad25681fdf7a322",
+    "verifiedAtUtc": "2026-10-17T00:30:03Z",
+    "actualDockerContextPassed": true,
+    "exactCommittedSourceTreeVerified": true,
+    "adminCssAndJqueryRetained": true,
+    "nestedSourceAssetPrivateSettingsKeysAndGeneratedOutputsExcluded": true,
+    "runtimeServicesRecreated": false,
+    "initialBoundaryTestFailedAndWasRepaired": true
+  },
+  "scope": {
+    "humanTenantDataChanged": false,
+    "sameMinimalOracleVmAndOriginalStopDeadlineRetained": true,
+    "nativeScheduledStopExecutionObserved": false,
+    "deployedMobileProfile": "Disabled",
+    "freshDurableSaasAndroidReleaseClaimedByThisRecord": false,
+    "assetRightsClearedForPublicRelease": false,
+    "sourceRuntimeBoundary": "5618475 is the deployed runtime; 935e9df contains the final context/source guard fixes and regression checks. Its actual Docker context test ran separately without recreating services.",
+    "privateCredentialPathsAccountIdsResourceIdsAndKeys": "Excluded from this public record"
+  }
+}

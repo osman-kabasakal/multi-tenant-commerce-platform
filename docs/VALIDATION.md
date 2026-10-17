@@ -622,3 +622,12 @@ Thirty Oracle tests and fourteen Production configuration tests passed. An owner
 
 
 The operator subsequently confirmed that a fresh public registration received the real verification email and its link opened the business form. This is human mailbox acceptance, separate from the automated SMTP-authentication/form-GET checks; the probe did not send a test message. The source-bound Oracle record now includes this explicit human confirmation.
+
+
+## Oracle storefront admin boundary and published admin assets — 2026-10-17
+
+[Source-bound acceptance record](validation/oracle-admin-assets-20261017.json). Runtime `5618475` rejects store-host `/Admin`, case variants and descendants at the gateway with 404 before token acquisition or forwarding. The reported manage-host product entry still requires its own login. A retained synthetic tenant authenticated through the real admin login and opened Product/List; all 35 same-origin page assets returned 200 with the expected CSS/JavaScript content types. All 11 assets on the reported tenant's login page passed too; a fresh browser visit reported no console error or warning.
+
+The missing files were source assets inside GrandNode's `administration/build` directory, previously omitted by generic Git and Docker output rules. Narrow directory exceptions retain those assets. The offline non-root runtime verifier now requires the main admin CSS, JavaScript and icon font. Forty-two gateway tests, one source-guard regression and fifteen Production configuration tests passed. The clean source/asset inventory passed and Gitleaks found no snapshot secrets.
+
+The final context source revision is recorded separately from the runtime. It keeps private/generated exclusions after the source directory exception and rejects UI-local appsettings files. An initial synthetic Docker context check caught the appsettings case; its failure log is retained and the repaired exact committed source tree passed the rerun. Its actual Docker context test retained admin CSS/jQuery while rejecting private settings, signing files, nested `.local`, `bin` and `obj`; it did not recreate live services. The restored 94 asset paths bring the inventory to 3,754 paths / 1,316 unique hashes. Font and other unresolved redistribution evidence remains an open public-release gate. The same Oracle VM and original stop deadline were retained; this record does not claim a fresh SaaS Android build or a device notification test.
