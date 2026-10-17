@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "utc": "2026-10-17T07:10:07.828707+00:00",
+  "baseCommit": "d5126a7e33edca8d6fe4e162a88d35ba48fbb819",
+  "sdkVersion": "8.0.409",
+  "cleanGitSourceVerified": true,
+  "fullTestProjectCases": 18,
+  "newRegressionCases": 8,
+  "oldMailKitVersion": "4.5.0",
+  "oldMailKitRejectedByTheSameStartTlsRegression": true,
+  "resolvedPackages": {
+    "AutoMapper": "13.0.1",
+    "MailKit": "4.16.0",
+    "MimeKit": "4.16.0",
+    "System.Security.Cryptography.Pkcs": "8.0.2",
+    "System.Text.Json": "8.0.6"
+  },
+  "publishedPackageLicenseExpressions": {
+    "AutoMapper": "MIT",
+    "MailKit": "MIT",
+    "MimeKit": "MIT",
+    "System.Security.Cryptography.Pkcs": "MIT",
+    "System.Text.Json": "MIT"
+  },
+  "mappingPolicy": {
+    "maximumDepthPerTypeMap": 32,
+    "deepInputNodes": 30000,
+    "smallerProfileLimitPreserved": true,
+    "largeProfileLimitCapped": true,
+    "collectionItemsHaveIndependentBudgets": true,
+    "upstreamPackagePatched": false,
+    "upstreamAdvisorySuppressed": false
+  },
+  "smtpAcceptance": {
+    "realTlsStream": true,
+    "preTlsBufferInjectionRejected": true,
+    "realTenantEmailSender": true,
+    "ownedLoopbackDelivery": true,
+    "storeScopedSecretRequestedOnce": true,
+    "missingStoreRejectedBeforeConnecting": true,
+    "externalMessagesSent": 0,
+    "productionCertificateValidationChanged": false
+  },
+  "remainingAdvisories": [
+    {
+      "package": "AutoMapper",
+      "version": "13.0.1",
+      "advisories": [
+        {
+          "severity": "High",
+          "advisoryurl": "https://github.com/advisories/GHSA-rvv3-g6hj-g44x"
+        }
+      ]
+    },
+    {
+      "package": "SharpCompress",
+      "version": "0.30.1",
+      "advisories": [
+        {
+          "severity": "Moderate",
+          "advisoryurl": "https://github.com/advisories/GHSA-6c8g-7p36-r338"
+        }
+      ]
+    },
+    {
+      "package": "Snappier",
+      "version": "1.0.0",
+      "advisories": [
+        {
+          "severity": "High",
+          "advisoryurl": "https://github.com/advisories/GHSA-pggp-6c3x-2xmx"
+        }
+      ]
+    }
+  ],
+  "remoteGithubActionsExecuted": false,
+  "liveDeploymentExecuted": false,
+  "scope": "Actual .NET 8 libraries and tenant EmailSender over owned loopback SMTP/TLS; controlled tenant-secret resolver, no cloud accounts, external mail or device acceptance. Advisory audit covers only the LocalDemo.Tests dependency closure.",
+  "sourceFiles": [
+    {
+      "path": "Ecommerce/src/Core/Grand.Infrastructure/Mapper/AutoMapperConfig.cs",
+      "sha256": "fc41d31b2a7d515e991e553d747e4d3bc74adeb175900db548ab4aac9ff435a6"
+    },
+    {
+      "path": "Ecommerce/src/Core/Grand.Infrastructure/StartupBase.cs",
+      "sha256": "16e71c630f219201c5c9964b719676c9b93259452613064b086c1d89dd817491"
+    },
+    {
+      "path": "Ecommerce/src/Business/Grand.Business.Messages/Grand.Business.Messages.csproj",
+      "sha256": "f38c029a36d0e83ce3e87489da32dab4ddb850af180093606c4c14f1a65fc244"
+    },
+    {
+      "path": "tests/LocalDemo.Tests/LocalDemo.Tests.csproj",
+      "sha256": "44c8bff77a4e6fc9aabd9557bb230b1b6a8c0cbca0c1d4c090acf621ed0a8add"
+    },
+    {
+      "path": "tests/LocalDemo.Tests/MappingDepthTests.cs",
+      "sha256": "7a8bfb7568721eaba37f91c5df9596e915b374a2f59a9911a9b4a4ff98b059ca"
+    },
+    {
+      "path": "tests/LocalDemo.Tests/SmtpTransportTests.cs",
+      "sha256": "7025d165be93eb40f9972336d877563b5ac7ee44cde5002ac177ae2ad02da4c3"
+    },
+    {
+      "path": "Ecommerce/src/Core/Grand.Infrastructure/Grand.Infrastructure.csproj",
+      "sha256": "8d0021f7b6ef2efbba44198f6c15349731bf170f4f0116bf66c1e89ae7ce9418"
+    }
+  ]
+}

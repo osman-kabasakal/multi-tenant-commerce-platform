@@ -105,3 +105,8 @@ API references: [Npgsql data sources and transactions](https://www.npgsql.org/do
 Commerce can select `PlatformConfiguration:Provider=Environment` to load supplied Mongo/Redis configuration without constructing a Key Vault client. See [the onboarding implementation status](PROVISIONING.md) for configuration and the remaining full-deployment work.
 
 `Shared/Platform.Provisioning` persists onboarding jobs and step checkpoints in PostgreSQL. The local profile now uses it for actual new trial businesses, with limited Mongo users and dynamic Keycloak/host setup. Legacy cloud/build Redis flows remain separate until the cloud provider pipeline is completed. See [PROVISIONING.md](PROVISIONING.md).
+
+
+## E-posta ve ortak nesne eşleme bağımlılıkları
+
+Managed SMTP parolası, çalışan sürecin güncel mağaza bağlamıyla `store-smtp-password` sırrından çözülür. MailKit taşıması, STARTTLS tampon düzeltmesini içeren 4.16.0 sürümündedir; normal sunucu sertifikası doğrulaması korunur. Ortak GrandNode başlangıcındaki nesne eşleme profilleri tür başına derinlik sınırı kullanır. AutoMapper paket uyarısı ve MongoDB’nin iki alt bağımlılık uyarısı halen açıktır. [Bağımlılık güvenlik durumu ve kontrollü SMTP kabulü](DEPENDENCY_SECURITY.md).

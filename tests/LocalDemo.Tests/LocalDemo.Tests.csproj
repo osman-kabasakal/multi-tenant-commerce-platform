@@ -16,5 +16,6 @@
     <PackageReference Include="MSTest.TestFramework" Version="3.3.1" />
     <ProjectReference Include="../../Shared/Platform.Security/Platform.Security.csproj" />
     <ProjectReference Include="../../Ecommerce/src/Business/Grand.Business.Tenants/Grand.Business.Tenants.csproj" />
+    <ProjectReference Include="../../Ecommerce/src/Business/Grand.Business.Messages/Grand.Business.Messages.csproj" />
   </ItemGroup>
 </Project>
