@@ -34,13 +34,42 @@ class PluginBuildTests(unittest.TestCase):
                     with self.subTest(target=target,configuration=configuration,plugin=project.stem):
                         output=subprocess.check_output(['dotnet','msbuild',str(project),'-nologo',
                             '-p:Configuration='+configuration,'-p:BuildType='+target,
-                            '-getProperty:BaseDir,OutDir,TargetPath,TargetFileName'],cwd=build.ROOT,text=True)
+                            '-getProperty:BaseDir,TenantPluginRoot,OutDir,TargetPath,TargetFileName'],cwd=build.ROOT,text=True)
                         values=json.loads(output)['Properties']
                         base=(project.parent/values['BaseDir'].replace('\\','/')).resolve()
                         folder='ExternalAuth.Keycloak' if project.stem=='Authentication.Keycloak' else project.stem
                         self.assertEqual(destination,base)
+                        self.assertEqual(destination,Path(values['TenantPluginRoot']).resolve())
                         self.assertEqual(destination/folder,(project.parent/values['OutDir'].replace('\\','/')).resolve())
                         self.assertEqual(destination/folder/values['TargetFileName'],
                             (project.parent/values['TargetPath'].replace('\\','/')).resolve())
+
+    def test_publish_uses_the_same_plugin_root_for_each_host(self):
+        hosts={'Frontend':'Web/Grand.Web.MultiTenant','Backend':'Web/Grand.Web.OnlyAdmin',
+               'Installer':'Installer/Grand.Installer.Cli','Background':'Cli/Grand.BackgroundJobExecuter',
+               'Uploader':'Installer/Grand.Data.Uploader'}
+        for target,host in hosts.items():
+            directory=build.ROOT/'Ecommerce/src'/host
+            project=directory/(directory.name+'.csproj')
+            for configuration in ('Debug','Release'):
+                with self.subTest(target=target,configuration=configuration):
+                    result=subprocess.check_output(['dotnet','msbuild',str(project),'-nologo',
+                        '-p:Configuration='+configuration,'-p:BuildType='+target,
+                        '-target:ResolveTenantPluginDestination',
+                        '-getProperty:TenantPluginRoot,_TenantPluginDestination'],cwd=build.ROOT,text=True)
+                    values=json.loads(result)['Properties']
+                    self.assertEqual((directory/'Plugins').resolve(),Path(values['TenantPluginRoot']).resolve())
+                    self.assertEqual(values['TenantPluginRoot'],values['_TenantPluginDestination'])
+
+    def test_publish_rejects_missing_unknown_or_mismatched_build_type_before_building_plugins(self):
+        project=build.ROOT/'Ecommerce/src/Installer/Grand.Installer.Cli/Grand.Installer.Cli.csproj'
+        for target in ('','Fronted','Frontend','Backend','Background','Uploader'):
+            with self.subTest(target=target):
+                result=subprocess.run(['dotnet','msbuild',str(project),'-nologo',
+                    '-p:BuildType='+target,'-target:ResolveTenantPluginDestination'],
+                    cwd=build.ROOT,text=True,capture_output=True)
+                self.assertNotEqual(0,result.returncode)
+                expected='requires an explicit BuildType' if target in ('','Fronted') else 'Choose the matching host and BuildType'
+                self.assertIn(expected,result.stdout+result.stderr)
 
 if __name__=='__main__': unittest.main()

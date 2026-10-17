@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "utc": "2026-10-17T06:53:44.124494+00:00",
+  "baseCommit": "6ad5716093963302b57f2e72e63a946faf31b602",
+  "sdkVersion": "8.0.409",
+  "checks": {
+    "testCases": 5,
+    "pluginTargetConfigurationCombinations": 230,
+    "hostPublishDestinations": 10,
+    "invalidBuildTypeCases": 6
+  },
+  "cleanGitSourceVerified": true,
+  "fullPublishExecuted": false,
+  "remoteGithubActionsExecuted": false,
+  "scope": "Real MSBuild property evaluation on every selected plugin in Debug/Release, execution of the shared destination validation target on all five hosts, and actual clean-source Tax.FixedRate compilation for Frontend and Backend; no complete host publish, container build or live deployment.",
+  "sourceFiles": [
+    {
+      "path": "Ecommerce/Directory.Build.targets",
+      "sha256": "c7ef2a49f1efece32e55cfa9a98286cfbd6ad24dc5e4e62f8ac5eda7df133370"
+    },
+    {
+      "path": "Ecommerce/src/Build/Grand.Common.props",
+      "sha256": "c3fd876909d8af122973b7228de962c4dd9b7677ba567f2087ba8949150a7d16"
+    },
+    {
+      "path": "Ecommerce/src/Build/Grand.PluginOutput.props",
+      "sha256": "d725cbb613454b02086767100139b247337d20652823db9653ab805f27d34033"
+    },
+    {
+      "path": "scripts/test_tenant_plugins.py",
+      "sha256": "bae588a3434f2e0b42f19a5f209af1446cdf9d0f2439fec1f2abeadf9e1bcf41"
+    },
+    {
+      "path": "docs/TENANT_INITIALIZATION.md",
+      "sha256": "1add82541169147a9fa6793a7b8dabf23ff3bacafd4c552c06261db3741e61bb"
+    }
+  ],
+  "pluginCompilationExecuted": true,
+  "pluginCompilations": [
+    {
+      "buildType": "Frontend",
+      "relativeOutput": "Ecommerce/src/Web/Grand.Web.MultiTenant/Plugins/Tax.FixedRate/Tax.FixedRate.dll",
+      "bytes": 26112
+    },
+    {
+      "buildType": "Backend",
+      "relativeOutput": "Ecommerce/src/Web/Grand.Web.OnlyAdmin/Plugins/Tax.FixedRate/Tax.FixedRate.dll",
+      "bytes": 26112
+    }
+  ],
+  "existingDependencyWarnings": [
+    "AutoMapper 13.0.1: GHSA-rvv3-g6hj-g44x (high)",
+    "MailKit 4.5.0: GHSA-9j88-vvj5-vhgr (moderate)"
+  ]
+}

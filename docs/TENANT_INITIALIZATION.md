@@ -6,7 +6,7 @@ Bu akış yeni monoreponun Portable kurulum profilinde kullanılır. Eski instal
 
 `Plugins` altındaki **19 projenin tamamı her hedefte** derlenir. `Frontend` dışında `AdminPlugins` altındaki **5 projenin tamamı da** derlenir. Proje adı ile eklenti sistem adı aynı olmayabilir: örneğin `Authentication.Keycloak` çıktısı `ExternalAuth.Keycloak` klasörüne gider.
 
-Her eklentiye `dotnet build` / MSBuild çağrısında **BuildType açıkça gönderilir**. `BaseDir` ayrıca ezilmez; [Grand.Common.props](../Ecommerce/src/Build/Grand.Common.props) içindeki mevcut eşleme geçerlidir. Aynı `BuildType`, `dotnet publish` aşamasına da taşınır. Her eklentinin `OutDir` ve gerçek DLL yolu bu hedefin altındadır; bir hedefin çıktısı başka hedefin klasöründen alınmaz. Geliştirme Docker tarifi `Debug` kullanır; eklenti projelerinin çıktı koşulları `Debug` ve `Release` için tanımlıdır.
+Her eklentiye `dotnet build` / MSBuild çağrısında **BuildType açıkça gönderilir**. `BaseDir` ayrıca ezilmez; [Grand.PluginOutput.props](../Ecommerce/src/Build/Grand.PluginOutput.props) içindeki ortak eşleme geçerlidir. [Grand.Common.props](../Ecommerce/src/Build/Grand.Common.props) eklenti derlemelerinde, [Directory.Build.targets](../Ecommerce/Directory.Build.targets) yayın sırasında bu dosyayı kullanır; ayrı bir sabit çıktı yolu listesi tutulmaz. Aynı `BuildType`, `dotnet publish` aşamasına da taşınır. Her eklentinin `OutDir` ve gerçek DLL yolu bu hedefin altındadır; bir hedefin çıktısı başka hedefin klasöründen alınmaz. Geliştirme Docker tarifi `Debug` kullanır; eklenti projelerinin çıktı koşulları `Debug` ve `Release` için tanımlıdır.
 
 | BuildType | BaseDir’in işaret ettiği hedef | Eklenti sayısı |
 | --- | --- | --- |
@@ -22,6 +22,14 @@ Tek eklenti örneği, monorepo kökünden:
 dotnet build Ecommerce/src/Plugins/Tax.FixedRate/Tax.FixedRate.csproj -c Release -p:BuildType=Frontend -p:CopyLocalLockFileAssemblies=true
 ```
 
+Gerçek DLL yolunu doğrulamak için `TargetPath` ve `OutDir` değerlerini okuyun:
+
+```sh
+dotnet msbuild Ecommerce/src/Plugins/Tax.FixedRate/Tax.FixedRate.csproj -nologo -p:Configuration=Release -p:BuildType=Frontend -getProperty:BaseDir,OutputPath,OutDir,TargetPath
+```
+
+.NET SDK, `OutputPath` değerine `net8.0` ekleyebilir. Eklenti projeleri `OutDir` değerini ayrıca belirlediği için gerçek `TargetPath`, bu örnekte `Grand.Web.MultiTenant/Plugins/Tax.FixedRate/Tax.FixedRate.dll` olur. Paketleme için `bin/Release/net8.0` veya yalnızca `OutputPath` varsayımından yol üretilmez.
+
 Bir hedefin bütün eklentileri:
 
 ```sh
@@ -34,14 +42,14 @@ python3 scripts/build_ecommerce_plugins.py --build-type Uploader
 
 Docker bağlamına yerelde oluşmuş uygulama `Plugins` klasörleri alınmaz; kaynak `src/Plugins` ve `src/AdminPlugins` projeleri içeride derlenir. Böylece daha önce başka hedef için üretilmiş ya da eski konumda kalmış DLL’ler imaja karışmaz.
 
-Yayın sırasında `-p:PublishTenantPlugins=true` aynı derlemeyi yayın öncesinde çalıştırır. Çıktılar ilgili projenin `Plugins` klasöründen yayın paketine alınır. NuGet bağımlılıkları da kopyalanır; örneğin mobil eklentinin Twilio ve sabit teslimat eklentisinin geometri bağımlılıkları pakette bulunmalıdır.
+Yayın sırasında `-p:PublishTenantPlugins=true` aynı derlemeyi yayın öncesinde çalıştırır. Çıktılar ilgili projenin `Plugins` klasöründen yayın paketine alınır. `ResolveTenantPluginDestination`, seçilen `BuildType` ile yayımlanan hostun eşleşmesini eklenti derlemesi ve paket kopyalaması öncesinde doğrular. Örneğin Installer projesini `BuildType=Frontend` ile yayımlamak hata verir; başka hostun eklentileri sessizce kullanılmaz. Bu yayın yolunda boş veya bilinmeyen `BuildType` da kabul edilmez. NuGet bağımlılıkları da kopyalanır; örneğin mobil eklentinin Twilio ve sabit teslimat eklentisinin geometri bağımlılıkları pakette bulunmalıdır.
 
 ```sh
 dotnet publish Ecommerce/src/Installer/Grand.Installer.Cli/Grand.Installer.Cli.csproj -c Release -o /tmp/commerce-installer -p:BuildType=Installer -p:PublishTenantPlugins=true -p:UseAppHost=false
 dotnet /tmp/commerce-installer/Grand.Installer.Cli.dll --verify-plugins /tmp/commerce-installer Installer
 ```
 
-Kaynak envanteri [ManagedTenantPlugins.props](../Ecommerce/src/Build/ManagedTenantPlugins.props) dosyasında tutulur. `python3 scripts/test_tenant_plugins.py` bu envanteri gerçek proje klasörleriyle karşılaştırır ve beş BuildType için seçilen tüm eklentilerin `Debug` ve `Release` yapılandırmalarında gerçek MSBuild `BaseDir`, `OutDir` ve DLL çıktı yollarını doğrular (230 proje/hedef/yapılandırma birleşimi). Trendyol çıktısı kendi `Famizyo.TrendyolIntegration` klasörüne gider; bildirim eklentisinin klasörüne yazılmaz. Yeni eklenti eklenirse envanter de güncellenmelidir.
+Kaynak envanteri [ManagedTenantPlugins.props](../Ecommerce/src/Build/ManagedTenantPlugins.props) dosyasında tutulur. `python3 scripts/test_tenant_plugins.py` bu envanteri gerçek proje klasörleriyle karşılaştırır ve beş BuildType için seçilen tüm eklentilerin `Debug` ve `Release` yapılandırmalarında gerçek MSBuild `BaseDir`, `OutDir` ve DLL çıktı yollarını doğrular (230 proje/hedef/yapılandırma birleşimi). Ayrıca beş hostun iki yapılandırmada kullandığı gerçek yayın hedefini aynı eklenti köküyle karşılaştırır ve eksik, bilinmeyen veya hostla eşleşmeyen `BuildType` değerlerinin reddedildiğini kontrol eder. Trendyol çıktısı kendi `Famizyo.TrendyolIntegration` klasörüne gider; bildirim eklentisinin klasörüne yazılmaz. Yeni eklenti eklenirse envanter de güncellenmelidir.
 
 ## Eklentilerin görevleri
 

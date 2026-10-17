@@ -1,4 +1,5 @@
 <Project>
+  <Import Project="$(MSBuildThisFileDirectory)src/Build/Grand.PluginOutput.props" Condition="'$(_GrandPluginOutputImported)' != 'true'" />
   <Import Project="$(MSBuildThisFileDirectory)src/Build/ManagedTenantPlugins.props" />
   <!-- Runtime configuration and tenant keys are mounted separately from release artifacts. -->
   <Target Name="ExcludePrivateTenantRuntimeFiles" BeforeTargets="CheckForDuplicateItems;AssignTargetPaths">
@@ -9,19 +10,20 @@
       <EmbeddedResource Remove="@(_PrivateTenantRuntimeFiles)" />
     </ItemGroup>
   </Target>
-  <!-- Every standard plugin is built for every target; AdminPlugins are excluded only for Frontend. -->
-  <Target Name="BuildManagedTenantPlugins" BeforeTargets="PublishViews;PrepareForPublish"
-          Condition="'$(PublishTenantPlugins)' == 'true'">
+  <Target Name="ResolveTenantPluginDestination">
     <PropertyGroup>
       <_ManagedBuildType>$(BuildType)</_ManagedBuildType>
-      <_TenantPluginDestination Condition="'$(BuildType)' == 'Frontend'">$(MSBuildThisFileDirectory)src/Web/Grand.Web.MultiTenant/Plugins/</_TenantPluginDestination>
-      <_TenantPluginDestination Condition="'$(BuildType)' == 'Backend'">$(MSBuildThisFileDirectory)src/Web/Grand.Web.OnlyAdmin/Plugins/</_TenantPluginDestination>
-      <_TenantPluginDestination Condition="'$(BuildType)' == 'Installer'">$(MSBuildThisFileDirectory)src/Installer/Grand.Installer.Cli/Plugins/</_TenantPluginDestination>
-      <_TenantPluginDestination Condition="'$(BuildType)' == 'Background'">$(MSBuildThisFileDirectory)src/Cli/Grand.BackgroundJobExecuter/Plugins/</_TenantPluginDestination>
-      <_TenantPluginDestination Condition="'$(BuildType)' == 'Uploader'">$(MSBuildThisFileDirectory)src/Installer/Grand.Data.Uploader/Plugins/</_TenantPluginDestination>
+      <_TenantPluginDestination>$(TenantPluginRoot)</_TenantPluginDestination>
+      <_TenantPublishingHostDirectory>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)'))</_TenantPublishingHostDirectory>
     </PropertyGroup>
     <Error Condition="'$(_ManagedBuildType)' != 'Frontend' And '$(_ManagedBuildType)' != 'Backend' And '$(_ManagedBuildType)' != 'Installer' And '$(_ManagedBuildType)' != 'Background' And '$(_ManagedBuildType)' != 'Uploader'"
            Text="PublishTenantPlugins requires an explicit BuildType: Frontend, Backend, Installer, Background or Uploader." />
+    <Error Condition="'$(_TenantPublishingHostDirectory)' != '$(TenantHostDirectory)'"
+           Text="BuildType=$(BuildType) selects $(TenantHostDirectory), but the published project is $(MSBuildProjectFullPath). Choose the matching host and BuildType." />
+  </Target>
+  <!-- Every standard plugin is built for every target; AdminPlugins are excluded only for Frontend. -->
+  <Target Name="BuildManagedTenantPlugins" BeforeTargets="PublishViews;PrepareForPublish"
+          DependsOnTargets="ResolveTenantPluginDestination" Condition="'$(PublishTenantPlugins)' == 'true'">
     <ItemGroup>
       <_TenantPluginProject Include="@(ManagedTenantPlugin)"
           Condition="'%(ManagedTenantPlugin.Category)' == 'Plugins' Or '$(_ManagedBuildType)' != 'Frontend'">

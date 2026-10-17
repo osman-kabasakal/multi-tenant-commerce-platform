@@ -1,0 +1,15 @@
+<Project>
+  <!-- One BuildType mapping for plugin compilation and host publishing. -->
+  <PropertyGroup>
+    <_GrandPluginOutputImported>true</_GrandPluginOutputImported>
+    <TenantHostRelativeDirectory Condition="'$(BuildType)' == '' Or '$(BuildType)' == 'Backend'">Web/Grand.Web.OnlyAdmin</TenantHostRelativeDirectory>
+    <TenantHostRelativeDirectory Condition="'$(BuildType)' == 'Frontend'">Web/Grand.Web.MultiTenant</TenantHostRelativeDirectory>
+    <TenantHostRelativeDirectory Condition="'$(BuildType)' == 'Installer'">Installer/Grand.Installer.Cli</TenantHostRelativeDirectory>
+    <TenantHostRelativeDirectory Condition="'$(BuildType)' == 'Background'">Cli/Grand.BackgroundJobExecuter</TenantHostRelativeDirectory>
+    <TenantHostRelativeDirectory Condition="'$(BuildType)' == 'Uploader'">Installer/Grand.Data.Uploader</TenantHostRelativeDirectory>
+    <!-- BaseDir is relative to src/Plugins/* and src/AdminPlugins/*, as in the legacy projects. -->
+    <BaseDir Condition="'$(TenantHostRelativeDirectory)' != ''">../../$(TenantHostRelativeDirectory)/Plugins/</BaseDir>
+    <TenantHostDirectory Condition="'$(TenantHostRelativeDirectory)' != ''">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '$(TenantHostRelativeDirectory)'))</TenantHostDirectory>
+    <TenantPluginRoot Condition="'$(TenantHostDirectory)' != ''">$(TenantHostDirectory)Plugins/</TenantPluginRoot>
+  </PropertyGroup>
+</Project>

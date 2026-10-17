@@ -16,30 +16,8 @@
         <Optimize>true</Optimize>
     </PropertyGroup>
 
-    <PropertyGroup Condition="'$(BuildType)'==''">
-        <BaseDir>..\..\Web\Grand.Web.OnlyAdmin\Plugins\</BaseDir>
-    </PropertyGroup>
+    <Import Project="$(MSBuildThisFileDirectory)Grand.PluginOutput.props" />
 
-    <PropertyGroup Condition="'$(BuildType)'=='Backend'">
-        <BaseDir>..\..\Web\Grand.Web.OnlyAdmin\Plugins\</BaseDir>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(BuildType)'=='Frontend'">
-        <BaseDir>..\..\Web\Grand.Web.MultiTenant\Plugins\</BaseDir>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(BuildType)'=='Installer'">
-        <BaseDir>..\..\Installer\Grand.Installer.Cli\Plugins\</BaseDir>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(BuildType)'=='Uploader'">
-        <BaseDir>..\..\Installer\Grand.Data.Uploader\Plugins\</BaseDir>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(BuildType)'=='Background'">
-        <BaseDir>..\..\Cli\Grand.BackgroundJobExecuter\Plugins\</BaseDir>
-    </PropertyGroup>
-    
     <ItemGroup>
         <Using Include="System" />
         <Using Include="System.Collections.Generic" />
