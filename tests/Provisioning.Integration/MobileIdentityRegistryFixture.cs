@@ -115,6 +115,16 @@ internal static class MobileIdentityRegistryFixture
         await builds.CompleteAsync(buildLease,android with{Resources=new Dictionary<string,string>(android.Resources){["buildNumber"]="2"}},default);
         Check((await builds.ListAsync(tenant)).Single().Scope==binding,"The selected package reference remains in completed build history");
 
+        var pairedId=Guid.NewGuid();var subsequent=iosPlan with{ReleaseId=pairedId,BuildNumber=3};
+        await builds.EnqueueAsync(pairedId,tenant,app,deployment,3,default,binding,subsequent);
+        await using var iosBuilds=new IosBuildQueue(connection);
+        Check((await iosBuilds.ListAsync(tenant)).Single().Plan==subsequent,"An Android-only original enrollment can rebuild both platforms after its signed iOS identity transition");
+        var pairedAndroid=(await builds.ClaimAsync(deployment,default))!;
+        await builds.CompleteAsync(pairedAndroid,android with{Resources=new Dictionary<string,string>(android.Resources){["buildNumber"]="3"}},default);
+        var pairedIos=(await iosBuilds.ClaimAsync(worker,TimeSpan.FromMinutes(1),default))!;
+        await iosBuilds.CompleteAsync(pairedIos,iosReceipt with{BuildNumber=3},default);
+        Check((await versions.GetAsync(request.Id,owner))!.IosReceipt==iosReceipt,"A subsequent dual release preserves the first signed iOS identity receipt");
+
         // A later domain change has a separate fenced queue; its initial installation checkpoints stay unchanged.
         var nextDomainRequest=domainRequest with {Id=Guid.NewGuid(),StoreHost="next-"+tenant[..8]+".version.example.org",AdminHost="manage.next-"+tenant[..8]+".version.example.org"};
         await domains.CreateAsync(nextDomainRequest);

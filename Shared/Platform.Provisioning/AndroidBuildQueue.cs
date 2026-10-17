@@ -56,7 +56,7 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
     {
         IosReleasePlan.Tenant(tenant);scope?.Validate(tenant,deployment);iosPlan?.Validate();
         if(iosPlan!=null && (scope==null || iosPlan.ReleaseId!=id || iosPlan.TenantId!=tenant || iosPlan.DeploymentId!=deployment || iosPlan.MobileIdentityId!=scope.IdentityId ||
-            iosPlan.BuildNumber!=expectedNumber || iosPlan.IosBundleId!=scope.IosBundleId || iosPlan.ProjectId!=scope.ProjectId || iosPlan.StoreUrl!=scope.StoreUrl || iosPlan.Branding!=scope.Branding))throw new ProvisioningConflictException();
+            iosPlan.BuildNumber!=expectedNumber || iosPlan.IosBundleId!=scope.IosBundleId || iosPlan.ProjectId!=scope.ProjectId || iosPlan.ProjectNumber!=scope.ProjectNumber || iosPlan.StoreUrl!=scope.StoreUrl || iosPlan.Branding!=scope.Branding))throw new ProvisioningConflictException();
         if(id==Guid.Empty || app==Guid.Empty || expectedNumber<1) throw new ArgumentException("A release identity and version are required.");
         await using var connection = await db.OpenConnectionAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
@@ -65,7 +65,7 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
         {
             original.Parameters.AddWithValue(tenant);await using var reader=await original.ExecuteReaderAsync(ct);
             if(!await reader.ReadAsync(ct) || reader.GetString(0)!="Succeeded" || reader.GetString(1)!=deployment ||
-                reader.GetString(2) is not ("AndroidAppDistribution" or "AndroidIosAppDistribution") || reader.IsDBNull(3) || iosPlan!=null && reader.GetString(2)!="AndroidIosAppDistribution") throw new ProvisioningConflictException();
+                reader.GetString(2) is not ("AndroidAppDistribution" or "AndroidIosAppDistribution") || reader.IsDBNull(3)) throw new ProvisioningConflictException();
         }
         var prior=(await ListAsync(tenant,ct)).FirstOrDefault(j=>j.Id==id);
         if(prior!=null)
@@ -81,10 +81,11 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
         // Promotion and canonical domain changes use the same tenant lock. Queueing freezes the selected active identity.
         await using(var gate=new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtextextended($1,734180227))",connection,transaction))
         {gate.Parameters.AddWithValue(tenant);await gate.ExecuteNonQueryAsync(ct);}
-        await using(var active=new NpgsqlCommand("SELECT id FROM platform_provisioning.mobile_identity_versions WHERE tenant_id=$1 AND state='Active'",connection,transaction))
+        await using(var active=new NpgsqlCommand("SELECT id,(ios_receipt IS NOT NULL OR legacy AND EXISTS(SELECT 1 FROM platform_provisioning.ios_release_jobs i WHERE i.tenant_id=$1 AND i.state='Succeeded')) FROM platform_provisioning.mobile_identity_versions WHERE tenant_id=$1 AND state='Active'",connection,transaction))
         {
-            active.Parameters.AddWithValue(tenant);var current=await active.ExecuteScalarAsync(ct);
-            if(scope==null ? current is Guid : current is not Guid idValue || idValue!=scope.IdentityId)throw new ProvisioningConflictException();
+            active.Parameters.AddWithValue(tenant);await using var reader=await active.ExecuteReaderAsync(ct);var exists=await reader.ReadAsync(ct);
+            if(scope==null ? exists : !exists || reader.GetGuid(0)!=scope.IdentityId)throw new ProvisioningConflictException();
+            if(iosPlan!=null && (!exists || !reader.GetBoolean(1)))throw new ProvisioningConflictException();
         }
         await using(var insert = new NpgsqlCommand("""
             INSERT INTO platform_provisioning.android_build_jobs(id,tenant_id,app_id,deployment_id,build_number,scope)

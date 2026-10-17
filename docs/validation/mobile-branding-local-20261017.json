@@ -3,7 +3,7 @@
   "pythonMobileChecks": 90,
   "portableProvisioningChecks": 157,
   "portableServicesChecks": 38,
-  "realPostgresChecks": 197,
+  "realPostgresChecks": 199,
   "flutterConfigAndWidgetChecks": 17,
   "pinnedAndroidAndIosGeneratorsActuallyExecuted": true,
   "dependencyLockfilePreserved": true,
@@ -13,5 +13,6 @@
   "productionConfigurationChecks": 22,
   "actualRubyXcodePreparationVerified": true,
   "releaseTenantSelectsGeneratedAppIcon": true,
-  "liveRegistrationJsonParsedByFlutterModel": true
+  "liveRegistrationJsonParsedByFlutterModel": true,
+  "androidOnlyEnrollmentUpgradeToSignedIosRebuildVerified": true
 }
