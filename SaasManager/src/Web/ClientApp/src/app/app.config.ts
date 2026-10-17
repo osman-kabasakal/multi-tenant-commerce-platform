@@ -34,7 +34,7 @@ export const appConfig: ApplicationConfig = {
       withFetch(),
       withInterceptorsFromDi(),
       withXsrfConfiguration({
-        headerName: 'RequestVerificationToken',
+        headerName: 'X-XSRF-TOKEN',
         cookieName: 'X-XSRF-TOKEN'
       })
     ),

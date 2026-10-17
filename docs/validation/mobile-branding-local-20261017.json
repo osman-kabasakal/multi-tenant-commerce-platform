@@ -2,7 +2,7 @@
   "scope": "Local tenant branding and subsequent paired Android/iOS release enhancement",
   "pythonMobileChecks": 90,
   "portableProvisioningChecks": 157,
-  "portableServicesChecks": 38,
+  "portableServicesChecks": 43,
   "realPostgresChecks": 199,
   "flutterConfigAndWidgetChecks": 17,
   "pinnedAndroidAndIosGeneratorsActuallyExecuted": true,
@@ -14,5 +14,7 @@
   "actualRubyXcodePreparationVerified": true,
   "releaseTenantSelectsGeneratedAppIcon": true,
   "liveRegistrationJsonParsedByFlutterModel": true,
-  "androidOnlyEnrollmentUpgradeToSignedIosRebuildVerified": true
+  "androidOnlyEnrollmentUpgradeToSignedIosRebuildVerified": true,
+  "realAntiforgeryCookieHeaderCases": 5,
+  "userConfirmedLiveRegistrationScreenOpens": true
 }

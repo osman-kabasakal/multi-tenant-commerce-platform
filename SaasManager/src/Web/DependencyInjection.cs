@@ -93,13 +93,7 @@ public static class DependencyInjection
         });
 
         builder.Services.AddAntiforgery(options =>
-        {
-            options.HeaderName = "X-XSRF-TOKEN";
-            options.Cookie = new CookieBuilder()
-            {
-                Name = "X-XSRF-TOKEN", SecurePolicy = builder.Configuration.GetValue<bool>("LocalDemo:Enabled") ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always, HttpOnly = false
-            };
-        });
+            PortalAntiforgery.Configure(options,builder.Configuration.GetValue<bool>("LocalDemo:Enabled")));
     }
 
     public static void AddKeyVaultIfConfigured(this IHostApplicationBuilder builder)

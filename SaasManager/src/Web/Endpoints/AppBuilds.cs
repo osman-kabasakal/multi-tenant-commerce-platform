@@ -15,17 +15,21 @@ public class AppBuilds: EndpointGroupBase
 {
     public override void Map(WebApplication app)
     {
-        app.MapGroup(this,"app-builds")
-            .RequireAuthorization()
-            .MapGet(GetVm,"get-vm")
-            .MapPost(NewBuild,"new-build")
-            .MapPost(BuildList,"list")
-            .MapGet(DownloadBuild,"download");
+        var group=app.MapGroup(this,"app-builds").RequireAuthorization();
+        group.MapGet(GetVm,"get-vm");
+        group.MapPost("new-build",NewBuild).WithName(nameof(NewBuild)).AddEndpointFilter(async (context,next) =>
+        {
+            try {await context.HttpContext.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(context.HttpContext);}
+            catch(AntiforgeryValidationException) {return Results.BadRequest(new {message="Sayfayı yenileyip tekrar deneyin."});}
+            return await next(context);
+        });
+        group.MapPost(BuildList,"list");
+        group.MapGet(DownloadBuild,"download");
     }
     
     public async Task<Ok<ServiceResponse<NewBuildVm>>> GetVm(ISender sender, IAntiforgery antiforgery, IHttpContextAccessor accessor)
     {
-        antiforgery.SetCookieTokenAndHeader(accessor.HttpContext);
+        PortalAntiforgery.Issue(accessor.HttpContext!,antiforgery);
         return TypedResults.Ok(await sender.Send(new GetNewBuildVmQuery()));
     }
     
