@@ -1,0 +1,137 @@
+{
+  "recordedAtUtc": "2026-10-17T22:37:18.953259+00:00",
+  "monorepoOnly": true,
+  "unrelatedEcommerceEditsExcluded": true,
+  "runtimeRevision": "0c34b47b7c508edade75bb6be76cd64df692bec0",
+  "fullServerPublishRevision": "14b6077044b1d1a2d2e3caac350d394bc2dfde1d",
+  "retainedSdkBaseRevision": "a3fd3cbbd75703831bcc8cb29c548350d83b98c7",
+  "laterTargetedOutputs": {
+    "adminAndOptionalIntegrationFix": "9ebb86416c440578d1f71f051a5a4152833074f9",
+    "tenantTaskHost": "5b3f059fc15f2710f3173477bfa26041aaadec19",
+    "publicRegistrationController": "0c34b47b7c508edade75bb6be76cd64df692bec0"
+  },
+  "nativeRecipeRevision": "966c0b11e8f2e62114584a9ecf5972b7e74f696e",
+  "buildNumber": 6,
+  "pairedReleaseId": "ed774cb8-0887-42a4-b5bb-d3b7cad3a7e6",
+  "bothNativeJobsSucceeded": true,
+  "android": {
+    "bytes": 34855814,
+    "sha256": "4e9b35341330657c2cb5cf18de89baebbe419e6192babec8b1eaac7e610316aa",
+    "sourceHash": "b2dc9cb0bcf56d17a96ffa34130d1643ee96630a3268bc619ced3c169321ac44",
+    "actualSignatureAndFrozenBrandingVerified": true,
+    "providerDownloadMatches": true,
+    "readOnlySecretReader": true,
+    "providerResourceWrites": 0,
+    "physicalDeviceRegistrationAndDeliveryVerified": false
+  },
+  "ios": {
+    "bytes": 20065623,
+    "sha256": "411e9706642780b5b791c00ffa3f11b3265ec4f795604d2496c93924b77df462",
+    "sourceHash": "f69d1bb8cd6d700ec21ed63ab6812f1c3b36b907223a5c5b360fe34413050cbb",
+    "signatureAndSymbolsVerified": true,
+    "providerDownloadMatches": true,
+    "providerResourceWrites": 0,
+    "crashlyticsSymbolsUploaded": true,
+    "productionApnsEntitlementVerified": true,
+    "exactTenantAssociatedDomainVerified": true,
+    "physicalInstallationVerified": true,
+    "physicalLaunchVerified": true,
+    "physicalApnsRegistrationVerified": true,
+    "physicalNotificationUserConfirmed": true,
+    "notificationTapCartUserConfirmed": true,
+    "notificationIconUserAccepted": true,
+    "mainAppDeviceIconIsTenantBrand": true,
+    "compiled120PixelIconMatchesGeneratedTenantIcon": true,
+    "oldFlutterNotificationIconReported": true,
+    "deviceRestartRetestPending": false,
+    "relatedAppleEngineerResponse": "https://developer.apple.com/forums/thread/808387",
+    "notificationIconCorrectAfterDeviceRestartWithoutReinstall": true
+  },
+  "registrationRootCauses": [
+    "Native identity-bound apns-v2 token rejected by older Dart prefix check",
+    "Shared mobile auth interceptor sends JSON but old MVC action bound primitive form fields"
+  ],
+  "jsonAndLegacyFormBothVerifiedWithRealAspNetHttp": true,
+  "currentCustomerComesFromTrustedWorkContext": true,
+  "malformedJsonReturns400WithoutTokenEcho": true,
+  "receiverEvidence": {
+    "allowedRows": 2,
+    "distinctDeviceTokens": 1,
+    "onlyExpectedProductionApnsIdentity": true,
+    "senderDeduplicatesIdenticalTokens": true,
+    "legacyConcurrentFirstRegistrationCanProduceDuplicateRows": true
+  },
+  "visibleAdminTest": {
+    "humanAuthorized": true,
+    "ownIphoneOnly": true,
+    "actualAuthenticatedFormSubmissions": 1,
+    "providerAcceptedRecipients": 1,
+    "acceptedAtUtc": "2026-10-17T22:31:19.596Z",
+    "adminSuccessTextVerified": "Bildirim gönderildi",
+    "deviceDeliveryAndCartTapConfirmedByHuman": true,
+    "duplicateSendAfterUncertainResult": false
+  },
+  "deeplinks": {
+    "publicHttpsAndAdminReadinessChecks": 13,
+    "anonymousAppleAndAndroidAssociationsVerified": true,
+    "actualAndroidReleaseCertificateVerified": true,
+    "adminAssociation404Verified": true,
+    "actualAdminFormRejectsAdminHostLinkBeforeDelivery": true,
+    "physicalNotificationTapVerified": true,
+    "physicalExternalUniversalLinkRoutingVerified": false
+  },
+  "tenantTasks": {
+    "portableEntryPoint": "TenantManager --tenant-schedule-worker",
+    "composeService": "task-worker",
+    "legacyGrandBackgroundJobExecuterUsed": false,
+    "liveEnabledForTestTenantOnly": true,
+    "enabledTasksWithSuccessRecord": 10,
+    "disabledTasksPreserved": 4,
+    "installerChildConditionalRegistrationFlagVerified": true,
+    "optionalDomainReceiptDoesNotBlockTasks": true,
+    "missingOptionalSimpraConfigSkipped": true,
+    "queuedEmailsAtReadCheck": 0
+  },
+  "focusedRegressionChecks": {
+    "notificationsAspNetAndContracts": 45,
+    "gateway": 59,
+    "portableProvisioning": 157,
+    "pythonIos": 59,
+    "realMongoTaskProbeAssertions": 24,
+    "flutterRegistrationAndDeeplinks": 22
+  },
+  "samePackageFirebaseAndCertificatesPreserved": true,
+  "emptyDistributionGroupsVerified": true,
+  "fullLatestServerAndSdkRebuildClaimed": false,
+  "linuxMobileSupplementOffboxVerified": true,
+  "supplementIsFullServerSnapshot": false,
+  "macArtifactBackupVerifiedFiles": 763,
+  "distributionPrivateKeyExported": false,
+  "temporaryMacConsumerAndTunnelStopped": true,
+  "sameMinimalOracleVm": {
+    "ocpu": 1,
+    "memoryGiB": 8,
+    "stopScheduleUnchanged": true
+  },
+  "githubActionsExecuted": false,
+  "pending": [
+    "Android physical registration, foreground/background notification and tap acceptance",
+    "External universal-link OS routing, closed-app paths, real Crashlytics crash and unattended Mac signing"
+  ],
+  "visibleIconRetest": {
+    "humanAuthorized": true,
+    "actualAuthenticatedAdminFormSubmissions": 1,
+    "ownIphoneOnly": true,
+    "afterHumanDeviceRestart": true,
+    "physicalCorrectTenantIconConfirmedByHuman": true,
+    "applicationUninstalled": false
+  },
+  "publicSourceChecks": {
+    "cleanTrackedFiles": 13293,
+    "assetPaths": 3754,
+    "licensingInputs": 174,
+    "gitleaksFindings": 0,
+    "licenseInventoryIsPermissionGrant": false,
+    "preExistingUnrelatedEditsExcluded": true
+  }
+}

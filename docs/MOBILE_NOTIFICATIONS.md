@@ -34,7 +34,7 @@ Görevler başlamadan üç zorunlu ilk kurulum kaydı doğrulanır: `tenant-plug
 3. Android manifesti mağaza alan adını kullanır. iOS hazırlayıcısı yalnız tenant mağazasını `applinks:<host>` olarak yazar, Flutter deeplink işlemeyi etkinleştirir ve hatalı eski `https` özel URL şemasını kaldırır.
 4. Apple otomasyonu uygulamanın `PUSH_NOTIFICATIONS` ve `ASSOCIATED_DOMAINS` yetkilerini doğrular. Yeni alan adı yetkisini içeren uygulama profili ayrı sürüm adıyla oluşturulur; eski profil silinmez. Dışarıdan seçilen profil de doğru alan adına izin vermelidir. Apple profilindeki associated-domains izni tek `*` metni olarak gelebilir; yalnız bu alanın wildcard biçimi diziye uyarlanır. İmzalı uygulamada yalnız tenant mağazasının `applinks:` girdisi bulunması ayrıca doğrulanır; diğer imza ve izin kontrolleri gevşetilmez.
 5. İmzalı uygulamayı kurup açın ve bildirim izni verin. iOS native token'ı seçili uygulama kimliğiyle kodlar; uygulama bunu kendi tenant'ının `/PushNotifications/ProcessRegistration` adresine gönderir. Uç hem JSON hem eski tarayıcı formunu kabul eder; mobil kimlik doğrulama katmanının JSON gönderdiği durumda alanlar açıkça gövdeden bağlanır. Alıcı müşterisi istek gövdesinden alınmaz; mevcut doğrulanmış müşteri kullanılır. Geçersiz JSON başarı gibi gösterilmeden 400 döner. Özel cihaz token'ını loglara veya dokümana yazmayın.
-6. Admin → Bildirimler → Alıcılar sayfasında izinli alıcıyı kontrol edin. Oturum değişiminde ve uygulama yeniden ön plana geldiğinde kayıt yenilenir. Eşzamanlı yenilemeler aynı kayıt isteğini paylaşır. Geçici HTTP hatasında iOS sonraki başlatmada kaydı yeniden dener. İzin reddedilirse alıcı izinli sayılmaz.
+6. Admin → Bildirimler → Alıcılar sayfasında izinli alıcıyı kontrol edin. Oturum değişiminde ve uygulama yeniden ön plana geldiğinde kayıt yenilenir. Eşzamanlı başlatma çağrıları aynı başlatma işlemini paylaşır; native token olayı ayrıca HTTP kaydı tetikleyebilir. Eski ilk-kayıt akışında yinelenen alıcı satırları oluşabilir; gönderici aynı token'ı tekilleştirir ve satır sayısı tekil cihaz sayısı değildir. Geçici HTTP hatasında iOS sonraki başlatmada kaydı yeniden dener. İzin reddedilirse alıcı izinli sayılmaz.
 
 ## Admin panelinden bildirim denemesi
 
@@ -86,3 +86,12 @@ flutter test --dart-define=IOS_PUSH_TRANSPORT=Apns \
 ```
 
 Test paketleri sentetik veri kullanır; gerçek bildirim göndermez. Canlı kabul sonucu ayrıca `docs/validation` altında tutulur.
+
+
+## iOS bildiriminde eski uygulama ikonu
+
+Önce gerçek imzalı IPA'daki seçili AppIcon dosyasını ve cihazın uygulama için döndürdüğü ikonu kontrol edin. Logo dosyasının Flutter assets içinde bulunması, native ikonun doğru olduğunu tek başına kanıtlamaz. Aynı bundle ID ile eski ikonlu sürümün üzerine güncelleme yapıldığında ana ekran doğruyken bildirim eski ikonu gösterebilir. [Apple mühendisi bu davranışı ve yeniden başlatma gereksinimini belgeliyor](https://developer.apple.com/forums/thread/808387). Yeniden başlatmadan sonra yeni bir test bildirimiyle kontrol edin; eski bir bildirimin görünümü yeterli kabul değildir. Sonuç sürüme ve cihaza göre ayrıca doğrulanır. Uygulamayı silmek veya kimliği değiştirmek varsayılan çözüm değildir.
+
+18 Ekim canlı denemesinde APNs teslimi ve bildirime dokununca sepetin açılması kullanıcı tarafından doğrulandı. iPhone'un uygulama ikonu Bizim Köfte olarak okundu; yalnız bildirimdeki eski Flutter ikonu cihaz yeniden başlatıldıktan sonra, aynı uygulama yeniden kurulmadan yeni bildirimde düzeldi; kullanıcı işletme ikonunu doğruladı. Android fiziksel testi ayrıca takip edilir. [Kabul kaydı](validation/mobile-notifications-live-20261018.json).
+
+Yeni işletmelerde ilk cihaz dağıtımından önce portalda logo ve ikonları yükleyip markalı sürümü oluşturun. Eski Flutter ikonuyla kurulmuş test uygulamasının üzerine güncelleme yapmak bu cihaz önbelleği durumuna yol açabilir.
