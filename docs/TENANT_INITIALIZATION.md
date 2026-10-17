@@ -92,6 +92,8 @@ Ayrıca türetilen kayıtlar doğrulanır:
 - Türkiye il verileri; mevcut il/alan kimlikleri korunarak güncellenir.
 - İşletme sahibinin ad/soyadı, tenant API kullanıcısı, e-posta şablonlarının işletme sahibine BCC ve varsayılan gönderici bağlantısı.
 
+Eski SHA1/SHA256/SHA384 parola kayıtları, kendi özet biçimleriyle doğrulanmaya devam eder. Yeni parola politikası SHA512 olsa da mevcut parola veya salt değiştirilmez; giriş, parola değiştirme/silme doğrulaması ve parola geçmişi kontrolleri aynı uyumluluğu kullanır.
+
 Ürün, sipariş, müşteri, kategori, diğer vergi kategorileri, kargo yöntemleri ve iade kayıtları topluca silinmez. Aynı adlı başlangıç kayıtları tekrar eklenmez. Tamamlanan profil tekrar çalıştırılmaz; işletmecinin sonradan yaptığı ayar değişikliklerinin üzerine rutin worker açılışında yazılmaz.
 
 Üretim planında `Identity.Smtp` tanımlıysa aynı doğrulanmış TLS göndericisi tenant’ın başlangıç e-posta hesabına bağlanır. Parola tenant’a ait `store-smtp-password` sırrında saklanır; Mongo’daki e-posta hesabında yalnızca bu sırra referans bulunur. Gönderim sırasında parola mevcut mağaza bağlamından çözülür ve normal sertifika/hostname doğrulaması uygulanır. Kurulum kabul testleri e-posta veya SMS göndermez. Google bildirim kimliği ve APNs anahtarı eski Azure blob kopyası yerine mevcut platform bildirim adaptörlerinde kalır.

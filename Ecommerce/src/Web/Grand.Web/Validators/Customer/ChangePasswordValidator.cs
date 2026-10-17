@@ -72,7 +72,7 @@ public class ChangePasswordValidator : BaseGrandValidator<ChangePasswordModel>
                     PasswordFormat.Encrypted => encryptionService.EncryptText(x.OldPassword,
                         customer.PasswordSalt),
                     PasswordFormat.Hashed => encryptionService.CreatePasswordHash(x.OldPassword,
-                        customer.PasswordSalt, customerSettings.HashedPasswordFormat),
+                        customer.PasswordSalt, CustomerPasswordHash.StoredFormat(customer.Password,customerSettings.HashedPasswordFormat)),
                     _ => x.OldPassword
                 };
                 if (oldPwd != customer.Password)

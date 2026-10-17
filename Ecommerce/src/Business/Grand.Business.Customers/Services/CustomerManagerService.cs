@@ -69,7 +69,7 @@ public class CustomerManagerService : ICustomerManagerService
             PasswordFormat.Clear => newPassword,
             PasswordFormat.Encrypted => _encryptionService.EncryptText(newPassword, passwordSalt),
             PasswordFormat.Hashed => _encryptionService.CreatePasswordHash(newPassword, passwordSalt,
-                _customerSettings.HashedPasswordFormat),
+                CustomerPasswordHash.StoredFormat(oldPassword,_customerSettings.HashedPasswordFormat)),
             _ => throw new Exception("PasswordFormat not supported")
         };
         return oldPassword.Equals(newPwd);
@@ -88,14 +88,7 @@ public class CustomerManagerService : ICustomerManagerService
             ? await _customerService.GetCustomerByUsername(usernameOrEmail)
             : await _customerService.GetCustomerByEmail(usernameOrEmail);
 
-        var pwd = customer.PasswordFormatId switch {
-            PasswordFormat.Clear => password,
-            PasswordFormat.Encrypted => _encryptionService.EncryptText(password, customer.PasswordSalt),
-            PasswordFormat.Hashed => _encryptionService.CreatePasswordHash(password, customer.PasswordSalt,
-                _customerSettings.HashedPasswordFormat),
-            _ => throw new Exception("PasswordFormat not supported")
-        };
-        var isValid = pwd == customer.Password;
+        var isValid = PasswordMatch(customer.PasswordFormatId,customer.Password,password,customer.PasswordSalt);
         if (!isValid)
             return CustomerLoginResults.WrongPassword;
 

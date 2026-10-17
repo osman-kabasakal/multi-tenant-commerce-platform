@@ -80,7 +80,7 @@ public class LoginValidator : BaseGrandValidator<LoginModel>
                             encryptionService.EncryptText(x.Password, customer.PasswordSalt),
                         PasswordFormat.Hashed => encryptionService.CreatePasswordHash(x.Password,
                             customer.PasswordSalt,
-                            customerSettings.HashedPasswordFormat),
+                            CustomerPasswordHash.StoredFormat(customer.Password,customerSettings.HashedPasswordFormat)),
                         _ => throw new Exception("PasswordFormat not supported")
                     };
                     var isValid = pwd == customer.Password;

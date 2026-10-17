@@ -26,7 +26,7 @@ public class DeleteAccountValidator : BaseGrandValidator<DeleteAccountModel>
                     workContext.CurrentCustomer.PasswordSalt),
                 PasswordFormat.Hashed => encryptionService.CreatePasswordHash(x.Password,
                     workContext.CurrentCustomer.PasswordSalt,
-                    customerSettings.HashedPasswordFormat),
+                    CustomerPasswordHash.StoredFormat(workContext.CurrentCustomer.Password,customerSettings.HashedPasswordFormat)),
                 _ => throw new Exception("PasswordFormat not supported")
             };
             var isValid = pwd == workContext.CurrentCustomer.Password;
