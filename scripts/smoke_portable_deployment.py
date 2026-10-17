@@ -4,6 +4,7 @@
 A loopback-only CONNECT fixture maps synthetic DNS names. It does not terminate
 TLS, relax certificate validation, modify the hosts file or contact a DNS API.
 """
+from production_config import plugin_configuration
 import argparse, base64, contextlib, copy, http.cookiejar, http.server, json, os, secrets, select, signal, socket, subprocess, sys, threading, time, urllib.error, urllib.parse, urllib.request, uuid
 from html.parser import HTMLParser
 from pathlib import Path
@@ -84,7 +85,7 @@ def main():
     with (demo.LOCAL/'logs/build-portable-gateway.log').open('w') as log:subprocess.run(['dotnet','publish','tools/Platform.Gateway/Platform.Gateway.csproj','-c','Release','--nologo','-o',str(demo.LOCAL/'runtime/portable-gateway'),'-p:UseAppHost=false','--verbosity','quiet'],cwd=demo.ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
     installer_runtime=root/'installer-runtime'
     with (demo.LOCAL/'logs/build-portable-installer.log').open('w') as log:
-        subprocess.run(['dotnet','publish','src/Installer/Grand.Installer.Cli/Grand.Installer.Cli.csproj','-c','Release','--nologo','-o',str(installer_runtime),'-p:UseAppHost=false','--verbosity','quiet'],cwd=demo.ROOT/'Ecommerce',stdout=log,stderr=subprocess.STDOUT,check=True)
+        subprocess.run(['dotnet','publish','src/Installer/Grand.Installer.Cli/Grand.Installer.Cli.csproj','-c','Release','--nologo','-o',str(installer_runtime),'-p:BuildType=Installer','-p:PublishTenantPlugins=true','-p:UseAppHost=false','--verbosity','quiet'],cwd=demo.ROOT/'Ecommerce',stdout=log,stderr=subprocess.STDOUT,check=True)
     for relative in ['wwwroot/logo.png','App_Data/Resources/Installation/installation.en.xml','App_Data/Resources/Installation/installation.pl.xml','App_Data/Resources/supportedcollation.xml']:
         check((installer_runtime/relative).is_file(),'The ordinary fresh installer publish contains '+relative)
     children=[];native=None;created=False;saas_created=False;portal="https://portal.example.test:18084";saas_database="portable_saas_test_"+tenant;second_tenant=uuid.uuid4().hex;trial_plan=uuid.uuid4().hex
@@ -116,15 +117,18 @@ def main():
                 KeycloakAuthority=authority,KeycloakRealm='commerce-demo',KeycloakAdminRealm='commerce-demo',KeycloakAdminClientId=identity['provisioningClientId'],KeycloakAdminClientSecret=identity['provisioningClientSecret'],IdentityRootCertificateFile=str(identity['root']),IngressRootCertificateFile=str(identity['root']))
             commerce=copy.deepcopy(json.loads((demo.LOCAL/'commerce.json').read_text()))
             commerce.update(PlatformSecurity=security,LocalDemo={'Enabled':False},PlatformConfiguration={'Provider':'Environment'},Notifications={'Provider':'Disabled'},AllowedHosts='localhost;127.0.0.1;*.shops.example.test;*.manage.example.test',
-                Proxy={'Enabled':True,'KnownProxies':['127.0.0.1','::1'],'ForwardLimit':1},Provisioning={'ReadinessEndpoint':True})
+                Proxy={'Enabled':True,'KnownProxies':['127.0.0.1','::1'],'ForwardLimit':1},Provisioning={'ReadinessEndpoint':True,'ManagedRuntime':True})
             commerce['Database']['ConnectionString']=runtime_connection
             commerce['Application'].update(DisableHostedService=True,SkipMigrationProcess=True)
             commerce['AuthConfiguration'].update(IdentityProviderUrl=identity['authority'],AuthorityRootCertificateFile=str(identity['root']))
             commerce.setdefault('Logging',{}).setdefault('LogLevel',{})['Microsoft.Hosting.Lifetime']='Information'
-            installer_config=root/'installer.json';demo.write_json(installer_config,commerce);settings['CommerceConfigPath']=str(installer_config)
+            commerce['Extensions']=plugin_configuration('Frontend')
+            installer=copy.deepcopy(commerce);installer['Extensions']=plugin_configuration('Installer')
+            installer_config=root/'installer.json';demo.write_json(installer_config,installer);settings['CommerceConfigPath']=str(installer_config)
             runtime=copy.deepcopy(commerce);runtime['PlatformSecurity'].update(ReadOnly=True,InitializeSchema=False)
             commerce_path=root/'commerce.json';demo.write_json(commerce_path,runtime)
             admin=copy.deepcopy(runtime);admin['TenantRouting']={'Provider':'Directory','RouteDirectory':settings['RouteDirectory'],'AdminParentDomains':['manage.example.test']}
+            admin['Extensions']=plugin_configuration('Backend')
             admin_path=root/'admin.json';demo.write_json(admin_path,admin)
             gateway={'Gateway':{'Provider':'Directory','RouteDirectory':settings['RouteDirectory'],'StoreBaseUrl':settings['StoreBaseUrl'],'AdminBaseUrl':settings['AdminBaseUrl'],
                 'CommerceUpstream':'http://127.0.0.1:18182','AdminUpstream':'http://127.0.0.1:18183','AllowHttpUpstreams':True,'IdentityAuthority':authority,'IdentityRealm':'commerce-demo','IdentityRootCertificateFile':str(identity['root'])},

@@ -36,7 +36,7 @@ public class SimpraStartup : IStartupApplication
         services.AddScoped<ISimpraMenuItemMappingService, SimpraMenuItemMappingService>();
         services.AddScoped<ISimpraCondimentMappingService, SimpraCondimentMappingService>();
 
-        if (configuration["MultitenantTask:Enabled"] != null
+        if (!configuration.GetValue<bool>("Provisioning:ManagedRuntime") && configuration["MultitenantTask:Enabled"] != null
             && !bool.Parse(configuration["MultitenantTask:Enabled"]!.ToString()))
         {
             // Register background services

@@ -85,7 +85,7 @@ public sealed class AndroidReleaseTests
         services.AddSingleton<IAndroidSigningKeyFactory>(mobile.Keys);services.AddSingleton<IAndroidReleaseBuilder>(mobile.Builder);
         services.AddPortableOnboarding(f.Config(),"Production");using var provider=services.BuildServiceProvider();using var scope=provider.CreateScope();
         var steps=scope.ServiceProvider.GetServices<IProvisioningStep>().Select(s=>s.Name).ToArray();
-        Assert.AreEqual(8,steps.Length);Assert.AreEqual("publication",steps[^2]);Assert.AreEqual("mobile-android-release",steps[^1]);
+        Assert.AreEqual(11,steps.Length);Assert.AreEqual("publication",steps[^2]);Assert.AreEqual("mobile-android-release",steps[^1]);
         Assert.AreEqual(2,scope.ServiceProvider.GetServices<IProvisioningGuard>().Count());
     }
     [TestMethod]

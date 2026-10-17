@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import tempfile
 import uuid
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 SECRET_NAMES = ('postgres', 'mongo', 'owner', 'saas', 'worker', 'reader', 'keycloak_db',
@@ -230,6 +231,13 @@ def prepare(plan, state, image):
     return record
 
 
+def plugin_configuration(role):
+    plugins = [x for x in ET.parse(ROOT / 'Ecommerce/src/Build/ManagedTenantPlugins.props').getroot().findall('./ItemGroup/ManagedTenantPlugin') if (x.findtext('Category') == 'Plugins' or role != 'Frontend') and x.findtext('PortableRuntime') == 'true']
+    return {'InstalledPlugins': ','.join(x.findtext('SystemName') for x in plugins),
+            'PluginSkipLoadingPattern': r'^(?!(?:' + '|'.join(re.escape(x.attrib['Include']) for x in plugins) + r')\.dll$).*',
+            'PluginShadowCopy': False, 'DisableUploadExtensions': True}
+
+
 def render(p, state, record, image):
     mobile = p['Providers'].get('Mobile', {'Provider': 'Disabled'})
     c = record['Credentials']; ident = p['DeploymentId']; port = '' if p['HttpsPort'] == 443 else ':' + str(p['HttpsPort'])
@@ -256,17 +264,21 @@ def render(p, state, record, image):
         AuthConfiguration={'IdentityProviderUrl': identity + '/realms/commerce', 'Audience': 'saas-manager', 'ClientId': 'saas-manager'},
         FrontendAPI={'Enabled': True, 'JsonContentType': True, 'SecretKey': c['frontend']},
         BackendAPI={'Enabled': True, 'SecretKey': c['backend']},
-        Extensions={'InstalledPlugins': '', 'PluginSkipLoadingPattern': '.*'}, MultitenantTask={'Enabled': False},
-        Notifications=p['Providers']['Notifications'], Provisioning={'ReadinessEndpoint': True},
+        Extensions=plugin_configuration('Frontend'), MultitenantTask={'Enabled': False},
+        Notifications=p['Providers']['Notifications'], Provisioning={'ReadinessEndpoint': True, 'ManagedRuntime': True},
         Proxy=proxy([ip(11)]), AllowedHosts='*.' + p['StoreParentDomain'])
     if p['Providers']['Notifications'].get('Provider') == 'FcmApns':
         commerce['Notifications'] = copy.deepcopy(p['Providers']['Notifications'])
         commerce['Notifications']['Apns']['KeyFile'] = '/run/secrets/apns-key.p8'
     if ca: commerce['AuthConfiguration']['AuthorityRootCertificateFile'] = ca
     administration = copy.deepcopy(commerce)
+    administration['Extensions'] = plugin_configuration('Backend')
     administration.update(AllowedHosts='*.' + p['AdminParentDomain'],
         TenantRouting={'Provider': 'Directory', 'RouteDirectory': '/var/lib/commerce/routes', 'AdminParentDomains': [p['AdminParentDomain']]})
     installer = copy.deepcopy(commerce); installer['PlatformSecurity'] = security('worker')
+    installer['Extensions'] = plugin_configuration('Installer')
+    if p.get('Identity', {}).get('Smtp'):
+        installer['Provisioning']['StoreEmail'] = copy.deepcopy(p['Identity']['Smtp'])
     if p['Providers']['Notifications'].get('Provider') == 'FcmApns': installer['Notifications'] = {'Provider': 'Disabled'}
     gateway = copy.deepcopy(base)
     gateway.update(PlatformSecurity=security('reader', True), Proxy=proxy([ip(10)]),

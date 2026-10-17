@@ -146,6 +146,8 @@ try
     }
     var job=(await queue.GetAsync(tenantId))!;
     Check(job.Steps.ContainsKey("store"),"Real managed installer runs in Production with LocalDemo disabled");
+    foreach(var phase in ManagedTenantStep.Tasks)
+        Check(job.Steps.ContainsKey(phase) && job.Steps[phase].Resources["profileVersion"]=="1","Real ordered tenant phase completed: "+phase);
     Check(job.Steps.ContainsKey("identity"),"Scoped HTTPS Keycloak service account creates the owned tenant client");
     Check(job.Steps.ContainsKey("domains") && job.Steps["domains"].Provider=="Wildcard","Explicit wildcard configuration yields deterministic public tenant hosts");
     if(publicReady && job.State!="Succeeded")

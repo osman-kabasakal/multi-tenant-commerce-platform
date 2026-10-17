@@ -132,19 +132,7 @@ public static class PluginManager
                     {
                         if (!_config.PluginShadowCopy)
                         {
-                            //remove deps.json files 
-                            var depsFiles =
-                                plugin.OriginalAssemblyFile.Directory!.GetFiles("*.deps.json",
-                                    SearchOption.TopDirectoryOnly);
-                            foreach (var f in depsFiles)
-                                try
-                                {
-                                    File.Delete(f.FullName);
-                                }
-                                catch (Exception exc)
-                                {
-                                    _logger.LogError(exc, "PluginManager");
-                                }
+                            // Published dependency manifests are needed by plugin dependency resolution.
                         }
 
                         //main plugin file
@@ -261,6 +249,17 @@ public static class PluginManager
             ? ShadowCopyFile(pluginFile, Directory.CreateDirectory(_copyFolder.FullName))
             : pluginFile;
 
+        var resolver = new AssemblyDependencyResolver(pluginFile.FullName);
+        AssemblyLoadContext.Default.Resolving += (context, name) =>
+        {
+            var dependency = resolver.ResolveAssemblyToPath(name);
+            if (dependency == null)
+            {
+                var sibling = Path.Combine(pluginFile.Directory!.FullName, name.Name + ".dll");
+                if (File.Exists(sibling)) dependency = sibling;
+            }
+            return dependency == null ? null : context.LoadFromAssemblyPath(dependency);
+        };
         var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(plug.FullName);
 
         var pluginInfo = assembly.GetCustomAttribute<PluginInfoAttribute>();

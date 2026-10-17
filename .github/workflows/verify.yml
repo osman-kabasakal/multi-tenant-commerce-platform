@@ -52,6 +52,8 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: SaasManager/src/Web/ClientApp/package-lock.json
+      - name: Verify complete plugin inventory and real BuildType/BaseDir mapping
+        run: python3 scripts/test_tenant_plugins.py
       - name: Check local encryption boundaries
         working-directory: Ecommerce
         run: dotnet test ../tests/LocalDemo.Tests/LocalDemo.Tests.csproj --nologo

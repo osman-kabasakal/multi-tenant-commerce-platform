@@ -162,6 +162,8 @@ def build(component=None):
                 '-p:UseAppHost=false','-v','quiet']
             # The demo intentionally installs its separate Development-only UI below.
             if name == 'saas': command.append('-p:BuildSaasFrontend=false')
+            if name in ('commerce','admin','installer'):
+                command += ['-p:BuildType='+{'commerce':'Frontend','admin':'Backend','installer':'Installer'}[name],'-p:PublishTenantPlugins=true']
             result=subprocess.run(command,cwd=ROOT/base,stdout=output,stderr=subprocess.STDOUT)
         if result.returncode:raise RuntimeError(f'{name} build failed; see {log}')
         (LOCAL/'runtime'/name/'Plugins').mkdir(exist_ok=True)

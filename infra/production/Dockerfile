@@ -8,9 +8,9 @@ COPY tools/Platform.Gateway/ /src/tools/Platform.Gateway/
 COPY tools/Platform.Cloud/ /src/tools/Platform.Cloud/
 COPY tools/Platform.RuntimeProbe/ /src/tools/Platform.RuntimeProbe/
 RUN --mount=type=cache,id=commerce-nuget8,target=/root/.nuget/packages \
-    dotnet publish src/Web/Grand.Web.MultiTenant/Grand.Web.MultiTenant.csproj -c Release -o /out/commerce -p:UseAppHost=false --nologo --verbosity quiet && \
-    dotnet publish src/Web/Grand.Web.OnlyAdmin/Grand.Web.OnlyAdmin.csproj -c Release -o /out/admin -p:UseAppHost=false --nologo --verbosity quiet && \
-    dotnet publish src/Installer/Grand.Installer.Cli/Grand.Installer.Cli.csproj -c Release -o /out/installer -p:UseAppHost=false --nologo --verbosity quiet && \
+    dotnet publish src/Web/Grand.Web.MultiTenant/Grand.Web.MultiTenant.csproj -c Release -o /out/commerce -p:BuildType=Frontend -p:PublishTenantPlugins=true -p:UseAppHost=false --nologo --verbosity quiet && \
+    dotnet publish src/Web/Grand.Web.OnlyAdmin/Grand.Web.OnlyAdmin.csproj -c Release -o /out/admin -p:BuildType=Backend -p:PublishTenantPlugins=true -p:UseAppHost=false --nologo --verbosity quiet && \
+    dotnet publish src/Installer/Grand.Installer.Cli/Grand.Installer.Cli.csproj -c Release -o /out/installer -p:BuildType=Installer -p:PublishTenantPlugins=true -p:UseAppHost=false --nologo --verbosity quiet && \
     dotnet publish ../tools/Platform.Gateway/Platform.Gateway.csproj -c Release -o /out/gateway -p:UseAppHost=false --nologo --verbosity quiet && \
     dotnet publish ../tools/Platform.Cloud/Platform.Cloud.csproj -c Release -o /out/cloud -p:UseAppHost=false --nologo --verbosity quiet && \
     dotnet publish ../tools/Platform.RuntimeProbe/Platform.RuntimeProbe.csproj -c Release -o /out/runtime-probe8 -p:UseAppHost=false --nologo --verbosity quiet

@@ -11,7 +11,26 @@ public sealed class StoreInstallerStep(OnboardingInfrastructureOptions options, 
     public string Name => "store";
     public async Task<ProvisioningStepResult> ExecuteAsync(TenantProvisioningRequest request, IReadOnlyDictionary<string,ProvisioningStepResult> completed, CancellationToken ct)
     {
-        var output=Path.Combine(options.TenantDirectory,request.Slug+".json");
+        return await RunAsync(request, completed, null, ct);
+    }
+
+    internal async Task<ProvisioningStepResult> RunAsync(TenantProvisioningRequest request, IReadOnlyDictionary<string,ProvisioningStepResult> completed, string? task, CancellationToken ct)
+    {
+        request.Validate();
+        var metadata=Path.Combine(options.TenantDirectory,request.Slug+".json");
+        var output=task == null ? metadata : Path.Combine(options.TenantDirectory, request.Slug+"."+task+".json");
+        if (task != null && (options.IsLocal || !ManagedTenantStep.Tasks.Contains(task) || !File.Exists(metadata)))
+            throw new InvalidOperationException("Managed tasks require the completed portable store installation.");
+        if (task != null)
+        {
+            using var original=JsonDocument.Parse(await File.ReadAllTextAsync(metadata,ct));
+            if (original.RootElement.GetProperty("tenantId").GetString()!=request.TenantId ||
+                original.RootElement.GetProperty("slug").GetString()!=request.Slug ||
+                original.RootElement.GetProperty("profile").GetString()!="Portable" ||
+                !completed.TryGetValue("store",out var ownedStore) ||
+                original.RootElement.GetProperty("storeId").GetString()!=ownedStore.Resources["storeId"])
+                throw new InvalidOperationException("The base installer metadata is not owned by this request.");
+        }
         if (!File.Exists(output))
         {
             var work=Path.Combine(options.WorkingDirectory,request.TenantId);
@@ -25,6 +44,17 @@ public sealed class StoreInstallerStep(OnboardingInfrastructureOptions options, 
                 foreach (var file in Directory.GetFiles(source,"*",SearchOption.AllDirectories))
                 {
                     var destination=Path.Combine(work,"App_Data",name,Path.GetRelativePath(source,file));
+                    Directory.CreateDirectory(Path.GetDirectoryName(destination)!);File.Copy(file,destination,true);
+                }
+            }
+            if (!options.IsLocal)
+            {
+                var pluginSource=Path.Combine(installerDirectory,"Plugins");
+                if (!Directory.Exists(pluginSource) || !Directory.GetDirectories(pluginSource).Any())
+                    throw new InvalidOperationException("Publish the committed managed installer plugins first.");
+                foreach (var file in Directory.GetFiles(pluginSource,"*",SearchOption.AllDirectories))
+                {
+                    var destination=Path.Combine(work,"Plugins",Path.GetRelativePath(pluginSource,file));
                     Directory.CreateDirectory(Path.GetDirectoryName(destination)!);File.Copy(file,destination,true);
                 }
             }
@@ -56,10 +86,15 @@ public sealed class StoreInstallerStep(OnboardingInfrastructureOptions options, 
                 start.Environment["LocalDemo__Enabled"]="false";start.Environment["PlatformConfiguration__ConfigPath"]=options.CommerceConfigPath;
                 start.Environment["PlatformConfiguration__Provider"]=new Microsoft.Extensions.Configuration.ConfigurationBuilder()
                     .AddJsonFile(options.CommerceConfigPath).Build()["PlatformConfiguration:Provider"];
-                start.Environment["Provisioning__ManagedInstallerProfile"]="Portable";start.Environment["Provisioning__TenantOutput"]=output;
+                start.Environment["Provisioning__ManagedInstallerProfile"]="Portable";start.Environment["Provisioning__TenantOutput"]=metadata;
                 start.Environment["Provisioning__StoreUrl"]=options.StoreUrl(request.Slug);
             }
             start.Environment["Provisioning__ManagedInstaller"]="true";
+            start.Environment.Remove("Provisioning__ManagedInstallerTask");
+            if (task != null) start.Environment["Provisioning__ManagedInstallerTask"]=task;
+            start.Environment.Remove("Extensions__PluginSkipLoadingPattern");
+            // Base installation must not mark plugin migrations as installed before plugin.Install runs.
+            if (!options.IsLocal && task==null) start.Environment["Extensions__PluginSkipLoadingPattern"]=".*";
             using var process=Process.Start(start) ?? throw new InvalidOperationException("Installer could not start.");
             // Drain output without propagating provider payloads or credentials into job logs.
             var lines=new ConcurrentQueue<string>();
@@ -68,7 +103,7 @@ public sealed class StoreInstallerStep(OnboardingInfrastructureOptions options, 
             using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);timeout.CancelAfter(TimeSpan.FromMinutes(20));
             try { await process.WaitForExitAsync(timeout.Token);await Task.WhenAll(stdout,stderr); }
             catch { if (!process.HasExited) process.Kill(true);throw; }
-            finally {await PrivateFiles.WriteAsync(Path.Combine(work,"installer.log"),string.Join(Environment.NewLine,lines),CancellationToken.None);}
+            finally {await PrivateFiles.WriteAsync(Path.Combine(work,task == null ? "installer.log" : task+".log"),string.Join(Environment.NewLine,lines),CancellationToken.None);}
             if (process.ExitCode!=0) throw new InvalidOperationException("Tenant installer failed.");
         }
         using var result=JsonDocument.Parse(await File.ReadAllTextAsync(output,ct));
@@ -78,6 +113,15 @@ public sealed class StoreInstallerStep(OnboardingInfrastructureOptions options, 
             !result.RootElement.TryGetProperty("profile",out var profile) || profile.GetString()!="Portable"))
             throw new InvalidOperationException("Portable installer output must contain only owned public metadata.");
         var storeId=result.RootElement.GetProperty("storeId").GetString()!;
+        if (task != null)
+        {
+            if (!result.RootElement.TryGetProperty("version",out var version) || version.GetInt32()!=1 ||
+                !result.RootElement.TryGetProperty("task",out var phase) || phase.GetString()!=task ||
+                !completed.TryGetValue("store",out var store) || !store.Resources.TryGetValue("storeId",out var owned) || owned!=storeId ||
+                await secrets.ResolveAsync(storeId,ct)!=request.TenantId)
+                throw new InvalidOperationException("The managed task checkpoint is not owned by this store.");
+            return new("GrandNode",new Dictionary<string,string> { ["storeId"]=storeId,["profileVersion"]="1",["task"]=task });
+        }
         await secrets.BindAliasAsync(request.TenantId,storeId,ct);
         return new("GrandNode",new Dictionary<string,string> { ["storeId"]=storeId });
     }

@@ -18,7 +18,7 @@ public sealed class PortableTests
     public void ProductionPipelineIsExplicitAndLocalProfileStillRejectsProduction()
     {
         using var f=new Fixture();var services=new ServiceCollection();services.AddPortableOnboarding(f.Config(),"Production");
-        Assert.AreEqual(6,services.Count(x=>x.ServiceType==typeof(IProvisioningStep)));Assert.AreEqual(1,services.Count(x=>x.ServiceType==typeof(IProvisioningGuard)));
+        Assert.AreEqual(9,services.Count(x=>x.ServiceType==typeof(IProvisioningStep)));Assert.AreEqual(1,services.Count(x=>x.ServiceType==typeof(IProvisioningGuard)));
         Assert.IsFalse(services.Any(x=>x.ServiceType.Name=="IGoogleAccessTokenSource"));
         Assert.ThrowsException<InvalidOperationException>(()=>new LocalOnboardingOptions().Validate("Production",f.Config()));
         f.Values["LocalDemo:Enabled"]="true";Assert.ThrowsException<InvalidOperationException>(()=>new ServiceCollection().AddPortableOnboarding(f.Config(),"Production"));

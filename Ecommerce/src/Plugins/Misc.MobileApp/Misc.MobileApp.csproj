@@ -2,6 +2,7 @@
     <Import Project="..\..\Build\Grand.Common.props" />
     <PropertyGroup>
         <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(BuildType)'==''">
@@ -72,11 +73,6 @@
       <PackageReference Include="Twilio" Version="7.14.3" />
     </ItemGroup>
 
-    <Target Name="CopyFile" AfterTargets="AfterBuild">
-        <ItemGroup>
-            <CopyFiles Include="$(NuGetPackageRoot)\twilio\7.11.1\lib\net6.0\*.dll" />
-        </ItemGroup>
-        <Copy SourceFiles="@(CopyFiles)" DestinationFolder="$(BaseDir)Misc.MobileApp\" />
-    </Target>
+
 
 </Project>

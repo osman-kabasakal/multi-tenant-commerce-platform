@@ -1,6 +1,8 @@
 using Grand.Business.Core.Interfaces.Messages;
 using Grand.Business.Core.Interfaces.Storage;
 using Grand.Domain.Messages;
+using Grand.Infrastructure;
+using Platform.Security;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
@@ -15,10 +17,15 @@ public class EmailSender : IEmailSender
     private readonly IDownloadService _downloadService;
     private readonly IMimeMappingService _mimeMappingService;
 
-    public EmailSender(IDownloadService downloadService, IMimeMappingService mimeMappingService)
+    private readonly ITenantSecrets _tenantSecrets;
+    private readonly IWorkContext _workContext;
+
+    public EmailSender(IDownloadService downloadService, IMimeMappingService mimeMappingService,
+        ITenantSecrets tenantSecrets = null, IWorkContext workContext = null)
     {
         _downloadService = downloadService;
         _mimeMappingService = mimeMappingService;
+        _tenantSecrets=tenantSecrets;_workContext=workContext;
     }
 
     /// <summary>
@@ -49,6 +56,14 @@ public class EmailSender : IEmailSender
         IEnumerable<string> attachedDownloads = null)
 
     {
+        var password=emailAccount.Password;
+        if(password=="platform-secret:"+TenantSecretNames.StoreSmtpPassword)
+        {
+            var storeId=_workContext?.CurrentStore?.Id;
+            if(_tenantSecrets==null || string.IsNullOrEmpty(storeId))
+                throw new InvalidOperationException("Managed SMTP credentials require an owned tenant store context.");
+            password=await _tenantSecrets.GetAsync(storeId,TenantSecretNames.StoreSmtpPassword);
+        }
         var message = new MimeMessage();
         //from, to, reply to
         message.From.Add(new MailboxAddress(fromName, fromAddress));
@@ -117,11 +132,10 @@ public class EmailSender : IEmailSender
 
         //send email
         using var smtpClient = new SmtpClient();
-        smtpClient.ServerCertificateValidationCallback =
-            (_, _, _, _) => emailAccount.UseServerCertificateValidation;
+        // Use MailKit's normal hostname and certificate-chain verification.
         await smtpClient.ConnectAsync(emailAccount.Host, emailAccount.Port,
             (SecureSocketOptions)emailAccount.SecureSocketOptionsId);
-        await smtpClient.AuthenticateAsync(emailAccount.Username, emailAccount.Password);
+        await smtpClient.AuthenticateAsync(emailAccount.Username, password);
         await smtpClient.SendAsync(message);
         await smtpClient.DisconnectAsync(true);
     }

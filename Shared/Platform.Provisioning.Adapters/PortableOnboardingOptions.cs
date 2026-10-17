@@ -115,7 +115,10 @@ public static class PortableOnboarding
         services.AddHttpClient("onboarding-dns",c=>c.Timeout=TimeSpan.FromSeconds(30)).ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler {AllowAutoRedirect=false});
         services.AddScoped<IProvisioningGuard,PortableDeploymentGuard>();
         services.AddScoped<IProvisioningStep,TenantSecretsStep>();services.AddScoped<IProvisioningStep,MongoDatabaseStep>();
-        services.AddScoped<IProvisioningStep,StoreInstallerStep>();services.AddScoped<IProvisioningStep,KeycloakTenantStep>();
+        services.AddScoped<IProvisioningStep,StoreInstallerStep>();
+        foreach (var phase in ManagedTenantStep.Tasks)
+            services.AddScoped<IProvisioningStep>(sp=>new ManagedTenantStep(phase,sp.GetRequiredService<OnboardingInfrastructureOptions>(),sp.GetRequiredService<Platform.Security.ITenantSecrets>()));
+        services.AddScoped<IProvisioningStep,KeycloakTenantStep>();
         if (google=="Google") services.AddScoped<IProvisioningStep,GoogleTenantStep>();
         services.AddScoped<IProvisioningStep,TenantDomainStep>();services.AddScoped<IProvisioningStep,PortableTenantPublicationStep>();
         services.AddIosReleaseQueueing(config,environment,options);

@@ -23,7 +23,7 @@ public class NotificationStartup: IStartupApplication
         // Register notification service
         services.AddScoped<IOrderNotificationService, OrderNotificationService>();
 
-        if (configuration["MultitenantTask:Enabled"] != null 
+        if (!configuration.GetValue<bool>("Provisioning:ManagedRuntime") && configuration["MultitenantTask:Enabled"] != null
             && !bool.Parse(configuration["MultitenantTask:Enabled"]!.ToString()))
         {
             // Register background service

@@ -34,6 +34,7 @@ public static class TenantSecretNames
     public const string DatabaseConnection = "database-connection";
     public const string InitialPassword = "initial-password";
     public const string BackendUserPassword = "backend-user-password";
+    public const string StoreSmtpPassword = "store-smtp-password";
     public const string KeycloakClient = "keycloak-client";
     public const string AndroidSigningKey = "android-signing-key";
 }

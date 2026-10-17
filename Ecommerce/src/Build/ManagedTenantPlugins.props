@@ -1,0 +1,124 @@
+<Project>
+  <ItemGroup>
+    <ManagedTenantPlugin Include="Authentication.Facebook">
+      <Category>Plugins</Category>
+      <SystemName>ExternalAuth.Facebook</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Authentication.Google">
+      <Category>Plugins</Category>
+      <SystemName>ExternalAuth.Google</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="DiscountRules.Standard">
+      <Category>Plugins</Category>
+      <SystemName>DiscountRules.Standard</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="ExchangeRate.McExchange">
+      <Category>Plugins</Category>
+      <SystemName>CurrencyExchange.MoneyConverter</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Misc.MobileApp">
+      <Category>Plugins</Category>
+      <SystemName>Misc.MobileApp</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Payments.BrainTree">
+      <Category>Plugins</Category>
+      <SystemName>Payments.BrainTree</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Payments.CashOnDelivery">
+      <Category>Plugins</Category>
+      <SystemName>Payments.CashOnDelivery</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Payments.Iyzico">
+      <Category>Plugins</Category>
+      <SystemName>Payments.Iyzico</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Payments.StripeCheckout">
+      <Category>Plugins</Category>
+      <SystemName>Payments.StripeCheckout</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Shipping.ByWeight">
+      <Category>Plugins</Category>
+      <SystemName>Shipping.ByWeight</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Shipping.FixedRateShipping">
+      <Category>Plugins</Category>
+      <SystemName>Shipping.FixedRate</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Shipping.ShippingPoint">
+      <Category>Plugins</Category>
+      <SystemName>Shipping.ShippingPoint</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Tax.CountryStateZip">
+      <Category>Plugins</Category>
+      <SystemName>Tax.CountryStateZip</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Tax.FixedRate">
+      <Category>Plugins</Category>
+      <SystemName>Tax.FixedRate</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Theme.Modern">
+      <Category>Plugins</Category>
+      <SystemName>Theme.Modern</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Widgets.FacebookPixel">
+      <Category>Plugins</Category>
+      <SystemName>Widgets.FacebookPixel</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Widgets.GoogleAnalytics">
+      <Category>Plugins</Category>
+      <SystemName>Widgets.GoogleAnalytics</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Widgets.LegalTexts">
+      <Category>Plugins</Category>
+      <SystemName>Widgets.LegalTexts</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Widgets.Slider">
+      <Category>Plugins</Category>
+      <SystemName>Widgets.Slider</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Authentication.Keycloak">
+      <Category>AdminPlugins</Category>
+      <SystemName>ExternalAuth.Keycloak</SystemName>
+      <PortableRuntime>false</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Famizyo.Integration.Adisyo">
+      <Category>AdminPlugins</Category>
+      <SystemName>Famizyo.Integration.Adisyo</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Famizyo.Notification">
+      <Category>AdminPlugins</Category>
+      <SystemName>Famizyo.Notification</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Famizyo.Simpra">
+      <Category>AdminPlugins</Category>
+      <SystemName>Famizyo.Simpra</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+    <ManagedTenantPlugin Include="Famizyo.TrendyolIntegration">
+      <Category>AdminPlugins</Category>
+      <SystemName>Famizyo.TrendyolIntegration</SystemName>
+      <PortableRuntime>true</PortableRuntime>
+    </ManagedTenantPlugin>
+  </ItemGroup>
+</Project>

@@ -32,6 +32,8 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Content Include="../../Build/ManagedTenantPlugins.props" Link="App_Data/ManagedTenantPlugins.xml"
+                 CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <Content Include="..\..\Web\Grand.Web\App_Data\Resources\Installation\**\*"
                  Link="App_Data/Resources/Installation/%(RecursiveDir)%(Filename)%(Extension)"
                  CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

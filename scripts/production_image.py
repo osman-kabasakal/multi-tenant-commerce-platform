@@ -53,6 +53,9 @@ for file in css/font-awesome.min.css css/custom.css css/custom-rtl.css js/jquery
   test -s "/app/admin/wwwroot/_content/Grand.SharedUIResources/administration/build/$file"
 done
 for directory in commerce/Plugins admin/Plugins installer/Plugins; do test -d "/app/$directory"; done
+dotnet /app/installer/Grand.Installer.Cli.dll --verify-plugins /app/commerce Frontend
+dotnet /app/installer/Grand.Installer.Cli.dll --verify-plugins /app/admin Backend
+dotnet /app/installer/Grand.Installer.Cli.dll --verify-plugins /app/installer Installer
 test -z "$(find /app -name Settings.cfg -o -name DataProtectionKeys -o -name service-account.json -o -name google-services.json -o -name appsettings.Production.json)"
 dotnet /app/runtime-probe8/Platform.RuntimeProbe.dll
 dotnet /app/runtime-probe9/Platform.RuntimeProbe.dll

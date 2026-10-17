@@ -16,6 +16,11 @@ public sealed class PortableTenantPublicationStep(PortableOnboardingOptions opti
         if (completed["identity"].Resources["clientId"]!=request.Slug || completed["domains"].Resources["storeHost"]!=new Uri(storeUrl).Host ||
             completed["domains"].Resources["adminHost"]!=new Uri(adminUrl).Host)
             throw new InvalidOperationException("Tenant publication checkpoints do not match their configured targets.");
+        foreach (var phase in ManagedTenantStep.Tasks)
+            if (!completed.TryGetValue(phase,out var checkpoint) ||
+                !checkpoint.Resources.TryGetValue("storeId",out var installedStore) || installedStore!=storeId ||
+                !checkpoint.Resources.TryGetValue("profileVersion",out var version) || version!="1")
+                throw new InvalidOperationException("Complete all owned tenant installation phases before publication.");
         var route=Path.Combine(options.RouteDirectory,request.Slug+".json");
         // Only owned metadata is published. The ingress must authenticate the real tenant token.
         await WriteOwnedAsync(route,request.TenantId,JsonSerializer.Serialize(new {

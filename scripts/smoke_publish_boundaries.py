@@ -28,7 +28,7 @@ def main():
             public = probe / 'resource.xml'; public.write_text('<Resource>Synthetic public publication probe</Resource>')
             with (logs / ('build-publish-boundary-' + name + '.log')).open('w') as log:
                 subprocess.run(['dotnet', 'publish', project, '-c', 'Release', '--nologo', '-o', output,
-                                '-p:UseAppHost=false', '--verbosity', 'quiet'], cwd=ROOT / 'Ecommerce', stdout=log, stderr=subprocess.STDOUT, check=True)
+                                '-p:BuildType='+{'commerce':'Frontend','admin':'Backend','installer':'Installer'}[name], '-p:PublishTenantPlugins=true', '-p:UseAppHost=false', '--verbosity', 'quiet'], cwd=ROOT / 'Ecommerce', stdout=log, stderr=subprocess.STDOUT, check=True)
             if not (Path(output) / 'Plugins').is_dir():
                 raise RuntimeError(name + ' publish omitted its required plugin directory.')
             target = Path(output) / 'App_Data' / probe.name

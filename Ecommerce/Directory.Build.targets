@@ -1,4 +1,5 @@
 <Project>
+  <Import Project="$(MSBuildThisFileDirectory)src/Build/ManagedTenantPlugins.props" />
   <!-- Runtime configuration and tenant keys are mounted separately from release artifacts. -->
   <Target Name="ExcludePrivateTenantRuntimeFiles" BeforeTargets="CheckForDuplicateItems;AssignTargetPaths">
     <ItemGroup>
@@ -8,9 +9,35 @@
       <EmbeddedResource Remove="@(_PrivateTenantRuntimeFiles)" />
     </ItemGroup>
   </Target>
-  <!-- Git archives omit empty directories; fresh hosts require this before plugin discovery. -->
+  <!-- Every standard plugin is built for every target; AdminPlugins are excluded only for Frontend. -->
+  <Target Name="BuildManagedTenantPlugins" BeforeTargets="PublishViews;PrepareForPublish"
+          Condition="'$(PublishTenantPlugins)' == 'true'">
+    <PropertyGroup>
+      <_ManagedBuildType>$(BuildType)</_ManagedBuildType>
+      <_TenantPluginDestination Condition="'$(BuildType)' == 'Frontend'">$(MSBuildThisFileDirectory)src/Web/Grand.Web.MultiTenant/Plugins/</_TenantPluginDestination>
+      <_TenantPluginDestination Condition="'$(BuildType)' == 'Backend'">$(MSBuildThisFileDirectory)src/Web/Grand.Web.OnlyAdmin/Plugins/</_TenantPluginDestination>
+      <_TenantPluginDestination Condition="'$(BuildType)' == 'Installer'">$(MSBuildThisFileDirectory)src/Installer/Grand.Installer.Cli/Plugins/</_TenantPluginDestination>
+      <_TenantPluginDestination Condition="'$(BuildType)' == 'Background'">$(MSBuildThisFileDirectory)src/Cli/Grand.BackgroundJobExecuter/Plugins/</_TenantPluginDestination>
+      <_TenantPluginDestination Condition="'$(BuildType)' == 'Uploader'">$(MSBuildThisFileDirectory)src/Installer/Grand.Data.Uploader/Plugins/</_TenantPluginDestination>
+    </PropertyGroup>
+    <Error Condition="'$(_ManagedBuildType)' != 'Frontend' And '$(_ManagedBuildType)' != 'Backend' And '$(_ManagedBuildType)' != 'Installer' And '$(_ManagedBuildType)' != 'Background' And '$(_ManagedBuildType)' != 'Uploader'"
+           Text="PublishTenantPlugins requires an explicit BuildType: Frontend, Backend, Installer, Background or Uploader." />
+    <ItemGroup>
+      <_TenantPluginProject Include="@(ManagedTenantPlugin)"
+          Condition="'%(ManagedTenantPlugin.Category)' == 'Plugins' Or '$(_ManagedBuildType)' != 'Frontend'">
+        <ProjectPath>$(MSBuildThisFileDirectory)src/%(Category)/%(Identity)/%(Identity).csproj</ProjectPath>
+      </_TenantPluginProject>
+    </ItemGroup>
+    <MakeDir Directories="$(_TenantPluginDestination)" />
+    <MSBuild Projects="@(_TenantPluginProject->'%(ProjectPath)')" Targets="Restore;Build" BuildInParallel="false"
+             RemoveProperties="PublishDir;TargetFramework;RuntimeIdentifier;SelfContained;OutputPath;OutDir"
+             Properties="Configuration=$(Configuration);BuildType=$(_ManagedBuildType);CopyLocalLockFileAssemblies=true;PublishTenantPlugins=false" />
+    <!-- Theme views reference frontend types, including when discovered by admin or installer. -->
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)src/Web/Grand.Web/bin/$(Configuration)/net8.0/Grand.Web.dll"
+          DestinationFolder="$(_TenantPluginDestination)Theme.Modern/" SkipUnchangedFiles="true" />
+  </Target>
   <Target Name="CreatePublishedPluginDirectory" AfterTargets="Publish"
           Condition="'$(MSBuildProjectName)' == 'Grand.Web' Or '$(MSBuildProjectName)' == 'Grand.Web.MultiTenant' Or '$(MSBuildProjectName)' == 'Grand.Web.OnlyAdmin' Or '$(MSBuildProjectName)' == 'Grand.Installer.Cli'">
-    <MakeDir Directories="$(PublishDir)/Plugins" />
+    <MakeDir Directories="$(PublishDir)/Plugins;$(PublishDir)/Plugins/bin" />
   </Target>
 </Project>

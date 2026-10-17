@@ -25,6 +25,14 @@ public static class WorkerHost
         else throw new InvalidOperationException("Choose an implemented Local or Portable provisioning profile explicitly.");
         builder.Services.AddProvisioningWorker(builder.Configuration.GetSection("Provisioning:Worker").Get<ProvisioningWorkerOptions>());
         using var host=builder.Build();
+        var tenant=builder.Configuration["Provisioning:ReconcileTenant"];
+        if (tenant != null)
+        {
+            if (builder.Configuration["Provisioning:Profile"]!="Portable") throw new InvalidOperationException("Reconciliation requires the Portable profile.");
+            using var scope=host.Services.CreateScope();
+            await ManagedTenantReconciliation.RunAsync(tenant,scope.ServiceProvider,CancellationToken.None);
+            return;
+        }
         await host.RunAsync();
     }
 }

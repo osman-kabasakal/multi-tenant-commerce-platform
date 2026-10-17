@@ -3,6 +3,7 @@
 import copy, json, os, secrets, signal, subprocess, sys, uuid
 from pathlib import Path
 import demo
+from production_config import plugin_configuration
 from portable_test_identity import https_identity
 
 def main():
@@ -17,6 +18,7 @@ def main():
         connection=f'Host=127.0.0.1;Port=15439;Database={database};Username=commerce_demo;Password={credentials["postgres"]}'
         security=copy.deepcopy(original['PlatformSecurity']);security['Provider']='AesGcm';security['AesGcm']={'MasterKeyFile':security.pop('Local')['MasterKeyFile']};security['ConnectionString']=connection;security['InitializeSchema']=True
         commerce=json.loads((demo.LOCAL/'commerce.json').read_text());commerce.update(PlatformSecurity=security,LocalDemo={'Enabled':False},PlatformConfiguration={'Provider':'Environment'})
+        commerce['Extensions']=plugin_configuration('Installer');commerce.setdefault('Provisioning',{})['ManagedRuntime']=True
         child=root/'commerce.json';demo.write_json(child,commerce)
         for key in ('KeycloakAdminUsername','KeycloakAdminPassword','SecretDirectory'):settings.pop(key,None)
         for key in ('WorkingDirectory','TenantDirectory','RouteDirectory','NotificationDirectory','MobileDirectory'):settings[key]=str(root/key)
