@@ -49,8 +49,26 @@ def validate(manifest, client, android):
         raise ValueError('Use the published HTTPS storefront origin.')
     if uri.port is not None and not 1 <= uri.port <= 65535:
         raise ValueError('Invalid storefront HTTPS port.')
-    if uri.hostname.split('.')[0] != slug:
-        raise ValueError('The storefront host must belong to the published slug.')
+    domain = manifest.get('verifiedDomain')
+    if domain is not None:
+        fields = {'id', 'ownerSubject', 'storeHost', 'adminHost', 'zoneId', 'zoneName'}
+        if not isinstance(domain, dict) or set(domain) != fields or any(not isinstance(domain[k], str) for k in fields):
+            raise ValueError('Use the complete verified custom domain snapshot.')
+        import uuid
+        for field in ('id', 'ownerSubject'):
+            parsed = uuid.UUID(domain[field])
+            if parsed.int == 0 or str(parsed) != domain[field]:
+                raise ValueError('Use canonical verified domain references.')
+        host, zone = domain['storeHost'], domain['zoneName']
+        def public_host(value):
+            return len(value) <= 190 and len(value.split('.')) >= 2 and all(re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', label) for label in value.split('.'))
+        if not public_host(host) or not public_host(zone) or not re.fullmatch(r'[a-f0-9]{32}', domain['zoneId']) or domain['adminHost'] != 'manage.' + host or uri.hostname != host or not (host == zone or host.endswith('.' + zone)):
+            raise ValueError('The storefront origin differs from its verified custom domain snapshot.')
+    elif uri.hostname.split('.')[0] != slug:
+        raise ValueError('The storefront host must belong to the published slug or a verified custom domain.')
+    identity = manifest.get('mobileIdentityId', '')
+    if not isinstance(identity, str) or identity and (not re.fullmatch(r'[a-f0-9]{32}', identity) or int(identity, 16) == 0):
+        raise ValueError('Use a canonical mobile identity version.')
     cloud = manifest.get('firebase', {})
     if cloud.get('enabled') is not True:
         raise ValueError('Google/Firebase provisioning must have completed explicitly.')
@@ -85,7 +103,7 @@ def validate(manifest, client, android):
         'displayName': manifest['displayName'], 'deepLinkHost': uri.hostname,
         'projectId': project, 'projectNumber': number, 'androidAppId': client['androidAppId'],
         'iosAppId': client['iosAppId'], 'storeUrl': manifest['baseUrl'].rstrip('/'),
-        'iosPushTransport': transport, 'iosDevelopmentTeam': team,
+        'iosPushTransport': transport, 'iosDevelopmentTeam': team, 'mobileIdentityId': identity,
     }
 
 
@@ -219,7 +237,7 @@ def prepare(manifest_path, firebase_directory, workspace, build_number, root=ROO
         'PACKAGE_NAME_IOS': client['iosBundleId'], 'FIREBASE_PROJECT_ID': tenant['projectId'],
         'FIREBASE_PROJECT_NUMBER': tenant['projectNumber'], 'FIREBASE_ANDROID_APP_ID': tenant['androidAppId'],
         'FIREBASE_IOS_APP_ID': tenant['iosAppId'],
-        'IOS_PUSH_TRANSPORT': tenant['iosPushTransport'], 'IOS_DEVELOPMENT_TEAM': tenant['iosDevelopmentTeam'] or '',
+        'MOBILE_IDENTITY_ID': tenant.get('mobileIdentityId', ''), 'IOS_PUSH_TRANSPORT': tenant['iosPushTransport'], 'IOS_DEVELOPMENT_TEAM': tenant['iosDevelopmentTeam'] or '',
     })
     return workspace, tenant
 

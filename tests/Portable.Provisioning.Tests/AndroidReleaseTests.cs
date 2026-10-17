@@ -113,10 +113,23 @@ public sealed class AndroidReleaseTests
         using var f=new AndroidFixture();var first=await f.Pipeline().ExecuteAsync(f.Request,f.Completed,default);
         var stored=f.Secrets.Values[(f.Request.TenantId,TenantAndroidSigningKeys.SecretName)];
         var replay=await f.Pipeline().ExecuteAsync(f.Request,f.Completed,default);
+        Assert.AreEqual(2, f.Server.CertificateWrites);
         Assert.AreEqual(first.Resources["sha256"],replay.Resources["sha256"]);Assert.AreEqual(1,f.Keys.Creates);Assert.AreEqual(1,f.Builder.Builds);
         Assert.AreEqual(1,f.Server.Uploads);Assert.AreEqual(1,f.Server.Deliveries);Assert.AreEqual(1,f.Server.ReleaseReads);
         Assert.AreEqual(stored,f.Secrets.Values[(f.Request.TenantId,TenantAndroidSigningKeys.SecretName)]);
         var publicState=JsonSerializer.Serialize(first);Assert.IsFalse(publicState.Contains("Password"));Assert.IsFalse(publicState.Contains("KeyStoreBase64"));Assert.IsFalse(publicState.Contains(f.Root));
+    }
+    [TestMethod]
+    public async Task FingerprintsMustBeRetainedBeforeUploadAndRetryKeepsTheSameSignedBinary()
+    {
+        using var f = new AndroidFixture(); f.Server.FailCertificateOnce = true;
+        await Assert.ThrowsExceptionAsync<GoogleApiException>(() => f.Pipeline().ExecuteAsync(f.Request, f.Completed, default));
+        Assert.AreEqual(0, f.Server.Uploads); Assert.AreEqual(1, f.Builder.Builds); Assert.AreEqual(1, f.Keys.Creates);
+        await f.Pipeline().ExecuteAsync(f.Request, f.Completed, default);
+        Assert.AreEqual(3, f.Server.CertificateWrites); Assert.AreEqual(1, f.Server.Uploads);
+        Assert.AreEqual(1, f.Builder.Builds); Assert.AreEqual(1, f.Keys.Creates);
+        await f.Pipeline().ExecuteAsync(f.Request, f.Completed, default);
+        Assert.AreEqual(3, f.Server.CertificateWrites);
     }
     [TestMethod]
     public async Task ProviderUploadFailureRetriesTheSameDurableBinaryWithoutRegeneratingTheKey()
@@ -154,6 +167,29 @@ public sealed class AndroidReleaseTests
         Assert.AreEqual(values[0],values[1]);Assert.AreEqual(1,f.Secrets.Values.Count(x=>x.Key.Item2==TenantAndroidSigningKeys.SecretName));
         await Assert.ThrowsExceptionAsync<InvalidOperationException>(()=>first.ReadAsync(f.Request.TenantId,"com.example.foreign",default));
         Assert.AreEqual(values[0],await first.ReadAsync(f.Request.TenantId,f.Firebase.AndroidPackageName,default));
+    }
+    [TestMethod]
+    public async Task PackageSigningRetainsTheLegacyCertificateAndKeepsNewPackagesSeparate()
+    {
+        using var f = new AndroidFixture(); var keys = new TenantAndroidSigningKeys(f.Secrets, f.Keys);
+        var old = await keys.GetOrCreateAsync(f.Request.TenantId, f.Firebase.AndroidPackageName, default);
+        Assert.AreEqual(old, await keys.GetOrCreatePackageAsync(f.Request.TenantId, old.PackageName, default));
+        var next = await keys.GetOrCreatePackageAsync(f.Request.TenantId, "com.customer.newstore", default);
+        Assert.AreNotEqual(old.CertificateSha256, next.CertificateSha256);
+        Assert.AreEqual(next, await keys.ReadPackageAsync(f.Request.TenantId, next.PackageName, default));
+        Assert.AreEqual(next, await keys.GetOrCreatePackageAsync(f.Request.TenantId, next.PackageName, default));
+        Assert.AreEqual(old, await keys.ReadAsync(f.Request.TenantId, old.PackageName, default)); Assert.AreEqual(2, f.Keys.Creates);
+        await Assert.ThrowsExceptionAsync<KeyNotFoundException>(() => keys.ReadPackageAsync(f.Request.TenantId, "com.other.app", default));
+    }
+    [TestMethod]
+    public async Task AForeignOrCorruptSavedPackageKeyIsNeverReplaced()
+    {
+        using var f = new AndroidFixture(); var keys = new TenantAndroidSigningKeys(f.Secrets, f.Keys);
+        var old = await keys.GetOrCreatePackageAsync(f.Request.TenantId, "com.customer.newstore", default);
+        var name = (f.Request.TenantId, TenantAndroidSigningKeys.PackageSecretName(old.PackageName));
+        f.Secrets.Values[name] = JsonSerializer.Serialize(old with { PackageName = "com.foreign.app" }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(() => keys.GetOrCreatePackageAsync(f.Request.TenantId, old.PackageName, default));
+        Assert.AreEqual(1, f.Keys.Creates);
     }
     [TestMethod]
     public async Task ReadDoesNotCreateAnAbsentSigningKey()

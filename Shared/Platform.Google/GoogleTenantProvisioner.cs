@@ -11,11 +11,7 @@ public sealed class GoogleTenantProvisioner(GoogleRestClient api, GoogleCloudOpt
     public async Task<TenantFirebaseConfiguration> EnsureAsync(GoogleTenantSpec spec, CancellationToken ct)
     {
         options.Validate();
-        if (string.IsNullOrWhiteSpace(spec.DisplayName) || spec.DisplayName.Length > 200 ||
-            !System.Net.Mail.MailAddress.TryCreate(spec.OwnerEmail, out var owner) || owner.Address != spec.OwnerEmail ||
-            !Regex.IsMatch(spec.AndroidPackageName, "^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$") ||
-            spec.IosBundleId.Length > 220 || !Regex.IsMatch(spec.IosBundleId, "^[a-zA-Z][a-zA-Z0-9-]*(\\.[a-zA-Z][a-zA-Z0-9-]*)+$"))
-            throw new ArgumentException("Invalid Google tenant specification.");
+        ValidateSpec(spec);
         var owners = await OrganizationAdminOwnersAsync(ct);
         var id = options.ProjectId(spec.TenantId);
         var project = await EnsureProjectAsync(id, spec, ct);
@@ -35,14 +31,47 @@ public sealed class GoogleTenantProvisioner(GoogleRestClient api, GoogleCloudOpt
             throw new InvalidOperationException("Firebase project identity does not match the owned Google project.");
         var android = await EnsureAppAsync(id, number, "androidApps", "packageName", spec.AndroidPackageName, spec.DisplayName, ct);
         var ios = await EnsureAppAsync(id, number, "iosApps", "bundleId", spec.IosBundleId, spec.DisplayName, ct);
-        await GrantProjectAccessAsync(number, owners, ct);
-        await EnsureTestersAsync(number, spec.OwnerEmail, ct);
         var androidConfig = await ConfigAsync(id, "androidApps", android, ct);
         var iosConfig = await ConfigAsync(id, "iosApps", ios, ct);
         var result = new TenantFirebaseConfiguration(spec.TenantId, id, number, options.SenderServiceAccount,
             android, ios, spec.AndroidPackageName, spec.IosBundleId, androidConfig, iosConfig, options.DistributionGroupAlias)
             { IosPushTransport = options.IosPushTransport, IosDevelopmentTeam = options.IosDevelopmentTeam };
         FirebaseConfigValidator.Validate(result);
+        if (options.IosDevelopmentTeam != null) await new FirebaseAppIdentity(api, options).EnsureIosTeamAsync(result, ct);
+        await GrantProjectAccessAsync(number, owners, ct);
+        await EnsureTestersAsync(number, spec.OwnerEmail, ct);
+        return result;
+    }
+
+    private static void ValidateSpec(GoogleTenantSpec spec)
+    {
+        if (string.IsNullOrWhiteSpace(spec.DisplayName) || spec.DisplayName.Length > 200 ||
+            !System.Net.Mail.MailAddress.TryCreate(spec.OwnerEmail, out var owner) || owner.Address != spec.OwnerEmail ||
+            !Regex.IsMatch(spec.AndroidPackageName, "^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$") ||
+            spec.IosBundleId.Length > 220 || !Regex.IsMatch(spec.IosBundleId, "^[a-zA-Z][a-zA-Z0-9-]*(\\.[a-zA-Z][a-zA-Z0-9-]*)+$"))
+            throw new ArgumentException("Invalid Google tenant specification.");
+    }
+
+    /// <summary>Add a new Android/iOS identity inside the same owned project. Existing app records, IAM, billing and testers are preserved.</summary>
+    public async Task<TenantFirebaseConfiguration> EnsureApplicationVersionAsync(TenantFirebaseConfiguration previous,
+        GoogleTenantSpec spec, CancellationToken ct = default)
+    {
+        options.Validate(); ValidateSpec(spec);
+        if (previous.TenantId != spec.TenantId || previous.DistributionGroupAlias != options.DistributionGroupAlias)
+            throw new InvalidOperationException("An application version must belong to the same tenant and distribution policy.");
+        await new FirebaseAppIdentity(api, options).VerifyAsync(previous, ct);
+        var id = previous.ProjectId; var number = previous.ProjectNumber;
+        var project = (await api.SendAsync(GoogleApi.Firebase, HttpMethod.Get, $"v1beta1/projects/{id}", null, ct))!;
+        if (Text(project, "projectId") != id || Text(project, "projectNumber") != number)
+            throw new InvalidOperationException("The Firebase project identity changed.");
+        var android = await EnsureAppAsync(id, number, "androidApps", "packageName", spec.AndroidPackageName, spec.DisplayName, ct);
+        var ios = await EnsureAppAsync(id, number, "iosApps", "bundleId", spec.IosBundleId, spec.DisplayName, ct);
+        var result = new TenantFirebaseConfiguration(spec.TenantId, id, number, options.SenderServiceAccount, android, ios,
+            spec.AndroidPackageName, spec.IosBundleId, await ConfigAsync(id, "androidApps", android, ct),
+            await ConfigAsync(id, "iosApps", ios, ct), previous.DistributionGroupAlias)
+            { IosPushTransport = options.IosPushTransport, IosDevelopmentTeam = options.IosDevelopmentTeam };
+        FirebaseConfigValidator.Validate(result);
+        if (options.IosDevelopmentTeam != null) await new FirebaseAppIdentity(api, options).EnsureIosTeamAsync(result, ct);
         return result;
     }
 
@@ -99,6 +128,7 @@ public sealed class GoogleTenantProvisioner(GoogleRestClient api, GoogleCloudOpt
             try
             {
                 var body = new JsonObject { [identifier] = package, ["displayName"] = displayName[..Math.Min(displayName.Length, 30)] };
+                if (kind == "iosApps" && options.IosDevelopmentTeam != null) body["teamId"] = options.IosDevelopmentTeam;
                 var op = await api.SendAsync(GoogleApi.Firebase, HttpMethod.Post, path, body, ct);
                 await api.WaitAsync(GoogleApi.Firebase, "v1beta1", op!, options, ct);
             }

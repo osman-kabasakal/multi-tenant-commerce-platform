@@ -18,7 +18,7 @@ using ValidationException = SaasManager.Application.Common.Exceptions.Validation
 namespace SaasManager.Application.Stores.Provisioning;
 
 [Authorize]
-public sealed record EnrollTrialBusiness(Guid RegistrationId, BusinessRegistrationModel Business, string AdminPassword) : IRequest<TrialEnrollmentResult>;
+public sealed record EnrollTrialBusiness(Guid RegistrationId, BusinessRegistrationModel Business, string AdminPassword, Guid? DomainRequestId = null) : IRequest<TrialEnrollmentResult>;
 
 public sealed record TrialEnrollmentResult(Guid BusinessId,string Slug,string StatusUrl);
 
@@ -33,6 +33,7 @@ public sealed record TrialEnrollmentPolicy(Guid PlanId, string DeploymentId)
             (config["Provisioning:Mobile:Provider"]??"Disabled") is not ("Disabled" or "AndroidAppDistribution" or "AndroidIosAppDistribution") ||
             !Guid.TryParse(config["TenantOnboarding:Trial:PlanId"],out var plan) || plan==Guid.Empty || !Regex.IsMatch(deployment,"^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$"))
             throw new InvalidOperationException("Trial enrollment requires explicit Production/Staging Portable provisioning, a deployment id, a public trial plan and writable shared secrets.");
+        TenantMobileApplicationId.Prefix(config);
         return new(plan,deployment);
     }
     public static SaasManager.Domain.Entities.IdentityManagement.GuestRegistration Owner(IWorkContext work)
@@ -51,7 +52,7 @@ public sealed class EnrollmentConflictException(string code) : Exception("This e
 }
 
 public sealed class EnrollTrialBusinessHandler(IApplicationDbContext db,IWorkContext work,ISender sender,
-    IConfiguration config,IHostEnvironment environment) : IRequestHandler<EnrollTrialBusiness,TrialEnrollmentResult>
+    IConfiguration config,IHostEnvironment environment,TenantDomainRegistry? domains = null,MobileIdentityRegistry? identities=null) : IRequestHandler<EnrollTrialBusiness,TrialEnrollmentResult>
 {
     public async Task<TrialEnrollmentResult> Handle(EnrollTrialBusiness request,CancellationToken ct)
     {
@@ -69,6 +70,12 @@ public sealed class EnrollTrialBusinessHandler(IApplicationDbContext db,IWorkCon
             errors.AddRange(validation.SelectMany(error=>error.MemberNames.DefaultIfEmpty("Business").Select(name=>new ValidationFailure("Business."+name,error.ErrorMessage??"Invalid company information."))));
         }
         if(errors.Count>0)throw new ValidationException(errors);
+        TenantDomainBinding? domain = null;
+        if (request.DomainRequestId is {} domainId)
+        {
+            if (!config.GetValue<bool>("Provisioning:CustomDomains:Enabled") || domains == null) throw new TenantDomainException("DomainNotVerified");
+            domain = await domains.RequireVerifiedAsync(domainId,work.KeycloakId!.Value,request.RegistrationId.ToString("N"),policy.DeploymentId,ct);
+        }
         var business=await db.Businesses.FirstOrDefaultAsync(b=>b.Id==request.RegistrationId,ct);
         if(business!=null)
         {
@@ -91,11 +98,10 @@ public sealed class EnrollTrialBusinessHandler(IApplicationDbContext db,IWorkCon
             try{new TenantProvisioningRequest(business.Id.ToString("N"),business.ToSubdomain(),business.Name,guest.Email!,guest.Firstname??details.OwnerName,guest.Lastname??"Owner",business.Address,business.Phone,business.Email,DeploymentId:policy.DeploymentId).Validate();}
             catch(ArgumentException){throw new ValidationException([new("Business.Name","Use a business name that produces an available 3-40 character tenant DNS label.")]);}
             business.UpdateStatus(BusinessStatus.UnderSetup);guest.ConvertToBusiness(business);db.Businesses.Add(business);
-            db.BusinessApps.Add(new BusinessApp(business.Id,AppType.CustomerMobile,business.Name,"com.example.tenant"+business.Id.ToString("N")));
             var now=DateTime.UtcNow;
             db.BusinessSubscriptions.Add(new BusinessSubscription(business.Id,plan.Id,now,now.AddDays(plan.TrialDays),0,PaymentPeriod.Monthly,true,now.AddDays(plan.TrialDays)));
             // One transaction persists company, selected trial and app. Queue failures are replayable without a second trial or charge.
-            try{await db.SaveChangesAsync(ct);}
+            try{await TenantMobileApplicationId.AddInitialAsync(db,config,business.Id,business.Name,business.Name,ct,domain,identities);}
             catch(DbUpdateException)
             {
                 if(await db.Businesses.AsNoTracking().AnyAsync(b=>b.Id==request.RegistrationId || b.CreatedByGuestId==guest.Id || b.Email==guest.Email || b.TaxNumber==details.TaxNumber,ct))
@@ -103,7 +109,7 @@ public sealed class EnrollTrialBusinessHandler(IApplicationDbContext db,IWorkCon
                 throw;
             }
         }
-        var queued=await sender.Send(new RegisterStoreCommand{BusinessId=business.Id,StoreName=business.Name,StoreSubDomain=business.ToSubdomain(),LogoUrl="no-logo.png",
+        var queued=await sender.Send(new RegisterStoreCommand{BusinessId=business.Id,DomainRequestId=request.DomainRequestId,StoreName=business.Name,StoreSubDomain=business.ToSubdomain(),LogoUrl="no-logo.png",
             OwnerEmail=guest.Email!,Password=request.AdminPassword,FirstName=guest.Firstname??details!.OwnerName,Lastname=guest.Lastname??"Owner",Role="business_owner",
             CompanyName=business.LegalCompanyName,CompanyAddress=business.Address,CompanyEmail=business.Email,CompanyPhoneNumber=business.Phone},ct);
         if(!queued.IsSuccess)throw new InvalidOperationException("Tenant setup could not be queued.");

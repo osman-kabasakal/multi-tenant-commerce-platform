@@ -81,6 +81,25 @@ public sealed class TrialEnrollmentTests
     {
         await using var f=new Fixture();await f.Seed();f.Plan.UpdateAccessibility(false,14,0);await f.Db.SaveChangesAsync();await Assert.ThrowsExceptionAsync<EnrollmentConflictException>(()=>f.Handle());Assert.AreEqual(0,await f.Db.Businesses.CountAsync());
     }
+    [TestMethod]
+    public async Task NewBusinessUsesItsNameAndReplayPreservesTheAssignedPackage()
+    {
+        await using var f = new Fixture(); await f.Seed(); await f.Handle();
+        var app = await f.Db.BusinessApps.SingleAsync(); Assert.AreEqual("com.company.commerce.portabletrial", app.PackageName);
+        f.Config["TenantOnboarding:MobileApplicationIdPrefix"] = "com.otherpublisher";
+        await f.Handle(); Assert.AreEqual(app.PackageName, (await f.Db.BusinessApps.SingleAsync()).PackageName);
+    }
+    [TestMethod]
+    public async Task NormalizedNameCollisionAllocatesADifferentIdentityWithoutChangingTheExistingApp()
+    {
+        await using var f = new Fixture(); await f.Seed();
+        var existing = new SaasManager.Domain.Entities.Organization.BusinessApp(Guid.NewGuid(), SaasManager.Domain.Enums.AppType.CustomerMobile,
+            "Existing", "com.company.commerce.portabletrial");
+        f.Db.BusinessApps.Add(existing); await f.Db.SaveChangesAsync(); await f.Handle();
+        var app = await f.Db.BusinessApps.SingleAsync(x => x.BusinessId == f.Request.RegistrationId);
+        Assert.AreEqual(TenantMobileApplicationId.ForBusiness(f.Config, f.Details.Name, f.Request.RegistrationId, true), app.PackageName);
+        Assert.AreEqual("com.company.commerce.portabletrial", existing.PackageName);
+    }
     private sealed class Fixture : IAsyncDisposable
     {
         public TestContext Db {get;}=new(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
@@ -93,7 +112,7 @@ public sealed class TrialEnrollmentTests
         {
             var subject=Guid.NewGuid();Guest.MarkAsConverted(subject.ToString());if(verified)Guest.MarkEmailAsVerified();Work.SetupGet(w=>w.KeycloakId).Returns(subject);Work.SetupProperty(w=>w.GuestRegistration,Guest);
             Sender.Setup(s=>s.Send(It.IsAny<RegisterStoreCommand>(),It.IsAny<CancellationToken>())).ReturnsAsync(ServiceResponse<TenantStatusMessage>.Success(new()));Environment.SetupGet(e=>e.EnvironmentName).Returns("Production");
-            Config=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>{["TenantOnboarding:Trial:Enabled"]="true",["TenantOnboarding:Trial:PlanId"]=Plan.Id.ToString(),["Provisioning:Enabled"]="true",["Provisioning:Profile"]="Portable",["Provisioning:DeploymentId"]="production-test",["PlatformSecurity:Provider"]="AesGcm"}).Build();
+            Config=new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string,string?>{["TenantOnboarding:MobileApplicationIdPrefix"]="com.company.commerce",["TenantOnboarding:Trial:Enabled"]="true",["TenantOnboarding:Trial:PlanId"]=Plan.Id.ToString(),["Provisioning:Enabled"]="true",["Provisioning:Profile"]="Portable",["Provisioning:DeploymentId"]="production-test",["PlatformSecurity:Provider"]="AesGcm"}).Build();
             Request=new(Guid.NewGuid(),Details,"Üretim-parolası-12345");
         }
         public async Task Seed(){Db.GuestRegistrations.Add(Guest);Db.SubscriptionPlans.Add(Plan);await Db.SaveChangesAsync();}

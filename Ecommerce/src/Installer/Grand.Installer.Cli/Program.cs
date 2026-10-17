@@ -125,13 +125,8 @@ builder.Services.AddScoped<InstallerService>();
 builder.AddServiceDefaults(tenantStatusMessage.MongoConnectionString);
 if (managedPortable)
 {
-    var output=builder.Configuration["Provisioning:TenantOutput"];
-    if (!Guid.TryParseExact(tenantStatusMessage.TenantId,"N",out var tenant) || tenant==Guid.Empty ||
-        builder.Configuration["PlatformSecurity:Provider"] is not ("AesGcm" or "Azure") ||
-        string.IsNullOrWhiteSpace(output) || !Path.IsPathFullyQualified(output) ||
-        !Uri.TryCreate(builder.Configuration["Provisioning:StoreUrl"],UriKind.Absolute,out var storeUrl) || storeUrl.Scheme!="https" ||
-        !storeUrl.Host.StartsWith(tenantStatusMessage.StoreSubDomain+".",StringComparison.Ordinal) || !string.IsNullOrEmpty(storeUrl.UserInfo))
-        throw new InvalidOperationException("Portable installation requires owned tenant metadata, a private output and an HTTPS store URL.");
+    await Grand.Installer.Cli.Services.ManagedTenantDomain.VerifyAsync(builder.Configuration,tenantStatusMessage);
+
 }
 
 builder.Host.UseDefaultServiceProvider((_, options) =>

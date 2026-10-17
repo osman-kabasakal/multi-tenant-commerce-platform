@@ -18,41 +18,44 @@ public sealed class AndroidReleaseGuard(AndroidReleasePipeline pipeline) : IProv
 }
 
 public sealed class AndroidReleasePipeline(AndroidReleaseOptions options,PortableOnboardingOptions deployment,GoogleCloudOptions google,
-    ITenantSecrets secrets,TenantAndroidSigningKeys signing,IAndroidReleaseBuilder builder,FirebaseAppDistribution distribution)
+    ITenantSecrets secrets,TenantAndroidSigningKeys signing,IAndroidReleaseBuilder builder,FirebaseAppDistribution distribution,FirebaseAppIdentity appIdentity)
 {
+    private static readonly SemaphoreSlim BuildLane=new(1,1);
     public const string PlanSecret="android-initial-release-plan-v1";
     public const string ArtifactSecret="android-initial-release-artifact-v1";
     public const string DistributionSecret="android-initial-release-distribution-v1";
 
-    private static string Secret(string initial,Guid? release)=>release is {} id ? initial.Replace("initial",id.ToString("N"),StringComparison.Ordinal) : initial;
+    private static string Secret(string initial,Guid? release,AndroidBuildScope? scope=null)=>scope?.SourceHash!=null ? initial.Replace("initial","identity-"+scope.IdentityId.ToString("N"),StringComparison.Ordinal) : release is {} id ? initial.Replace("initial",id.ToString("N"),StringComparison.Ordinal) : initial;
 
     private async Task<string?> FindAsync(string tenant,string name,CancellationToken ct)
     {try{return await secrets.GetAsync(tenant,name,ct);}catch(KeyNotFoundException){return null;}}
-    private async Task<TenantFirebaseConfiguration> FirebaseAsync(TenantProvisioningRequest request,CancellationToken ct)
+    private async Task<TenantFirebaseConfiguration> FirebaseAsync(TenantProvisioningRequest request,CancellationToken ct,AndroidBuildScope? scope=null)
     {
-        var firebase=MobileReleaseFiles.Parse<TenantFirebaseConfiguration>(await secrets.GetAsync(request.TenantId,TenantFirebaseConfiguration.SecretName,ct));
+        var firebase=MobileReleaseFiles.Parse<TenantFirebaseConfiguration>(await secrets.GetAsync(request.TenantId,scope?.FirebaseSecretName??TenantFirebaseConfiguration.SecretName,ct));
         FirebaseConfigValidator.Validate(firebase);
         if(firebase.TenantId!=request.TenantId || firebase.ProjectId!=google.ProjectId(request.TenantId) ||
-            firebase.AndroidPackageName!=(request.AndroidPackageName??"com.example.tenant"+request.TenantId) ||
-            firebase.IosBundleId!=(request.IosBundleId??"com.example.tenant"+request.TenantId) || firebase.DistributionGroupAlias!=google.DistributionGroupAlias)
+            firebase.AndroidPackageName!=(scope?.AndroidPackageName??request.AndroidPackageName??"com.example.tenant"+request.TenantId) ||
+            firebase.IosBundleId!=(scope?.IosBundleId??request.IosBundleId??"com.example.tenant"+request.TenantId) || firebase.DistributionGroupAlias!=google.DistributionGroupAlias)
             throw new InvalidOperationException("The mobile Firebase target belongs to another tenant or deployment.");
+        if(scope!=null && (firebase.ProjectId!=scope.ProjectId || firebase.ProjectNumber!=scope.ProjectNumber || firebase.AndroidAppId!=scope.AndroidAppId))
+            throw new InvalidOperationException("The saved Firebase identity differs from the queued build scope.");
         return firebase;
     }
-    private AndroidReleasePlan Expected(TenantProvisioningRequest request,TenantFirebaseConfiguration firebase,AndroidSigningKey key,string source,int? buildNumber=null)
+    private AndroidReleasePlan Expected(TenantProvisioningRequest request,TenantFirebaseConfiguration firebase,AndroidSigningKey key,string source,int? buildNumber=null,AndroidBuildScope? scope=null)
     {
         if(!MobileReleaseFiles.Digest(source))throw new InvalidOperationException("Invalid mobile source fingerprint.");
         return new(1,request.TenantId,deployment.DeploymentId,firebase.AndroidPackageName,firebase.ProjectId,firebase.ProjectNumber,
-            firebase.AndroidAppId,deployment.StoreUrl(request.Slug),buildNumber??options.BuildNumber,source,key.CertificateSha256,Path.GetFullPath(options.ArtifactDirectory));
+            firebase.AndroidAppId,scope?.StoreUrl??deployment.StoreUrl(request),buildNumber??options.BuildNumber,source,key.CertificateSha256,Path.GetFullPath(options.ArtifactDirectory));
     }
-    public async Task ValidateSavedPlanAsync(TenantProvisioningRequest request,bool checkpoint,CancellationToken ct,Guid? releaseId=null,int? buildNumber=null)
+    public async Task ValidateSavedPlanAsync(TenantProvisioningRequest request,bool checkpoint,CancellationToken ct,Guid? releaseId=null,int? buildNumber=null,AndroidBuildScope? scope=null)
     {
-        request.Validate();
+        request.Validate();scope?.Validate(request.TenantId,deployment.DeploymentId);
         if(request.MobileReleaseProfile is not ("AndroidAppDistribution" or "AndroidIosAppDistribution"))throw new InvalidOperationException("The queued request did not select automatic signed Android distribution.");
         if(request.DeploymentId!=null && request.DeploymentId!=deployment.DeploymentId)throw new InvalidOperationException("Mobile job targets another deployment.");
-        var existing=await FindAsync(request.TenantId,Secret(PlanSecret,releaseId),ct);
+        var existing=await FindAsync(request.TenantId,Secret(PlanSecret,releaseId,scope),ct);
         if(existing==null){if(checkpoint)throw new InvalidOperationException("The original mobile release binding is missing.");return;}
-        var firebase=await FirebaseAsync(request,ct);var key=await signing.ReadAsync(request.TenantId,firebase.AndroidPackageName,ct);
-        if(MobileReleaseFiles.Parse<AndroidReleasePlan>(existing)!=Expected(request,firebase,key,await builder.SourceHashAsync(ct),buildNumber))
+        var firebase=await FirebaseAsync(request,ct,scope);var key=scope?.Legacy==false ? await signing.ReadPackageAsync(request.TenantId,firebase.AndroidPackageName,ct) : await signing.ReadAsync(request.TenantId,firebase.AndroidPackageName,ct);
+        if(MobileReleaseFiles.Parse<AndroidReleasePlan>(existing)!=Expected(request,firebase,key,await builder.SourceHashAsync(ct),buildNumber,scope))
             throw new InvalidOperationException("The original mobile release source, version, signing identity or target changed.");
     }
     private static void Match(AndroidReleaseReceipt receipt,AndroidReleasePlan plan)
@@ -90,35 +93,41 @@ public sealed class AndroidReleasePipeline(AndroidReleaseOptions options,Portabl
         }
         finally{if(File.Exists(temporary))File.Delete(temporary);}
     }
-    public async Task<ProvisioningStepResult> ExecuteAsync(TenantProvisioningRequest request,IReadOnlyDictionary<string,ProvisioningStepResult> completed,CancellationToken ct,Guid? releaseId=null,int? buildNumber=null)
+    public async Task<ProvisioningStepResult> ExecuteAsync(TenantProvisioningRequest request,IReadOnlyDictionary<string,ProvisioningStepResult> completed,CancellationToken ct,Guid? releaseId=null,int? buildNumber=null,AndroidBuildScope? scope=null)
     {
-        request.Validate();
+        request.Validate();scope?.Validate(request.TenantId,deployment.DeploymentId);
+        await BuildLane.WaitAsync(ct);
+        try
+        {
         if(releaseId==Guid.Empty || (releaseId.HasValue != buildNumber.HasValue) || buildNumber is <=0)throw new ArgumentException("A manual Android release requires its own identity and version.");
-        await ValidateSavedPlanAsync(request,false,ct,releaseId,buildNumber);
+        await ValidateSavedPlanAsync(request,false,ct,releaseId,buildNumber,scope);
         if(!completed.TryGetValue("publication",out var publication) || publication.Resources.GetValueOrDefault("readiness")!="Verified" ||
-            publication.Resources.GetValueOrDefault("storeUrl")!=deployment.StoreUrl(request.Slug) || !completed.TryGetValue("google-firebase",out var cloud))
+            (scope==null && publication.Resources.GetValueOrDefault("storeUrl")!=deployment.StoreUrl(request)) || !completed.TryGetValue("google-firebase",out var cloud))
             throw new InvalidOperationException("Mobile release requires verified public tenant readiness and Google provisioning.");
-        var firebase=await FirebaseAsync(request,ct);
-        if(cloud.Resources.GetValueOrDefault("projectId")!=firebase.ProjectId || cloud.Resources.GetValueOrDefault("androidAppId")!=firebase.AndroidAppId)
+        var firebase=await FirebaseAsync(request,ct,scope);
+        if(cloud.Resources.GetValueOrDefault("projectId")!=firebase.ProjectId || (scope==null && cloud.Resources.GetValueOrDefault("androidAppId")!=firebase.AndroidAppId))
             throw new InvalidOperationException("The Google checkpoint does not match the saved tenant Firebase app.");
         var source=await builder.SourceHashAsync(ct);
-        var key=releaseId.HasValue ? await signing.ReadAsync(request.TenantId,firebase.AndroidPackageName,ct) : await signing.GetOrCreateAsync(request.TenantId,firebase.AndroidPackageName,ct);
-        if(releaseId.HasValue && (!completed.TryGetValue("mobile-android-release",out var initial) || initial.Resources.GetValueOrDefault("signingCertificateSha256")!=key.CertificateSha256))
+        if(scope?.SourceHash!=null && scope.SourceHash!=source)throw new InvalidOperationException("The prepared Android source changed.");
+        var key=scope?.Legacy==false ? await signing.ReadPackageAsync(request.TenantId,firebase.AndroidPackageName,ct) : releaseId.HasValue ? await signing.ReadAsync(request.TenantId,firebase.AndroidPackageName,ct) : await signing.GetOrCreateAsync(request.TenantId,firebase.AndroidPackageName,ct);
+        if(scope==null && releaseId.HasValue && (!completed.TryGetValue("mobile-android-release",out var initial) || initial.Resources.GetValueOrDefault("signingCertificateSha256")!=key.CertificateSha256))
             throw new InvalidOperationException("Manual releases must retain the original tenant signing identity.");
-        var expected=Expected(request,firebase,key,source,buildNumber);
-        var plan=MobileReleaseFiles.Parse<AndroidReleasePlan>(await secrets.GetOrCreateAsync(request.TenantId,Secret(PlanSecret,releaseId),()=>JsonSerializer.Serialize(expected,MobileReleaseFiles.Json),ct));
+        if(scope!=null && key.CertificateSha256!=scope.CertificateSha256)throw new InvalidOperationException("The queued package signing certificate changed.");
+        var expected=Expected(request,firebase,key,source,buildNumber,scope);
+        var plan=MobileReleaseFiles.Parse<AndroidReleasePlan>(await secrets.GetOrCreateAsync(request.TenantId,Secret(PlanSecret,releaseId,scope),()=>JsonSerializer.Serialize(expected,MobileReleaseFiles.Json),ct));
         if(plan!=expected)throw new InvalidOperationException("The initial Android release target has changed.");
-        var saved=await FindAsync(request.TenantId,Secret(ArtifactSecret,releaseId),ct);
+        var saved=await FindAsync(request.TenantId,Secret(ArtifactSecret,releaseId,scope),ct);
         AndroidReleaseReceipt receipt;
         if(saved==null)
         {
-            var built=await builder.BuildAsync(request,firebase,key,plan,ct);
+            var buildRequest=scope==null?request:request with {AndroidPackageName=scope.AndroidPackageName,IosBundleId=scope.IosBundleId,Domain=scope.Domain};
+            var built=await builder.BuildAsync(buildRequest,firebase,key,plan,ct);
             try
             {
                 await VerifyAsync(built.Path,built.Receipt,plan,ct);
                 await PromoteAsync(built.Path,ArtifactPath(built.Receipt),ct);
                 // Concurrent/reclaimed workers select a single immutable binary before any upload.
-                saved=await secrets.GetOrCreateAsync(request.TenantId,Secret(ArtifactSecret,releaseId),()=>JsonSerializer.Serialize(built.Receipt,MobileReleaseFiles.Json),ct);
+                saved=await secrets.GetOrCreateAsync(request.TenantId,Secret(ArtifactSecret,releaseId,scope),()=>JsonSerializer.Serialize(built.Receipt,MobileReleaseFiles.Json),ct);
             }
             finally
             {
@@ -132,7 +141,8 @@ public sealed class AndroidReleasePipeline(AndroidReleaseOptions options,Portabl
         }
         receipt=MobileReleaseFiles.Parse<AndroidReleaseReceipt>(saved);Match(receipt,plan);
         var binary=ArtifactPath(receipt);await VerifyAsync(binary,receipt,plan,ct);ct.ThrowIfCancellationRequested();
-        var distributed=await FindAsync(request.TenantId,Secret(DistributionSecret,releaseId),ct);
+        await appIdentity.EnsureAndroidSigningAsync(firebase,key.CertificateBase64,key.CertificateSha256,ct);
+        var distributed=await FindAsync(request.TenantId,Secret(DistributionSecret,releaseId,scope),ct);
         string release;
         if(distributed!=null)
         {
@@ -141,11 +151,15 @@ public sealed class AndroidReleasePipeline(AndroidReleaseOptions options,Portabl
         else
         {
             release=await distribution.UploadAndDistributeAsync(firebase,"android",binary,ct);ct.ThrowIfCancellationRequested();
-            var winner=await secrets.GetOrCreateAsync(request.TenantId,Secret(DistributionSecret,releaseId),()=>release,ct);
+            var winner=await secrets.GetOrCreateAsync(request.TenantId,Secret(DistributionSecret,releaseId,scope),()=>release,ct);
             if(winner!=release)throw new InvalidOperationException("The initial Android release acquired a different distribution identity.");
         }
-        return new("AndroidAppDistribution",new Dictionary<string,string>{["androidAppId"]=plan.AndroidAppId,["androidApplicationId"]=plan.AndroidApplicationId,
+        var result=new ProvisioningStepResult("AndroidAppDistribution",new Dictionary<string,string>{["androidAppId"]=plan.AndroidAppId,["androidApplicationId"]=plan.AndroidApplicationId,
             ["buildNumber"]=plan.BuildNumber.ToString(System.Globalization.CultureInfo.InvariantCulture),["sourceHash"]=plan.SourceHash,
             ["fileSize"]=new FileInfo(binary).Length.ToString(System.Globalization.CultureInfo.InvariantCulture),["sha256"]=receipt.Sha256,["signingCertificateSha256"]=plan.SigningCertificateSha256,["release"]=release});
+        if(scope!=null)result=result with {Resources=new Dictionary<string,string>(result.Resources){["storeUrl"]=plan.StoreUrl}};
+        scope?.ValidateReceipt(result,plan.BuildNumber);return result;
+        }
+        finally{BuildLane.Release();}
     }
 }

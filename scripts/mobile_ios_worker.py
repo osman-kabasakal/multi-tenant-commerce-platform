@@ -20,10 +20,14 @@ EVIDENCE_FIELDS = ("ipaSha256", "signingCertificateSha256", "applicationProfileU
 
 def read_plan(path):
     value = preflight.read_json(Path(path), private=True)
-    if set(value) not in (PLAN_FIELDS, PLAN_FIELDS | {"iosPushTransport"}) or value.get("iosPushTransport", "Fcm") not in ("Fcm", "Apns") or any(not isinstance(value[name], str) or not value[name] for name in PLAN_FIELDS - {"buildNumber"}):
+    if not PLAN_FIELDS.issubset(value) or set(value) - PLAN_FIELDS - {"iosPushTransport", "mobileIdentityId"} or value.get("iosPushTransport", "Fcm") not in ("Fcm", "Apns") or any(not isinstance(value[name], str) or not value[name] for name in PLAN_FIELDS - {"buildNumber"}):
         raise ValueError("Expected the complete immutable iOS release plan.")
     if not re.fullmatch(r"[a-f0-9]{32}", value["tenantId"]) or int(value["tenantId"], 16) == 0:
         raise ValueError("Use a canonical nonempty tenant ID.")
+    if 'mobileIdentityId' in value:
+        identity = value['mobileIdentityId']
+        if not isinstance(identity, str) or not re.fullmatch(r'[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}', identity) or uuid.UUID(identity).int == 0:
+            raise ValueError("Use a canonical mobile identity reference.")
     for name in ("sourceHash", "signingCertificateSha256", "firebaseSdkSha256"):
         if not re.fullmatch(r"[a-f0-9]{64}", value[name]):
             raise ValueError("Expected a SHA-256 release binding.")
@@ -36,6 +40,9 @@ def bind(plan, tenant, firebase_directory):
     for name in ("tenantId", "iosBundleId", "developmentTeam", "sourceHash", "buildNumber", "projectId", "projectNumber", "iosAppId"):
         if tenant.get(name) != plan[name]:
             raise ValueError("Native iOS preparation differs from the immutable release plan.")
+    expected_identity = uuid.UUID(plan['mobileIdentityId']).hex if plan.get('mobileIdentityId') else ''
+    if tenant.get('mobileIdentityId', '') != expected_identity:
+        raise ValueError("The native build belongs to another mobile identity version.")
     if tenant.get("iosPushTransport", "Fcm") != plan.get("iosPushTransport", "Fcm") or (
         plan.get("iosPushTransport") == "Apns" and tenant.get("iosDevelopmentTeam") != plan["developmentTeam"]):
         raise ValueError("The native APNs transport or team differs from the immutable release plan.")

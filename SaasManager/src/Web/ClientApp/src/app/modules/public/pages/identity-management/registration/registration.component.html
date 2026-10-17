@@ -25,6 +25,8 @@
         </div>
       } @else if (trial) {
         <p class="mt-4 text-sm text-gray-600">Şirket ve iletişim bilgilerinizi girin. Mağaza parolası ilk kayıtta belirlenir; kaydı tekrarlamak parolayı değiştirmez.</p>
+        <app-tenant-domain-ownership [registrationId]="registrationId" [ownerId]="trial.ownerId" [requestToken]="trial.requestToken"
+          (selectionChange)="domainSelection = $event"></app-tenant-domain-ownership>
         <app-dynamic-form [fields]="trial.fields" [initialValues]="initialValues" stateKey="ConfiguredTrial"
           submitButtonText="Deneme aboneliğini başlat" [isSubmitting]="submitting" [serverError]="fieldErrors" (formSubmit)="onTrialSubmit($event)"></app-dynamic-form>
       }

@@ -93,15 +93,26 @@ public static class ApnsRegistrationToken
 {
     public const string Prefix = "apns-v1:production:";
     public static bool Reserved(string value) => value.StartsWith("apns-v", StringComparison.Ordinal);
+    public const string VersionPrefix="apns-v2:production:";
+    public static Guid? Identity(string value)
+    {
+        if(value.StartsWith(Prefix,StringComparison.Ordinal))return null;
+        if(!value.StartsWith(VersionPrefix,StringComparison.Ordinal))throw new ArgumentException("Unsupported APNs registration format or environment.");
+        var rest=value[VersionPrefix.Length..];var split=rest.IndexOf(':');
+        if(split!=32 || !Guid.TryParseExact(rest[..split],"N",out var id) || id==Guid.Empty || id.ToString("N")!=rest[..split])
+            throw new ArgumentException("Use a canonical mobile identity reference.");
+        return id;
+    }
     public static string Decode(string value)
     {
-        if (!value.StartsWith(Prefix,StringComparison.Ordinal)) throw new ArgumentException("Unsupported APNs registration format or environment.");
-        var token = value[Prefix.Length..];
-        // APNs device tokens have variable length; never assume the historical 32-byte size.
-        if (token.Length is < 2 or > 512 || token.Length % 2 != 0 || token.Any(c => !char.IsAsciiHexDigit(c)))
+        var identity=Identity(value);
+        var token=value[(identity==null?Prefix.Length:VersionPrefix.Length+33)..];
+        if(token.Length is <2 or >512 || token.Length%2!=0 || token.Any(c=>!char.IsAsciiHexDigit(c)))
             throw new ArgumentException("Invalid APNs device token.");
         return token.ToLowerInvariant();
     }
+    public static string Normalize(string value)=>Identity(value) is {} id?VersionPrefix+id.ToString("N")+":"+Decode(value):Prefix+Decode(value);
+
 }
 
 public sealed class ApnsApiException(HttpStatusCode? status, string code) : Exception("APNs operation failed (" + code + ").")
@@ -122,16 +133,27 @@ public sealed class ApnsHttpClients : IApnsHttpClients
 public sealed class ApnsTenantPushSender(ITenantSecrets secrets, ApnsOptions options,
     ApnsProviderTokens tokens, IApnsHttpClients clients, TimeProvider clock) : ITenantPushSender
 {
-    public async Task<TenantFirebaseConfiguration> TargetAsync(string tenantIdOrAlias, CancellationToken ct = default)
+    public async Task<TenantFirebaseConfiguration> TargetAsync(string tenantIdOrAlias, CancellationToken ct = default,Guid? mobileIdentity=null)
     {
         var tenant = await secrets.ResolveAsync(tenantIdOrAlias, ct); PushInput.Canonical(tenant);
-        var config = JsonSerializer.Deserialize<TenantFirebaseConfiguration>(await secrets.GetAsync(tenant, TenantFirebaseConfiguration.SecretName,ct))
+        var config = JsonSerializer.Deserialize<TenantFirebaseConfiguration>(await secrets.GetAsync(tenant, TenantFirebaseConfiguration.SecretName,ct),new JsonSerializerOptions(JsonSerializerDefaults.Web))
             ?? throw new InvalidOperationException("Tenant notification configuration is missing.");
-        FirebaseConfigValidator.Validate(config);
+        var original=config;
+        if(mobileIdentity is {} identity)
+            config=JsonSerializer.Deserialize<TenantFirebaseConfiguration>(await secrets.GetAsync(tenant,"firebase-mobile-identity-"+identity.ToString("N"),ct),
+                new JsonSerializerOptions(JsonSerializerDefaults.Web))??throw new InvalidOperationException("The iOS identity is not owned by this tenant.");
+        FirebaseConfigValidator.Validate(original);FirebaseConfigValidator.Validate(config);
+        if(config.ProjectId!=original.ProjectId || config.ProjectNumber!=original.ProjectNumber || config.SenderServiceAccount!=original.SenderServiceAccount ||
+            config.DistributionGroupAlias!=original.DistributionGroupAlias)throw new InvalidOperationException("A versioned push target must stay in the tenant's Firebase project.");
         if (config.TenantId != tenant || config.IosPushTransport != "Apns" || config.IosDevelopmentTeam != options.DevelopmentTeam ||
             config.IosBundleId.Length > 220 || !Regex.IsMatch(config.IosBundleId,"^[A-Za-z][A-Za-z0-9-]*(\\.[A-Za-z][A-Za-z0-9-]*)+\\z"))
             throw new InvalidOperationException("The APNs target does not match the tenant's configured Apple team and application.");
         return config;
+    }
+
+    public async Task ValidateTargetsAsync(string tenant,IReadOnlyList<string> registrations,CancellationToken ct)
+    {
+        foreach(var identity in registrations.Select(ApnsRegistrationToken.Identity).Distinct())await TargetAsync(tenant,ct,identity);
     }
 
     public static byte[] Payload(TenantPushMessage message)
@@ -151,14 +173,19 @@ public sealed class ApnsTenantPushSender(ITenantSecrets secrets, ApnsOptions opt
         TenantPushMessage message, CancellationToken ct = default)
     {
         options.Validate();
-        var deviceTokens = PushInput.Tokens(registrationTokens).Select(ApnsRegistrationToken.Decode).Distinct(StringComparer.Ordinal).ToArray();
+        var registrations=PushInput.Tokens(registrationTokens).Select(ApnsRegistrationToken.Normalize).Distinct(StringComparer.Ordinal).ToArray();
         var bytes = Payload(message);
         var silent = string.IsNullOrEmpty(message.Title) && string.IsNullOrEmpty(message.Body);
-        var target = await TargetAsync(tenantIdOrAlias,ct);
-        using var http = clients.Create();
-        var accepted = 0;
-        foreach (var device in deviceTokens)
+        var groups=registrations.GroupBy(ApnsRegistrationToken.Identity).ToArray();
+        var targets=new Dictionary<Guid,TenantFirebaseConfiguration>();
+        foreach(var group in groups)targets[group.Key??Guid.Empty]=await TargetAsync(tenantIdOrAlias,ct,group.Key);
+        var accepted=0;
+        foreach(var group in groups)
         {
+        var target=targets[group.Key??Guid.Empty];using var http=clients.Create();
+        foreach(var registration in group)
+        {
+            var device=ApnsRegistrationToken.Decode(registration);
             using var request = new HttpRequestMessage(HttpMethod.Post,"https://api.push.apple.com/3/device/" + device)
             {
                 Version = HttpVersion.Version20, VersionPolicy = HttpVersionPolicy.RequestVersionExact,
@@ -189,7 +216,8 @@ public sealed class ApnsTenantPushSender(ITenantSecrets secrets, ApnsOptions opt
             catch (HttpRequestException) { throw new ApnsApiException(null,"Transport"); }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested) { throw new ApnsApiException(null,"Timeout"); }
         }
-        return new(deviceTokens.Length,accepted,"Apns");
+        }
+        return new(registrations.Length,accepted,"Apns");
     }
 
     private static async Task<string> ReasonAsync(HttpResponseMessage response, CancellationToken ct)
@@ -222,12 +250,12 @@ public sealed class FcmApnsTenantPushSender(FcmTenantPushSender fcm, ApnsTenantP
         TenantPushMessage message, CancellationToken ct = default)
     {
         var unique = PushInput.Tokens(registrationTokens).Select(x => ApnsRegistrationToken.Reserved(x) ?
-            ApnsRegistrationToken.Prefix + ApnsRegistrationToken.Decode(x) : x).Distinct(StringComparer.Ordinal).ToArray();
+            ApnsRegistrationToken.Normalize(x) : x).Distinct(StringComparer.Ordinal).ToArray();
         var apple = unique.Where(ApnsRegistrationToken.Reserved).ToArray();
         var google = unique.Where(x => !ApnsRegistrationToken.Reserved(x)).ToArray();
         // Validate all Apple input and tenant policy before either provider can perform a write.
         foreach (var token in apple) ApnsRegistrationToken.Decode(token);
-        if (apple.Length > 0) { ApnsTenantPushSender.Payload(message); await apns.TargetAsync(tenantIdOrAlias,ct); }
+        if (apple.Length > 0) { ApnsTenantPushSender.Payload(message); await apns.ValidateTargetsAsync(tenantIdOrAlias,apple,ct); }
         var accepted = 0;
         if (google.Length > 0) accepted += (await fcm.SendAsync(tenantIdOrAlias,google,message,ct)).Accepted;
         if (apple.Length > 0) accepted += (await apns.SendAsync(tenantIdOrAlias,apple,message,ct)).Accepted;

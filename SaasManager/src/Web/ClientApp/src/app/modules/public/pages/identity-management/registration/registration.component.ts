@@ -8,6 +8,7 @@ import {isPlatformBrowser} from '@angular/common';
 import {Subscription, timer} from 'rxjs';
 import {exhaustMap} from 'rxjs/operators';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {TenantDomainSelection} from '../../../../shared/components/tenant-domain-ownership/tenant-domain-ownership.component';
 import {environment} from '../../../../../../environments/environment';
 
 interface TrialConfiguration {
@@ -37,7 +38,8 @@ export class RegistrationComponent implements OnInit, OnDestroy {
   ready = false;
   storeUrl = '';
   adminUrl = '';
-  private registrationId = '';
+  registrationId = '';
+  domainSelection: TenantDomainSelection = {requestId: null, ready: true, hasDomain: false};
   private statusUrl = '';
   private polling?: Subscription;
 
@@ -79,9 +81,10 @@ export class RegistrationComponent implements OnInit, OnDestroy {
   }
   onTrialSubmit(values: {[key: string]: string}): void {
     if (!this.trial || this.submitting) return;
+    if (!this.domainSelection.ready) { this.error = 'İşletme kaydına devam etmeden önce alan adını doğrulayın veya alanı boş bırakın.'; return; }
     this.submitting = true; this.error = null; this.fieldErrors = null;
     const {adminPassword, ...business} = values;
-    this.http.post<{businessId: string; statusUrl: string}>('/api/TrialBusinesses', {registrationId: this.registrationId, business, adminPassword},
+    this.http.post<{businessId: string; statusUrl: string}>('/api/TrialBusinesses', {registrationId: this.registrationId, business, adminPassword, domainRequestId: this.domainSelection.requestId},
       {headers: {'X-XSRF-TOKEN': this.trial.requestToken}}).pipe(takeUntilDestroyed(this.destroy)).subscribe({
         next: result => { this.submitting = false; this.watch(result.statusUrl); },
         error: error => { this.submitting = false; this.showError(error); }

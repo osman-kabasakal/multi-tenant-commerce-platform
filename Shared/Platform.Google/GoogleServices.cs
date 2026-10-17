@@ -15,6 +15,7 @@ public static class GoogleServices
         services.AddGoogleTransport();
         services.AddTransient<GoogleTenantProvisioner>();
         services.AddTransient<FirebaseAppDistribution>();
+        services.AddTransient<FirebaseAppIdentity>();
         return services;
     }
     public static IServiceCollection AddGoogleTransport(this IServiceCollection services)

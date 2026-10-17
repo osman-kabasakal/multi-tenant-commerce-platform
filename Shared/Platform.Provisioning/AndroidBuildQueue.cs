@@ -4,7 +4,8 @@ using Npgsql;
 namespace Platform.Provisioning;
 
 public sealed record AndroidBuildJob(Guid Id, string TenantId, Guid AppId, string DeploymentId, int BuildNumber,
-    string State, int Attempts, ProvisioningStepResult? Receipt, string? ErrorCode, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+    string State, int Attempts, ProvisioningStepResult? Receipt, string? ErrorCode, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt)
+{ public AndroidBuildScope? Scope { get; init; } }
 public sealed record AndroidBuildLease(AndroidBuildJob Job, Guid Token);
 
 /// <summary>Durable manual releases. The original onboarding job and its first release remain immutable.</summary>
@@ -22,13 +23,14 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
                 available_at timestamptz NOT NULL DEFAULT now(), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
                 UNIQUE(tenant_id,build_number), CHECK(state <> 'Succeeded' OR receipt IS NOT NULL)
             );
+            ALTER TABLE platform_provisioning.android_build_jobs ADD COLUMN IF NOT EXISTS scope jsonb;
             CREATE UNIQUE INDEX IF NOT EXISTS android_build_jobs_one_active ON platform_provisioning.android_build_jobs(tenant_id) WHERE state IN ('Pending','Running');
             CREATE INDEX IF NOT EXISTS android_build_jobs_available ON platform_provisioning.android_build_jobs(deployment_id,available_at,id) WHERE state IN ('Pending','Running');
             CREATE OR REPLACE FUNCTION platform_provisioning.immutable_android_build_v1()
             RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog AS $$
             BEGIN
-                IF (NEW.id,NEW.tenant_id,NEW.app_id,NEW.deployment_id,NEW.build_number) IS DISTINCT FROM
-                   (OLD.id,OLD.tenant_id,OLD.app_id,OLD.deployment_id,OLD.build_number) OR
+                IF (NEW.id,NEW.tenant_id,NEW.app_id,NEW.deployment_id,NEW.build_number,NEW.scope) IS DISTINCT FROM
+                   (OLD.id,OLD.tenant_id,OLD.app_id,OLD.deployment_id,OLD.build_number,OLD.scope) OR
                    (OLD.state='Succeeded' AND NEW IS DISTINCT FROM OLD) THEN
                     RAISE EXCEPTION 'The Android release identity and completed receipt are immutable' USING ERRCODE='23514';
                 END IF;
@@ -44,14 +46,14 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
     public async Task<IReadOnlyList<AndroidBuildJob>> ListAsync(string tenant, CancellationToken ct = default)
     {
         IosReleasePlan.Tenant(tenant);
-        await using var command = db.CreateCommand("SELECT id,tenant_id,app_id,deployment_id,build_number,state,attempts,receipt::text,error_code,created_at,updated_at FROM platform_provisioning.android_build_jobs WHERE tenant_id=$1 ORDER BY build_number DESC");
+        await using var command = db.CreateCommand("SELECT id,tenant_id,app_id,deployment_id,build_number,state,attempts,receipt::text,error_code,created_at,updated_at,scope::text FROM platform_provisioning.android_build_jobs WHERE tenant_id=$1 ORDER BY build_number DESC");
         command.Parameters.AddWithValue(tenant);
         await using var reader = await command.ExecuteReaderAsync(ct);
         var result = new List<AndroidBuildJob>(); while(await reader.ReadAsync(ct)) result.Add(Read(reader)); return result;
     }
-    public async Task<AndroidBuildJob> EnqueueAsync(Guid id, string tenant, Guid app, string deployment, int expectedNumber, CancellationToken ct = default)
+    public async Task<AndroidBuildJob> EnqueueAsync(Guid id, string tenant, Guid app, string deployment, int expectedNumber, CancellationToken ct = default, AndroidBuildScope? scope = null)
     {
-        IosReleasePlan.Tenant(tenant);
+        IosReleasePlan.Tenant(tenant);scope?.Validate(tenant,deployment);
         if(id==Guid.Empty || app==Guid.Empty || expectedNumber<1) throw new ArgumentException("A release identity and version are required.");
         await using var connection = await db.OpenConnectionAsync(ct);
         await using var transaction = await connection.BeginTransactionAsync(ct);
@@ -65,12 +67,20 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
         var prior=(await ListAsync(tenant,ct)).FirstOrDefault(j=>j.Id==id);
         if(prior!=null)
         {
-            if(prior.AppId!=app || prior.DeploymentId!=deployment || prior.BuildNumber!=expectedNumber)throw new ProvisioningConflictException();
+            if(prior.AppId!=app || prior.DeploymentId!=deployment || prior.BuildNumber!=expectedNumber || prior.Scope!=scope)throw new ProvisioningConflictException();
             await transaction.CommitAsync(ct);return prior;
         }
+        // Promotion and canonical domain changes use the same tenant lock. Queueing freezes the selected active identity.
+        await using(var gate=new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtextextended($1,734180227))",connection,transaction))
+        {gate.Parameters.AddWithValue(tenant);await gate.ExecuteNonQueryAsync(ct);}
+        await using(var active=new NpgsqlCommand("SELECT id FROM platform_provisioning.mobile_identity_versions WHERE tenant_id=$1 AND state='Active'",connection,transaction))
+        {
+            active.Parameters.AddWithValue(tenant);var current=await active.ExecuteScalarAsync(ct);
+            if(scope==null ? current is Guid : current is not Guid idValue || idValue!=scope.IdentityId)throw new ProvisioningConflictException();
+        }
         await using(var insert = new NpgsqlCommand("""
-            INSERT INTO platform_provisioning.android_build_jobs(id,tenant_id,app_id,deployment_id,build_number)
-            SELECT $1,$2,$3,$4,$5 FROM platform_provisioning.jobs j WHERE j.tenant_id=$2
+            INSERT INTO platform_provisioning.android_build_jobs(id,tenant_id,app_id,deployment_id,build_number,scope)
+            SELECT $1,$2,$3,$4,$5,$6::jsonb FROM platform_provisioning.jobs j WHERE j.tenant_id=$2
                 AND $5=1+GREATEST((j.steps->'mobile-android-release'->'Resources'->>'buildNumber')::integer,
                     COALESCE((SELECT max(build_number) FROM platform_provisioning.android_build_jobs WHERE tenant_id=$2),0))
                 AND NOT EXISTS(SELECT 1 FROM platform_provisioning.android_build_jobs WHERE tenant_id=$2 AND state IN ('Pending','Running'))
@@ -78,6 +88,7 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
         {
             insert.Parameters.AddWithValue(id);insert.Parameters.AddWithValue(tenant);insert.Parameters.AddWithValue(app);
             insert.Parameters.AddWithValue(deployment);insert.Parameters.AddWithValue(expectedNumber);
+            insert.Parameters.Add(new NpgsqlParameter {NpgsqlDbType=NpgsqlTypes.NpgsqlDbType.Jsonb,Value=scope==null?DBNull.Value:JsonSerializer.Serialize(scope)});
             if(await insert.ExecuteNonQueryAsync(ct)!=1)throw new ProvisioningConflictException();
         }
         await transaction.CommitAsync(ct);return (await ListAsync(tenant,ct)).Single(j=>j.Id==id);
@@ -90,7 +101,7 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
             WHERE id=(SELECT id FROM platform_provisioning.android_build_jobs WHERE deployment_id=$2 AND
                 ((state='Pending' AND available_at<=now()) OR (state='Running' AND lease_until<now()))
                 ORDER BY available_at,id LIMIT 1 FOR UPDATE SKIP LOCKED)
-            RETURNING id,tenant_id,app_id,deployment_id,build_number,state,attempts,receipt::text,error_code,created_at,updated_at
+            RETURNING id,tenant_id,app_id,deployment_id,build_number,state,attempts,receipt::text,error_code,created_at,updated_at,scope::text
             """);
         command.Parameters.AddWithValue(token);command.Parameters.AddWithValue(deployment);
         await using var reader=await command.ExecuteReaderAsync(ct);return await reader.ReadAsync(ct)?new(Read(reader),token):null;
@@ -100,6 +111,7 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
     {
         if(receipt.Provider!="AndroidAppDistribution" || receipt.Resources.GetValueOrDefault("buildNumber")!=lease.Job.BuildNumber.ToString(System.Globalization.CultureInfo.InvariantCulture))
             throw new InvalidOperationException("The Android build receipt does not match the queued version.");
+        lease.Job.Scope?.ValidateReceipt(receipt,lease.Job.BuildNumber);
         return OwnedAsync(lease,"state='Succeeded',receipt=$3::jsonb,error_code=NULL,claim_token=NULL,lease_until=NULL,updated_at=now()",ct,JsonSerializer.Serialize(receipt));
     }
     public Task FailAsync(AndroidBuildLease lease,Exception error,CancellationToken ct)=>OwnedAsync(lease,
@@ -111,6 +123,6 @@ public sealed class AndroidBuildQueue(string connectionString) : IAsyncDisposabl
         if(await command.ExecuteNonQueryAsync(ct)!=1)throw new ProvisioningLeaseLostException();
     }
     private static AndroidBuildJob Read(NpgsqlDataReader r)=>new(r.GetGuid(0),r.GetString(1),r.GetGuid(2),r.GetString(3),r.GetInt32(4),r.GetString(5),r.GetInt32(6),
-        r.IsDBNull(7)?null:JsonSerializer.Deserialize<ProvisioningStepResult>(r.GetString(7)),r.IsDBNull(8)?null:r.GetString(8),r.GetFieldValue<DateTimeOffset>(9),r.GetFieldValue<DateTimeOffset>(10));
+        r.IsDBNull(7)?null:JsonSerializer.Deserialize<ProvisioningStepResult>(r.GetString(7)),r.IsDBNull(8)?null:r.GetString(8),r.GetFieldValue<DateTimeOffset>(9),r.GetFieldValue<DateTimeOffset>(10)) {Scope=r.IsDBNull(11)?null:JsonSerializer.Deserialize<AndroidBuildScope>(r.GetString(11))};
     public ValueTask DisposeAsync()=>db.DisposeAsync();
 }

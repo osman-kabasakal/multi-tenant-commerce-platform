@@ -45,7 +45,7 @@ public sealed class AndroidReleaseBuilder(AndroidReleaseOptions options) : IAndr
             await FirebaseClientFiles.ExportAsync(firebase,inputs,ct);
             var manifest=Path.Combine(inputs,"tenant.json");
             await MobileReleaseFiles.WriteAsync(manifest,JsonSerializer.SerializeToUtf8Bytes(new {
-                tenantId=request.TenantId,slug=request.Slug,displayName=request.StoreName,baseUrl=plan.StoreUrl,localDemo=false,
+                tenantId=request.TenantId,slug=request.Slug,displayName=request.StoreName,baseUrl=plan.StoreUrl,localDemo=false,verifiedDomain=request.Domain,
                 androidApplicationId=firebase.AndroidPackageName,iosBundleId=firebase.IosBundleId,
                 firebase=new{enabled=true,projectId=firebase.ProjectId,projectNumber=firebase.ProjectNumber,androidAppId=firebase.AndroidAppId,iosAppId=firebase.IosAppId}
             },MobileReleaseFiles.Json),ct);

@@ -25,7 +25,7 @@ public sealed class IosReleaseWorkerOptions
 
 /// <summary>One sequential Mac build lane. Lease loss cancels its own child build; completion writes remain fenced.</summary>
 public sealed class IosReleaseWorker(PostgresIosReleaseQueue queue, IIosReleaseExecutor executor,
-    IosReleaseWorkerOptions options, ILogger<IosReleaseWorker> logger) : BackgroundService
+    IosReleaseWorkerOptions options, ILogger<IosReleaseWorker> logger,MobileIdentityRegistry? identities=null) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -35,8 +35,10 @@ public sealed class IosReleaseWorker(PostgresIosReleaseQueue queue, IIosReleaseE
             try
             {
                 var lease = await queue.ClaimAsync(options.Identity, options.LeaseDuration, stoppingToken);
-                if (lease == null) await Task.Delay(options.PollInterval, stoppingToken);
-                else await RunAsync(lease, stoppingToken);
+                if(lease!=null)await RunAsync(lease,stoppingToken);
+                else if(identities!=null && await identities.ClaimIosAsync(options.Identity,stoppingToken) is {} identityLease)
+                    await RunIdentityAsync(identityLease,stoppingToken);
+                else await Task.Delay(options.PollInterval,stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
             catch (Exception error)
@@ -77,6 +79,32 @@ public sealed class IosReleaseWorker(PostgresIosReleaseQueue queue, IIosReleaseE
         {
             owned.Cancel(); await heartbeat;
         }
+    }
+    public async Task RunIdentityAsync(MobileIdentityLease lease,CancellationToken ct)
+    {
+        if(identities==null || lease.Platform!="ios" || lease.Version.Prepared==null)throw new ProvisioningLeaseLostException();
+        using var owned=CancellationTokenSource.CreateLinkedTokenSource(ct);
+        async Task KeepAsync()
+        {
+            try{while(!owned.IsCancellationRequested){await Task.Delay(TimeSpan.FromSeconds(30),owned.Token);await identities.RenewAsync(lease,owned.Token);}}
+            catch(OperationCanceledException)when(owned.IsCancellationRequested){}catch(Exception){owned.Cancel();}
+        }
+        var heartbeat=KeepAsync();
+        try
+        {
+            await identities.RenewAsync(lease,owned.Token);
+            var receipt=await executor.ExecuteAsync(lease.Version.Prepared.IosPlan,owned.Token);
+            await identities.CompleteIosAsync(lease,receipt,owned.Token);
+            logger.LogInformation("Tenant {TenantId}: iOS identity {IdentityId} is ready",lease.Version.Request.TenantId,lease.Version.Request.Id);
+        }
+        catch(OperationCanceledException)when(owned.IsCancellationRequested){}
+        catch(ProvisioningLeaseLostException){}
+        catch(Exception error)
+        {
+            logger.LogWarning("iOS identity {IdentityId} failed ({ErrorType})",lease.Version.Request.Id,error.GetType().Name);
+            try{await identities.FailAsync(lease,"MobileIos."+error.GetType().Name,ct);}catch(ProvisioningLeaseLostException){}
+        }
+        finally{owned.Cancel();await heartbeat;}
     }
     private async Task KeepLeaseAsync(IosReleaseLease lease, CancellationTokenSource owned)
     {

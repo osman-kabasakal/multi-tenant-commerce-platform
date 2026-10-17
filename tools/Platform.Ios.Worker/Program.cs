@@ -35,6 +35,7 @@ try
     builder.Services.AddSingleton(_ => new PostgresProvisioningQueue(connection));
     builder.Services.AddSingleton<IProvisioningQueue>(sp => sp.GetRequiredService<PostgresProvisioningQueue>());
     builder.Services.AddSingleton(_ => new PostgresIosReleaseQueue(connection));
+    builder.Services.AddSingleton(_ => new MobileIdentityRegistry(connection));
     builder.Services.AddSingleton(options); builder.Services.AddSingleton(apple);
     builder.Services.AddSingleton(_ => AppleApiClient.CreateHttpClient());
     builder.Services.AddSingleton<IAppleApiTokens, AppleApiTokens>();

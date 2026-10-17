@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 namespace Platform.Provisioning.Adapters;
 
 public sealed class AndroidBuildWorker(AndroidBuildQueue builds,IProvisioningQueue onboarding,PortableOnboardingOptions deployment,
-    IServiceScopeFactory scopes,ILogger<AndroidBuildWorker> logger):BackgroundService
+    IServiceScopeFactory scopes,ILogger<AndroidBuildWorker> logger,MobileIdentityRegistry? identities=null,TenantDomainRegistry? domains=null):BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -32,8 +32,20 @@ public sealed class AndroidBuildWorker(AndroidBuildQueue builds,IProvisioningQue
             if(original==null || original.State!="Succeeded" || original.Request.DeploymentId!=deployment.DeploymentId)
                 throw new InvalidOperationException("A verified tenant in this deployment is required for a rebuild.");
             using var scope=scopes.CreateScope();
+            await scope.ServiceProvider.GetRequiredService<PortableDeploymentGuard>().ValidateAsync(original.Request,original.Steps,owned.Token);
+            if(lease.Job.Scope is {} binding)
+            {
+                var version=identities==null?null:await identities.GetForWorkerAsync(lease.Job.TenantId,binding.IdentityId,owned.Token);
+                if(version==null || version.State is not ("Active" or "Retired") ||
+                    MobileIdentityBuildScopes.Android(version,original,binding.StoreUrl,domain:binding.Domain)!=binding)throw new ProvisioningConflictException();
+                if(binding.Domain is {} selected)
+                {
+                    var domain=domains==null?null:await domains.RequireVerifiedAsync(selected.Id,version.Request.OwnerSubject,lease.Job.TenantId,deployment.DeploymentId,owned.Token);
+                    if(domain==null || TenantDomainSelection.From(domain)!=selected)throw new ProvisioningConflictException();
+                }
+            }
             var receipt=await scope.ServiceProvider.GetRequiredService<AndroidReleasePipeline>().ExecuteAsync(
-                original.Request,original.Steps,owned.Token,lease.Job.Id,lease.Job.BuildNumber);
+                original.Request,original.Steps,owned.Token,lease.Job.Id,lease.Job.BuildNumber,lease.Job.Scope);
             await builds.CompleteAsync(lease,receipt,owned.Token);
         }
         catch(OperationCanceledException)when(owned.IsCancellationRequested){}

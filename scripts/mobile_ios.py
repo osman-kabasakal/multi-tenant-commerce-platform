@@ -99,6 +99,7 @@ def prepare(manifest_path, firebase_directory, workspace, team, build_number=1, 
     info["CFBundleName"] = "Runner"
     info["PlatformIosPushTransport"] = tenant['iosPushTransport']
     info["PlatformIosDevelopmentTeam"] = team
+    info["PlatformMobileIdentityId"] = tenant.get("mobileIdentityId", "")
     info["FirebaseMessagingAutoInitEnabled"] = tenant['iosPushTransport'] != 'Apns'
     (native / "Runner/Info.plist").write_bytes(plistlib.dumps(info))
     (native / "Runner/Runner.entitlements").write_bytes(plistlib.dumps({"aps-environment": "production"}))
@@ -116,6 +117,8 @@ def verify_compiled_app(binary, tenant):
     if binary.is_symlink() or not binary.is_dir():
         raise ValueError("The unsigned device app is missing.")
     info = read_plist(binary / "Info.plist")
+    if info.get("PlatformMobileIdentityId", "") != tenant.get("mobileIdentityId", ""):
+        raise ValueError("The native iOS app belongs to another mobile identity version.")
     if info.get("CFBundleIdentifier") != tenant["iosBundleId"] or info.get("CFBundleVersion") != str(tenant["buildNumber"]) or info.get("CFBundleShortVersionString") != tenant["buildName"]:
         raise ValueError("Compiled iOS identity or version differs from this tenant build.")
     if info.get("PlatformIosPushTransport", "Fcm") != tenant.get("iosPushTransport", "Fcm"):

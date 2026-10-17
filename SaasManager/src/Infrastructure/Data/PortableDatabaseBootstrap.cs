@@ -91,7 +91,7 @@ public sealed class PortableDatabaseBootstrap(PortableBootstrapOptions options,I
         await using var queue=new NpgsqlConnection(options.QueueConnection);await queue.OpenAsync(ct);
         var queueState=await ReadStateAsync(queue,ct,queue:true);RequireMatchingState(queueState);
         if(queueState?.State!="Complete")throw new InvalidOperationException("The owned queue bootstrap is incomplete.");
-        if(!await ScalarAsync<bool>(queue,"SELECT count(*)=3 FROM pg_catalog.pg_trigger WHERE tgrelid='platform_provisioning.jobs'::regclass AND tgname IN ('enforce_job_requirements_v1','enqueue_tenant_ready_v1','enforce_ios_release_v1') AND NOT tgisinternal AND tgenabled IN ('O','A')",ct) || (!await TableAsync(queue,"platform_provisioning.readiness_deliveries",ct) || !await TableAsync(queue,"platform_provisioning.ios_release_jobs",ct) || !await TableAsync(queue,"platform_provisioning.android_build_jobs",ct)))
+        if(!await ScalarAsync<bool>(queue,"SELECT count(*)=3 FROM pg_catalog.pg_trigger WHERE tgrelid='platform_provisioning.jobs'::regclass AND tgname IN ('enforce_job_requirements_v1','enqueue_tenant_ready_v1','enforce_ios_release_v1') AND NOT tgisinternal AND tgenabled IN ('O','A')",ct) || (!await TableAsync(queue,"platform_provisioning.readiness_deliveries",ct) || !await TableAsync(queue,"platform_provisioning.ios_release_jobs",ct) || !await TableAsync(queue,"platform_provisioning.android_build_jobs",ct) || !await TableAsync(queue,"platform_provisioning.domain_requests",ct) || !await TableAsync(queue,"platform_provisioning.domain_zone_claims",ct) || !await TableAsync(queue,"platform_provisioning.domain_activation_jobs",ct) || !await TableAsync(queue,"platform_provisioning.mobile_identity_versions",ct) || !await TableAsync(queue,"platform_provisioning.mobile_package_owners",ct)))
             throw new InvalidOperationException("The provisioning queue requires its current owner-applied protocol schema.");
     }
     public static async Task VerifyRuntimeAsync(ApplicationDbContext db,IConfiguration config,bool requireOwnership,CancellationToken ct=default)
@@ -146,7 +146,7 @@ public sealed class PortableDatabaseBootstrap(PortableBootstrapOptions options,I
     }
     private static async Task RequireUnusedSharedDatabaseAsync(NpgsqlConnection connection,CancellationToken ct)
     {
-        if(await HasUserRelationsAsync(connection,["platform_security.secrets","platform_security.tenants","platform_security.aliases","platform_provisioning.jobs","platform_provisioning.readiness_deliveries","platform_provisioning.ios_release_jobs","platform_provisioning.android_build_jobs","platform_provisioning.schema_versions","platform_bootstrap.queue_state"],ct))throw new InvalidOperationException("The shared bootstrap target contains unrelated application tables.");
+        if(await HasUserRelationsAsync(connection,["platform_security.secrets","platform_security.tenants","platform_security.aliases","platform_provisioning.jobs","platform_provisioning.readiness_deliveries","platform_provisioning.ios_release_jobs","platform_provisioning.android_build_jobs","platform_provisioning.schema_versions","platform_provisioning.domain_requests","platform_provisioning.domain_zone_claims","platform_provisioning.domain_activation_jobs","platform_provisioning.mobile_identity_versions","platform_provisioning.mobile_package_owners","platform_bootstrap.queue_state"],ct))throw new InvalidOperationException("The shared bootstrap target contains unrelated application tables.");
         if(await TableAsync(connection,"platform_security.tenants",ct) && await ScalarAsync<bool>(connection,"SELECT EXISTS(SELECT 1 FROM platform_security.tenants)",ct))
             throw new InvalidOperationException("The unowned security store already contains tenants.");
         if(await TableAsync(connection,"platform_security.secrets",ct) && await ScalarAsync<bool>(connection,"SELECT EXISTS(SELECT 1 FROM platform_security.secrets WHERE NOT(scope='system' AND name='deployment-probe'))",ct))
@@ -157,6 +157,9 @@ public sealed class PortableDatabaseBootstrap(PortableBootstrapOptions options,I
             throw new InvalidOperationException("The unowned provisioning database already contains Android builds.");
         if(await TableAsync(connection,"platform_provisioning.ios_release_jobs",ct) && await ScalarAsync<bool>(connection,"SELECT EXISTS(SELECT 1 FROM platform_provisioning.ios_release_jobs)",ct))
             throw new InvalidOperationException("The unowned provisioning database already contains iOS releases.");
+        foreach(var table in new[]{"domain_requests","domain_zone_claims","domain_activation_jobs","mobile_identity_versions", "mobile_package_owners"})
+            if(await TableAsync(connection,"platform_provisioning."+table,ct) && await ScalarAsync<bool>(connection,"SELECT EXISTS(SELECT 1 FROM platform_provisioning."+table+")",ct))
+                throw new InvalidOperationException("The unowned provisioning database already contains domain ownership or migration data.");
         if(await TableAsync(connection,"platform_provisioning.jobs",ct) && await ScalarAsync<bool>(connection,"SELECT EXISTS(SELECT 1 FROM platform_provisioning.jobs)",ct))
             throw new InvalidOperationException("The unowned provisioning database already contains jobs.");
     }

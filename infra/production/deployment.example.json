@@ -20,15 +20,38 @@
     "MaxProducts": 100,
     "MaxUsers": 3,
     "MaxMonthlyOrders": 1000,
-    "Features": ["Catalog", "Tenant notifications"]
+    "Features": [
+      "Catalog",
+      "Tenant notifications"
+    ]
   },
   "Providers": {
-    "Domains": {"Provider": "Wildcard", "WildcardConfigured": false},
-    "Google": {"Provider": "Disabled"},
-    "ReadinessEmail": {"Provider": "Disabled"},
-    "Notifications": {"Provider": "Disabled"},
-    "Payments": {"Provider": "Disabled"},
-    "Mobile": {"Provider": "Disabled"},
-    "TenantTasks": {"Enabled": false, "PollSeconds": 30, "TimeoutMinutes": 20, "TenantIds": []}
-  }
+    "CustomDomains": { "Enabled": false },
+    "Domains": {
+      "Provider": "Wildcard",
+      "WildcardConfigured": false
+    },
+    "Google": {
+      "Provider": "Disabled"
+    },
+    "ReadinessEmail": {
+      "Provider": "Disabled"
+    },
+    "Notifications": {
+      "Provider": "Disabled"
+    },
+    "Payments": {
+      "Provider": "Disabled"
+    },
+    "Mobile": {
+      "Provider": "Disabled"
+    },
+    "TenantTasks": {
+      "Enabled": false,
+      "PollSeconds": 30,
+      "TimeoutMinutes": 20,
+      "TenantIds": []
+    }
+  },
+  "MobileApplicationIdPrefix": "com.yourcompany"
 }

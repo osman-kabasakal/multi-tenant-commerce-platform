@@ -26,6 +26,10 @@ public abstract class OnboardingInfrastructureOptions
     public string KeycloakAuthority { get; init; } = "http://localhost:18080";
     public string KeycloakRealm { get; init; } = "commerce-demo";
 
+    public string StoreUrl(TenantProvisioningRequest request) => request.Domain == null ? StoreUrl(request.Slug) :
+        !IsLocal ? "https://" + request.Domain.StoreHost : throw new InvalidOperationException("Custom domains require Portable provisioning.");
+    public string AdminUrl(TenantProvisioningRequest request) => request.Domain == null ? AdminUrl(request.Slug) :
+        !IsLocal ? "https://" + request.Domain.AdminHost + "/Admin" : throw new InvalidOperationException("Custom domains require Portable provisioning.");
     public string StoreUrl(string slug) => TenantUrl(StoreBaseUrl, slug);
     public string AdminUrl(string slug) => TenantUrl(AdminBaseUrl, slug) + "/Admin";
     private static string TenantUrl(string baseUrl, string slug)
@@ -113,18 +117,37 @@ public static class PortableOnboarding
         services.AddHttpClient("onboarding-keycloak",c=>c.Timeout=TimeSpan.FromSeconds(30)).ConfigurePrimaryHttpMessageHandler(()=>OnboardingHttp.Create(options.IdentityRootCertificateFile));
         services.AddHttpClient("onboarding-ingress",c=>c.Timeout=TimeSpan.FromSeconds(30)).ConfigurePrimaryHttpMessageHandler(()=>OnboardingHttp.Create(options.IngressRootCertificateFile));
         services.AddHttpClient("onboarding-dns",c=>c.Timeout=TimeSpan.FromSeconds(30)).ConfigurePrimaryHttpMessageHandler(()=>new HttpClientHandler {AllowAutoRedirect=false});
-        services.AddScoped<IProvisioningGuard,PortableDeploymentGuard>();
+        if (config.GetValue<bool>("Provisioning:CustomDomains:Enabled"))
+        {
+            var custom = config.GetSection("Provisioning:CustomDomains").Get<CustomDomainOptions>() ?? throw new InvalidOperationException("Configure custom domains explicitly.");
+            custom.Validate();
+            if (environment is not ("Production" or "Staging") || custom.DeploymentId != options.DeploymentId)
+                throw new InvalidOperationException("Custom domains must belong to this explicit Production/Staging deployment.");
+            services.AddSingleton(custom); services.AddSingleton<CloudflareTenantDomains>();
+            services.AddHttpClient("onboarding-custom-ingress",client=>client.Timeout=TimeSpan.FromSeconds(45))
+                .ConfigurePrimaryHttpMessageHandler(()=>TenantIngressProbe.CustomHandler(custom));
+            services.AddSingleton<ITenantDomainOwnership>(sp => sp.GetRequiredService<CloudflareTenantDomains>());
+            services.AddHostedService<TenantDomainOwnershipWorker>();
+            services.AddScoped<DomainActivationPipeline>();services.AddHostedService<DomainActivationWorker>();
+        }
+        services.AddScoped<PortableDeploymentGuard>();
+        services.AddScoped<IProvisioningGuard>(sp=>sp.GetRequiredService<PortableDeploymentGuard>());
         services.AddScoped<IProvisioningStep,TenantSecretsStep>();services.AddScoped<IProvisioningStep,MongoDatabaseStep>();
-        services.AddScoped<IProvisioningStep,StoreInstallerStep>();
+        services.AddScoped<StoreInstallerStep>();services.AddScoped<IProvisioningStep>(sp=>sp.GetRequiredService<StoreInstallerStep>());
         foreach (var phase in ManagedTenantStep.Tasks)
             services.AddScoped<IProvisioningStep>(sp=>new ManagedTenantStep(phase,sp.GetRequiredService<OnboardingInfrastructureOptions>(),sp.GetRequiredService<Platform.Security.ITenantSecrets>()));
         services.AddScoped<IProvisioningStep,KeycloakTenantStep>();
         if (google=="Google") services.AddScoped<IProvisioningStep,GoogleTenantStep>();
-        services.AddScoped<IProvisioningStep,TenantDomainStep>();services.AddScoped<IProvisioningStep,PortableTenantPublicationStep>();
+        services.AddScoped<IProvisioningStep,TenantDomainStep>();services.AddScoped<PortableTenantPublicationStep>();services.AddScoped<IProvisioningStep>(sp=>sp.GetRequiredService<PortableTenantPublicationStep>());
         services.AddIosReleaseQueueing(config,environment,options);
         services.AddAndroidReleases(config,environment);
         if (options.MobileReleaseProvider is "AndroidAppDistribution" or "AndroidIosAppDistribution") services.AddHostedService<AndroidBuildWorker>();
         if (options.MobileReleaseProvider == "AndroidIosAppDistribution") services.AddScoped<IProvisioningStep,IosReleaseStep>();
+        if(options.MobileReleaseProvider=="AndroidIosAppDistribution")
+        {
+            services.AddScoped<MobileIdentityPreparation>();
+            services.AddHostedService<MobileIdentityLinuxWorker>();
+        }
         services.AddReadinessEmail(config,environment,options);
         return services;
     }

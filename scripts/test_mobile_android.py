@@ -24,6 +24,20 @@ def fixtures():
 
 
 class IdentityTests(unittest.TestCase):
+    def test_verified_custom_domain_requires_its_exact_owned_snapshot(self):
+        manifest, client, android = fixtures()
+        manifest['baseUrl'] = 'https://shop.example.org'
+        with self.assertRaises(ValueError): mobile.validate(manifest, client, android)
+        manifest['verifiedDomain'] = dict(id='11111111-1111-1111-1111-111111111111', ownerSubject='22222222-2222-2222-2222-222222222222',
+            storeHost='shop.example.org', adminHost='manage.shop.example.org', zoneId='a' * 32, zoneName='example.org')
+        manifest['mobileIdentityId'] = '3' * 32
+        value = mobile.validate(manifest, client, android)
+        self.assertEqual(value['storeUrl'], manifest['baseUrl'])
+        self.assertEqual(value['mobileIdentityId'], '3' * 32)
+        for key, changed in [('storeHost', 'foreign.example.org'), ('adminHost', 'admin.shop.example.org'), ('zoneName', 'foreign.org'), ('ownerSubject', '0' * 32)]:
+            invalid = copy.deepcopy(manifest); invalid['verifiedDomain'][key] = changed
+            with self.subTest(key=key), self.assertRaises(ValueError): mobile.validate(invalid, client, android)
+
     def test_accepts_one_owned_firebase_android_app(self):
         manifest, client, android = fixtures()
         self.assertEqual(mobile.validate(manifest, client, android)['androidApplicationId'], client['androidPackageName'])

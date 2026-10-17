@@ -1,0 +1,70 @@
+<div class="mx-auto max-w-5xl p-6">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h1 class="text-2xl font-semibold text-gray-900">Alan adı ve uygulama kimliği</h1>
+    <button type="button" class="rounded border border-gray-300 bg-white px-4 py-2 disabled:opacity-50" [disabled]="loading || busy || !available" (click)="load()">Durumu yenile</button>
+  </div>
+  @if (error) { <p role="alert" class="mt-4 rounded bg-red-50 p-4 text-red-800">{{ error }}</p> }
+  @if (notice) { <p role="status" class="mt-4 rounded bg-green-50 p-4 text-green-900">{{ notice }}</p> }
+  @if (available === false) { <p class="mt-5 rounded bg-white p-4">Alan adı ve mobil kimlik yönetimi Portable sunucu kurulumunda kullanılabilir. Yerel demoda bulut alan adı işlemleri kapalıdır.</p> }
+  @if (available !== false && !state && !error) { <p role="status" class="mt-5">Kurulum bilgileri yükleniyor…</p> }
+  @if (state; as current) {
+    <section class="mt-5 rounded border border-gray-200 bg-white p-5" aria-labelledby="current-store-title">
+      <h2 id="current-store-title" class="text-lg font-semibold">{{ current.businessName }}</h2>
+      <p class="mt-3">Mağaza: <a class="break-all text-blue-700 underline" [href]="current.storeUrl" target="_blank" rel="noopener noreferrer">{{ current.storeUrl }}</a></p>
+      <p class="mt-2">Yönetim: <a class="break-all text-blue-700 underline" [href]="current.adminUrl" target="_blank" rel="noopener noreferrer">{{ current.adminUrl }}</a></p>
+      @if (current.blockReason) { <p class="mt-3 text-amber-900">{{ current.blockReason }}</p> }
+    </section>
+    @if (current.domainEnabled) {
+      <app-tenant-domain-ownership [registrationId]="current.businessId" [ownerId]="current.ownerId" [requestToken]="token" mode="settings"
+        (selectionChange)="selectedDomain = $event" />
+      <div class="mb-6 rounded border border-gray-200 bg-white p-5">
+        @if (current.identityEnabled) {
+          <label class="flex items-start gap-2"><input type="checkbox" class="mt-1" [(ngModel)]="createMobileIdentity" [disabled]="busy || changingDomain" />
+            <span>Bu alan adına uygun yeni Android ve iOS uygulamaları da hazırlansın.</span></label>
+          <p class="mt-2 text-sm text-gray-600">Mağaza adresi hazır olduğunda değişir. Mobil paket kimliği, iki platformun imzalı derlemesi tamamlanana kadar mevcut kimlikle devam eder.</p>
+        } @else { <p class="text-sm text-gray-600">Mobil kimlik değişimi için Android ve iOS derleme hizmetinin birlikte yapılandırılması gerekiyor. Alan adı değişimi mevcut paketleri korur.</p> }
+        <button type="button" class="mt-4 rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50" (click)="activate(selectedDomain.requestId)"
+          [disabled]="busy || !current.canChange || changingDomain || !selectedDomain.ready || !selectedDomain.requestId">Doğrulanan alan adını etkinleştir</button>
+      </div>
+    }
+    @if (current.domains.length) {
+      <section class="mt-5 rounded border border-gray-200 bg-white p-5" aria-labelledby="domain-history-title">
+        <h2 id="domain-history-title" class="text-lg font-semibold">Alan adı işlemleri</h2>
+        @for (item of current.domains; track item.domain.id) {
+          <div class="mt-4 border-t border-gray-100 pt-4">
+            <p class="break-all font-medium">{{ item.domain.domain }} @if (item.domain.isPrimary) { <span class="ml-2 text-sm text-green-800">Ana adres</span> }</p>
+            <p class="mt-1 text-sm">{{ label(item.activation?.state ?? item.domain.state) }}</p>
+            @if (item.domain.message) { <p class="mt-2 text-sm text-red-800">{{ item.domain.message }}</p> }
+            @if (item.activation?.errorCode) { <p class="mt-2 text-sm text-amber-900">Kontrol bekleniyor. İşlem kodu: {{ item.activation?.errorCode }}</p> }
+            @if (item.activation?.state === 'Failed') { <button class="mt-2 rounded border px-3 py-2 disabled:opacity-50" (click)="retry(item.domain.id, 'domain')" [disabled]="busy || !current.canChange || changingDomain">Geçişi yeniden dene</button> }
+            @if (!item.activation && item.domain.state === 'Verified') { <button class="mt-2 rounded border px-3 py-2 disabled:opacity-50" (click)="activate(item.domain.id)" [disabled]="busy || !current.canChange || changingDomain">Bu alan adını etkinleştir</button> }
+          </div>
+        }
+      </section>
+    }
+    <section class="mt-6 rounded border border-gray-200 bg-white p-5" aria-labelledby="mobile-identity-title">
+      <h2 id="mobile-identity-title" class="text-lg font-semibold">Mobil uygulama kimlikleri</h2>
+      <p class="mt-2 text-sm text-gray-600">Yeni kimlik aynı Firebase projesinde hazırlanır. Önceki uygulamalar ve imza sertifikaları geçmişte korunur. Yeni paket, telefonda ayrı bir uygulama olarak kurulur.</p>
+      @for (identity of current.identities; track identity.id) {
+        <article class="mt-5 border-t border-gray-100 pt-4" [attr.aria-label]="identity.packageName">
+          <p class="font-medium">{{ label(identity.state) }}</p>
+          <p class="mt-2 break-all font-mono text-sm">Android: {{ identity.packageName }}</p>
+          <p class="mt-1 break-all font-mono text-sm">iOS: {{ identity.iosBundleId }}</p>
+          <div class="mt-3 flex flex-wrap gap-4 text-sm"><span>Android: {{ identity.androidReady ? 'İmzalı derleme hazır' : 'Bekleniyor' }}</span><span>iOS: {{ identity.iosReady ? 'İmzalı derleme hazır' : 'Bekleniyor' }}</span></div>
+          @if (identity.errorCode) { <p class="mt-2 text-sm text-amber-900">İşlem kodu: {{ identity.errorCode }}</p> }
+          <details class="mt-3 text-sm"><summary class="cursor-pointer text-gray-700">Sertifika bilgileri</summary>
+            <p class="mt-2 break-all font-mono text-xs">Android SHA-256: {{ identity.androidCertificateSha256 || 'Henüz hazırlanmadı' }}</p>
+            <p class="mt-2 break-all font-mono text-xs">iOS SHA-256: {{ identity.iosCertificateSha256 || 'Henüz hazırlanmadı' }}</p>
+          </details>
+          @if (identity.state === 'Failed') { <button class="mt-3 rounded border px-3 py-2 disabled:opacity-50" (click)="retry(identity.id, 'identity')" [disabled]="busy || !current.canChange || changingIdentity">Derlemeleri yeniden dene</button> }
+        </article>
+      }
+      @if (current.identityEnabled) {
+        <p class="mt-5 break-all text-sm">Hazırlanacak kimlik: <span class="font-mono">{{ current.proposedPackageName }}</span></p>
+        <button type="button" class="mt-3 rounded bg-blue-700 px-4 py-2 text-white disabled:opacity-50" (click)="createIdentity()"
+          [disabled]="busy || !current.canChange || changingIdentity || changingDomain || alreadyUsesProposedIdentity">Yeni uygulama kimliğini hazırla</button>
+      }
+      <p class="mt-4 text-sm"><a routerLink="/dashboard/appbuilds" class="text-blue-700 underline">Derlemeleri ve Android indirmelerini aç</a></p>
+    </section>
+  }
+</div>

@@ -1,4 +1,7 @@
 using Core.Utilities;
+using Platform.Provisioning;
+using Microsoft.Extensions.Configuration;
+using SaasManager.Application.Stores.Provisioning;
 using Microsoft.Extensions.Logging;
 using SaasManager.Application.Common.Interfaces.Data;
 using SaasManager.Application.Common.Utilities;
@@ -13,14 +16,18 @@ public class BusinessRegistrationEventHandler: INotificationHandler<BusinessRegi
 {
     private readonly ILogger<BusinessRegistrationEventHandler> _logger;
     private readonly IApplicationDbContext _context;
+    private readonly IConfiguration _configuration;
+    private readonly MobileIdentityRegistry? _identities;
 
     public BusinessRegistrationEventHandler(
         ILogger<BusinessRegistrationEventHandler> logger,
-        IApplicationDbContext context
+        IApplicationDbContext context,
+        IConfiguration configuration,MobileIdentityRegistry? identities=null
         )
     {
         _logger = logger;
         _context = context;
+        _configuration = configuration;_identities=identities;
     }
     
     
@@ -85,22 +92,15 @@ public class BusinessRegistrationEventHandler: INotificationHandler<BusinessRegi
         }
         
         var businessApp = await _context.BusinessApps
-            .FirstOrDefaultAsync(b => b.BusinessId == notification.BusinessId, cancellationToken);
+            .FirstOrDefaultAsync(b => b.BusinessId == notification.BusinessId && b.Type == AppType.CustomerMobile && !b.IsDeleted, cancellationToken);
             
         if (businessApp == null)
         {
             _logger.LogInformation("Creating new BusinessApp for BusinessId: {BusinessId}", notification.BusinessId);
             
-            var newApp = new BusinessApp(
-                businessId: notification.BusinessId,
-                type: AppType.CustomerMobile,
-                appName: business.LegalCompanyName,
-                packageName: $"com.famizyo.{business.ToSubdomain().ToFlutterFlavorName().ToLowerInvariant()}"
-            );
-            
-            await _context.BusinessApps.AddAsync(newApp, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-            
+            var newApp = await TenantMobileApplicationId.AddInitialAsync(_context, _configuration,
+                notification.BusinessId, business.Name, business.LegalCompanyName, cancellationToken,identities:_identities);
+
             _logger.LogInformation("New BusinessApp created - ID: {AppId}, BusinessId: {BusinessId}, Type: {AppType}, Name: {AppName}", 
                 newApp.Id, newApp.BusinessId, newApp.Type, newApp.AppName);
         }

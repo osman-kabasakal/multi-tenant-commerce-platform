@@ -24,6 +24,8 @@ public sealed class GoogleCloudOptions
 
     public void Validate()
     {
+        if (IosDevelopmentTeam != null && !Regex.IsMatch(IosDevelopmentTeam, "^[A-Z0-9]{10}\\z"))
+            throw new InvalidOperationException("Use a valid Apple Developer team identifier.");
         if (IosPushTransport is not ("Fcm" or "Apns") || IosPushTransport == "Apns" &&
             (IosDevelopmentTeam == null || !Regex.IsMatch(IosDevelopmentTeam, "^[A-Z0-9]{10}\\z")))
             throw new InvalidOperationException("Select the iOS push transport and an explicit Apple team for APNs.");

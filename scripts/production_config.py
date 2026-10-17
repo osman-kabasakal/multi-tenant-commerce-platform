@@ -57,6 +57,20 @@ def validate(plan):
     if identity.get('RegistrationAllowed') and (not smtp.get('host') or not smtp.get('from') or not smtp.get('port', '').isdigit() or not 1 <= int(smtp['port']) <= 65535):
         raise ValueError('Configure an SMTP host, sender and port before enabling public identity registration.')
     providers = plan['Providers']
+    custom = providers.get('CustomDomains', {'Enabled': False})
+    if not isinstance(custom, dict) or set(custom) - {'Enabled', 'AllowCloudWrites', 'ApiTokenFile', 'OriginIpv4', 'AcmeEmail'} or type(custom.get('Enabled')) is not bool:
+        raise ValueError('Choose custom domains with an explicit Enabled boolean and file-based Cloudflare credentials.')
+    if custom['Enabled']:
+        if custom.get('AllowCloudWrites') is not True or plan['HttpPort'] != 80 or plan['HttpsPort'] != 443:
+            raise ValueError('Custom domains require explicit DNS writes and public HTTP 80 / HTTPS 443 for ACME.')
+        address = ipaddress.ip_address(custom.get('OriginIpv4', ''))
+        if address.version != 4 or not address.is_global: raise ValueError('Select this deployment server public IPv4 as the custom domain origin.')
+        if not isinstance(custom.get('AcmeEmail'), str) or not re.fullmatch(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}', custom['AcmeEmail']):
+            raise ValueError('Configure the operator contact email for ACME certificate management.')
+        if not isinstance(custom.get('ApiTokenFile'), str): raise ValueError('Supply the absolute private Cloudflare token file path.')
+        token = Path(custom['ApiTokenFile'])
+        if not token.is_absolute() or not token.is_file() or token.is_symlink() or any(parent.is_symlink() for parent in token.parents) or not 20 <= token.stat().st_size <= 8192 or token.stat().st_mode & 0o077:
+            raise ValueError('Supply an owner-only regular absolute Cloudflare token file without symbolic links.')
     schedule = providers.get('TenantTasks', {'Enabled': False})
     if not isinstance(schedule, dict) or set(schedule) - {'Enabled', 'PollSeconds', 'TimeoutMinutes', 'TenantIds'} or type(schedule.get('Enabled')) is not bool:
         raise ValueError('Select tenant scheduled tasks with an explicit Enabled boolean.')
@@ -132,6 +146,10 @@ def validate(plan):
                 raise ValueError('Configure the public Apple team, certificate and exact Mac source fingerprint.')
         if type(release.get('BuildNumber', 1)) is not int or not 1 <= release.get('BuildNumber', 1) <= 2100000000:
             raise ValueError('Use a valid initial iOS build number.')
+    prefix = plan.setdefault('MobileApplicationIdPrefix', '.'.join(reversed(plan['PortalHost'].split('.')[1:])))
+    reserved = set('abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for goto if implements import instanceof int interface long native new package private protected public return short static strictfp super switch synchronized this throw throws transient try void volatile while true false null _'.split())
+    if not isinstance(prefix, str) or len(prefix) > 150 or not re.fullmatch(r'[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+', prefix) or any(label in reserved for label in prefix.split('.')) or prefix == 'com.example' or prefix.startswith('com.example.'):
+        raise ValueError('Choose a reverse-DNS MobileApplicationIdPrefix without the com.example demo prefix.')
     trial = plan['TrialPlan']
     if uuid.UUID(trial['Id']).int == 0: raise ValueError('Select the stable public trial plan GUID.')
     # The owner CLI performs the complete policy/schema validation before hosts start.
@@ -214,6 +232,15 @@ def prepare(plan, state, image):
         record['MobilePrepared'] = True
         if plan['Providers'].get('Mobile', {}).get('Provider') in ('AndroidAppDistribution', 'AndroidIosAppDistribution'):
             prepare_android_cache(state)
+    custom = plan['Providers'].get('CustomDomains', {'Enabled': False})
+    if record.get('CustomDomainsPrepared') and not custom['Enabled'] and any((state / 'routes').glob('custom-host-*.json')):
+        raise ValueError('Keep custom domains enabled while verified tenant routes exist; remove or migrate them explicitly first.')
+    if custom['Enabled'] or record.get('CustomDomainsPrepared'):
+        directory = state / 'edge-tls'
+        if directory.is_symlink() or record.get('CustomDomainsPrepared') and not directory.is_dir():
+            raise ValueError('The original custom domain certificate storage is missing or linked; restore its backup.')
+        directory.mkdir(exist_ok=True, mode=0o700)
+        record['CustomDomainsPrepared'] = True
     c = record['Credentials']
     for path in (state / 'config').iterdir():
         if path.is_symlink(): raise ValueError('Private generated configuration cannot be a symbolic link.')
@@ -236,6 +263,9 @@ def prepare(plan, state, image):
     if plan['Providers']['Notifications'].get('Provider') == 'FcmApns':
         shutil.copyfile(plan['Providers']['Notifications']['Apns']['KeyFile'], state / 'secrets/apns-key.p8')
         (state / 'secrets/apns-key.p8').chmod(0o600)
+    if custom['Enabled']:
+        shutil.copyfile(custom['ApiTokenFile'], state / 'secrets/cloudflare-custom-domains')
+        (state / 'secrets/cloudflare-custom-domains').chmod(0o600)
     render(plan, state, record, image)
     write_json(state / 'deployment.json', plan)
     record['Rendered'] = True
@@ -306,7 +336,7 @@ def render(p, state, record, image):
                            'ClientSecret': c['saas_client'], 'Scopes': ['openid', 'profile', 'email', 'roles']},
         ConnectionStrings={'SaasManagerDb': connection('platform_saas', 'saas')}, DatabaseBootstrap={'Mode': 'External'},
         Provisioning={'Enabled': True, 'InitializeSchema': False, 'Profile': 'Portable', 'DeploymentId': ident, 'Mobile': {'Provider': mobile['Provider'], 'ArtifactDirectory': '/var/lib/commerce/mobile-artifacts'}},
-        TenantOnboarding={'Trial': {'Enabled': True, 'PlanId': p['TrialPlan']['Id']}}, CardProtection={'Provider': 'Disabled'},
+        TenantOnboarding={'MobileApplicationIdPrefix': p['MobileApplicationIdPrefix'], 'Trial': {'Enabled': True, 'PlanId': p['TrialPlan']['Id']}}, CardProtection={'Provider': 'Disabled'},
         FileStorage={'Provider': 'FileSystem', 'FileSystem': {'RootDirectory': '/var/lib/commerce/saas-files'}},
         Web={'AllowedOrigins': [portal], 'DataProtectionKeyDirectory': '/var/lib/commerce/saas-cookie-keys', 'DataProtectionApplicationName': ident},
         GuestAuth={'Issuer': portal, 'Audience': portal, 'SecretKey': c['guest']}, redispublisher='redis:6379,password=' + c['redis'],
@@ -342,7 +372,7 @@ def render(p, state, record, image):
     bootstrap = copy.deepcopy(base)
     bootstrap.update(PlatformSecurity=security('owner'), ConnectionStrings={'SaasManagerDb': connection('platform_saas', 'owner')},
                      Provisioning={'DeploymentId': ident, 'InitializeSchema': False},
-                     TenantOnboarding={'Trial': {'Enabled': True, 'PlanId': p['TrialPlan']['Id']}},
+                     TenantOnboarding={'MobileApplicationIdPrefix': p['MobileApplicationIdPrefix'], 'Trial': {'Enabled': True, 'PlanId': p['TrialPlan']['Id']}},
                      Bootstrap={'DeploymentId': ident, 'AllowSchemaChanges': True, 'TrialPlan': p['TrialPlan']})
     task_installer = copy.deepcopy(installer)
     task_installer['PlatformSecurity'] = security('reader', True)
@@ -356,6 +386,15 @@ def render(p, state, record, image):
         WorkingDirectory='/var/lib/commerce/onboarding', TenantDirectory='/var/lib/commerce/tenants', StoreBaseUrl=store)})
     if p['Providers'].get('TenantTasks', {}).get('Enabled') and p['Providers']['Notifications']['Provider'] in ('Fcm', 'FcmApns'):
         task_worker['Provisioning']['Schedule']['NotificationCredentialsFile'] = '/run/secrets/google-notifications.json'
+    custom = p['Providers'].get('CustomDomains', {'Enabled': False})
+    if custom['Enabled']:
+        # The portal stores only public requests. Cloudflare write authority stays in the provisioning worker.
+        saas['Provisioning']['CustomDomains'] = {'Enabled': True}
+        worker['Provisioning']['CustomDomains'] = dict(custom, ApiTokenFile='/run/secrets/cloudflare-custom-domains', DeploymentId=ident, IngressConnectAddress=ip(10),
+            ReservedHosts=[p[key] for key in ('PortalHost', 'IdentityHost', 'StoreParentDomain', 'AdminParentDomain')])
+        administration['TenantRouting']['CustomDomainsEnabled'] = True
+        gateway['Gateway'].update(CustomDomainsEnabled=True, CertificatePermissionPeer=ip(10))
+        gateway['AllowedHosts'] = administration['AllowedHosts'] = commerce['AllowedHosts'] = '*'
     for role, value in {'commerce': commerce, 'admin': administration, 'installer': installer, 'gateway': gateway, 'saas': saas, 'worker': worker,
                         'task-worker': task_worker, 'task-installer': task_installer, 'bootstrap': bootstrap}.items():
         write_json(state / 'config' / (role + '.json'), value)
@@ -374,7 +413,10 @@ def render(p, state, record, image):
     write_json(state / 'realm/commerce-realm.json', realm)
     (state / 'secrets/redis.conf').write_text('bind 0.0.0.0\nprotected-mode yes\nrequirepass ' + c['redis'] + '\nappendonly yes\n')
     (state / 'secrets/redis.conf').chmod(0o600)
-    edge = '{\n admin off\n auto_https disable_redirects\n}\n'
+    edge = '{\n admin off\n auto_https disable_redirects\n'
+    if custom['Enabled']:
+        edge += ' email ' + json.dumps(custom['AcmeEmail']) + '\n on_demand_tls {\n  ask http://gateway:8080/_gateway/certificate-permission\n }\n'
+    edge += '}\n'
     for host, target in ((p['PortalHost'], 'saas:8080'), (p['IdentityHost'], 'keycloak:8080'),
                          ('*.' + p['StoreParentDomain'], 'gateway:8080'), ('*.' + p['AdminParentDomain'], 'gateway:8080')):
         edge += 'https://' + host + ' {\n tls /run/secrets/tls-fullchain.pem /run/secrets/tls-private.key\n'
@@ -383,6 +425,8 @@ def render(p, state, record, image):
         edge += ' reverse_proxy ' + target + ' {\n  header_up -Forwarded\n  header_up X-Forwarded-For {remote_host}\n  header_up X-Forwarded-Proto https\n  header_up X-Forwarded-Port ' + str(p['HttpsPort']) + '\n }\n'
         if host == p['IdentityHost']: edge += ' }\n handle {\n  respond 404\n }\n'
         edge += '}\n'
+    if custom['Enabled']:
+        edge += 'https:// {\n tls {\n  on_demand\n }\n reverse_proxy gateway:8080 {\n  header_up -Forwarded\n  header_up Host {host}\n  header_up X-Forwarded-For {remote_host}\n  header_up X-Forwarded-Proto https\n  header_up X-Forwarded-Port 443\n }\n}\n'
     edge += ':80 {\n redir https://{host}' + port + '{uri} permanent\n}\n'
     (state / 'config/Caddyfile').write_text(edge)
     write_json(state / 'compose.json', compose(p, state, record, image, ip, identity))
@@ -421,6 +465,16 @@ def compose(p, state, record, image, ip, identity):
                  bind('secrets/tls-private.key', '/run/secrets/tls-private.key')],
         read_only=True, tmpfs=['/data:rw,nosuid,size=16m', '/config:rw,nosuid,size=16m', '/tmp:rw,nosuid,size=16m'],
         security_opt=['no-new-privileges:true'])
+    if p['Providers'].get('CustomDomains', {}).get('Enabled'):
+        edge = services['edge']
+        edge['user'] = str(record['Uid']) + ':' + str(record['Gid'])
+        edge['sysctls'] = {'net.ipv4.ip_unprivileged_port_start': '0'}
+        edge['cap_drop'] = ['ALL']
+        # The official Caddy binary carries this file capability; keeping it in the bounding set is required to execute it as a non-root user.
+        edge['cap_add'] = ['NET_BIND_SERVICE']
+        edge['volumes'].append(bind('edge-tls', '/data', False))
+        edge['tmpfs'] = ['/config:rw,nosuid,noexec,size=16m,uid=' + str(record['Uid']) + ',gid=' + str(record['Gid']) + ',mode=0700',
+                         '/tmp:rw,nosuid,noexec,size=16m,uid=' + str(record['Uid']) + ',gid=' + str(record['Gid']) + ',mode=0700']
     numbers = {'gateway': 11, 'commerce': 12, 'admin': 13, 'saas': 14, 'worker': 15, 'bootstrap': 16}
     if p['Providers'].get('TenantTasks', {}).get('Enabled'): numbers['task-worker'] = 17
     for role, number in numbers.items():
@@ -440,7 +494,10 @@ def compose(p, state, record, image, ip, identity):
             if p['Providers']['Notifications'].get('Provider') == 'FcmApns': mounts.append(bind('secrets/apns-key.p8', '/run/secrets/apns-key.p8'))
             for directory, target in (('media-images', 'images'), ('media-files', 'files')):
                 mounts.append(bind(directory, '/app/' + role + '/wwwroot/assets/' + target + '/uploaded', False))
-        if role == 'worker': mounts.append(bind('config/installer.json', '/run/secrets/installer.json'))
+        if role == 'worker':
+            mounts.append(bind('config/installer.json', '/run/secrets/installer.json'))
+            if p['Providers'].get('CustomDomains', {}).get('Enabled'):
+                mounts.append(bind('secrets/cloudflare-custom-domains', '/run/secrets/cloudflare-custom-domains'))
         if role == 'task-worker':
             mounts.extend([bind('config/task-installer.json', '/run/secrets/task-installer.json'),
                            bind('onboarding', '/var/lib/commerce/onboarding', False), bind('tenants', '/var/lib/commerce/tenants')])

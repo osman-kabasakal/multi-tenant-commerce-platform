@@ -99,6 +99,24 @@ void main() {
       },
     );
   });
+  group('Versioned application registration', () {
+    const identity = '123456781234123412341234567890ab';
+    test('retains a canonical identity reference without accepting a client bundle name', () {
+      expect(ApnsNotificationBridge.encode('AABB', identityId: identity),
+        'apns-v2:production:$identity:aabb');
+      for (final value in ['0' * 32, 'com.publisher.store', '../foreign', identity + ':aabb']) {
+        expect(() => ApnsNotificationBridge.encode('aabb', identityId: value), throwsFormatException);
+      }
+    });
+    test('initial registration, refresh and renewal all keep the same selected identity', () async {
+      bridge = ApnsNotificationBridge(expectedBundle: 'com.example.tenant', expectedTeam: 'ABC123DEFG', identityId: identity,
+        channel: channel, onToken: (value) async => tokens.add(value), onOpened: (value) async => opened.add(value), onMessage: messages.add);
+      expect((await bridge.initialize()).token, 'apns-v2:production:$identity:aabb');
+      expect(await bridge.getToken(), 'apns-v2:production:$identity:bbcc');
+      await event('token', 'CCDD');
+      expect(tokens, ['apns-v2:production:$identity:ccdd']);
+    });
+  });
   group('Native tenant identity and permission', () {
     test(
       'requires matching installed bundle, team, transport and environment before using a device token',

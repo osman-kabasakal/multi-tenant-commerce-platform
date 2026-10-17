@@ -9,6 +9,8 @@ public sealed record IosReleasePlan(string TenantId, string DeploymentId, string
 {
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? IosPushTransport { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Guid? MobileIdentityId { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
     public string PushTransport => IosPushTransport ?? "Fcm";
     internal static bool Digest(string? value) => Regex.IsMatch(value ?? "", "^[a-f0-9]{64}\\z");
@@ -21,6 +23,7 @@ public sealed record IosReleasePlan(string TenantId, string DeploymentId, string
     {
         if (IosPushTransport is not (null or "Fcm" or "Apns")) throw new ArgumentException("Invalid immutable iOS push transport.");
         Tenant(TenantId);
+        if(MobileIdentityId==Guid.Empty)throw new ArgumentException("Use a nonempty mobile identity version id.");
         new IosWorkerIdentity(DeploymentId, DevelopmentTeam, SigningCertificateSha256, SourceHash).Validate();
         if (IosBundleId.Length > 220 || !Regex.IsMatch(IosBundleId, "^[A-Za-z][A-Za-z0-9-]*(\\.[A-Za-z][A-Za-z0-9-]*)+\\z") ||
             BuildNumber is < 1 or > 2100000000 || !Digest(FirebaseSdkSha256) ||

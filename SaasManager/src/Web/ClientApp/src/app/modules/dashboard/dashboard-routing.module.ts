@@ -19,6 +19,7 @@ const routes: Routes = [
 
         }
       },
+      { path: 'deployment', loadComponent: () => import('./pages/tenant-deployment/tenant-deployment.component').then(m => m.TenantDeploymentComponent) },
       { path: 'appbuilds', loadChildren: () => import('./pages/app-builds/app-builds.module').then(m => m.AppBuildsModule) },
       {
         path: 'db-queries',

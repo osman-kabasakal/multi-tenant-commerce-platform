@@ -1,17 +1,18 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Platform.Google;
+using Platform.Hosting;
 using Platform.Security;
 
 namespace Platform.Provisioning.Adapters;
 
-public sealed class PortableTenantPublicationStep(PortableOnboardingOptions options,ITenantSecrets secrets,IHttpClientFactory clients) : IProvisioningStep
+public sealed class PortableTenantPublicationStep(PortableOnboardingOptions options,ITenantSecrets secrets,IHttpClientFactory clients,TenantDomainRegistry? domains=null,CustomDomainOptions? custom=null) : IProvisioningStep
 {
     public string Name=>"publication";
     public async Task<ProvisioningStepResult> ExecuteAsync(TenantProvisioningRequest request,IReadOnlyDictionary<string,ProvisioningStepResult> completed,CancellationToken ct)
     {
         request.Validate();
-        var storeUrl=options.StoreUrl(request.Slug);var adminUrl=options.AdminUrl(request.Slug);
+        var storeUrl=options.StoreUrl(request);var adminUrl=options.AdminUrl(request);
         var storeId=completed["store"].Resources["storeId"];
         if (completed["identity"].Resources["clientId"]!=request.Slug || completed["domains"].Resources["storeHost"]!=new Uri(storeUrl).Host ||
             completed["domains"].Resources["adminHost"]!=new Uri(adminUrl).Host)
@@ -24,28 +25,18 @@ public sealed class PortableTenantPublicationStep(PortableOnboardingOptions opti
         var route=Path.Combine(options.RouteDirectory,request.Slug+".json");
         // Only owned metadata is published. The ingress must authenticate the real tenant token.
         await WriteOwnedAsync(route,request.TenantId,JsonSerializer.Serialize(new {
-            version=1,profile="Portable",tenantId=request.TenantId,slug=request.Slug,storeId,storeUrl,adminUrl
+            version=1,profile="Portable",tenantId=request.TenantId,slug=request.Slug,storeId,storeUrl=options.StoreUrl(request.Slug),adminUrl=options.AdminUrl(request.Slug)
         }),ct);
-        using var ingress=clients.CreateClient("onboarding-ingress");
-        using var probe=new HttpRequestMessage(HttpMethod.Get,storeUrl+"/_platform/ready");
-        // Probe as a public caller: the ingress must obtain/inject the tenant token itself.
-        // A privileged worker token must not hide a missing public gateway.
-        using var response=await ingress.SendAsync(probe,ct);
-        if (!response.IsSuccessStatusCode) throw new InvalidOperationException("The tenant ingress is not ready; provision DNS, TLS and runtime routing before completion.");
-        using var ready=JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
-        if (ready.RootElement.GetProperty("tenantId").GetString()!=request.TenantId || ready.RootElement.GetProperty("storeId").GetString()!=storeId)
-            throw new InvalidOperationException("Tenant ingress readiness returned a different tenant.");
-        using var adminResponse=await ingress.GetAsync(adminUrl,ct);
-        if (!adminResponse.Headers.TryGetValues("X-Platform-Tenant",out var tenants) || tenants.SingleOrDefault()!=request.TenantId ||
-            adminResponse.StatusCode!=System.Net.HttpStatusCode.Redirect || adminResponse.Headers.Location==null)
-            throw new InvalidOperationException("The owned admin host is not ready for authentication.");
-        var login=new Uri(new Uri(adminUrl),adminResponse.Headers.Location);
-        if (login.Scheme!="https" || login.Authority!=new Uri(adminUrl).Authority || !login.AbsolutePath.EndsWith("/login",StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("The admin host redirected outside its own HTTPS login.");
-        using var loginResponse=await ingress.GetAsync(login,ct);
-        if (!loginResponse.IsSuccessStatusCode || !loginResponse.Headers.TryGetValues("X-Platform-Tenant",out var loginTenants) || loginTenants.SingleOrDefault()!=request.TenantId ||
-            loginResponse.Content.Headers.ContentType?.MediaType!="text/html")
-            throw new InvalidOperationException("The owned admin login page is not ready.");
+        if(request.Domain!=null)await PublishCustomAliasesAsync(request,storeId,ct);
+        if(request.Domain is {} dnsDomain)
+        {
+            if(custom==null)throw new InvalidOperationException("Configure the trusted custom ingress before publication.");
+            await TenantIngressProbe.WaitForCustomDnsAsync(dnsDomain,custom.OriginIpv4,ct);
+        }
+        using var ingress=clients.CreateClient(request.Domain==null?"onboarding-ingress":"onboarding-custom-ingress");
+        await TenantIngressProbe.VerifyAsync(ingress,storeUrl,adminUrl,request.TenantId,storeId,ct);
+        if(request.Domain is {} readyDomain)
+            await domains!.MarkActiveAsync(readyDomain.Id,readyDomain.OwnerSubject,request.TenantId,options.DeploymentId,ct);
         object firebase=new {enabled=false,reason="Google/Firebase provisioning is explicitly disabled."};
         var cloud=completed.TryGetValue("google-firebase",out var google);
         if (cloud)
@@ -67,6 +58,30 @@ public sealed class PortableTenantPublicationStep(PortableOnboardingOptions opti
         }),ct);
         return new("Portable",new Dictionary<string,string> { ["storeUrl"]=storeUrl,["adminUrl"]=adminUrl,
             ["notificationProvider"]="Outbox",["firebaseEnabled"]=cloud?"true":"false",["readiness"]="Verified" });
+    }
+    public async Task PublishCustomAliasesAsync(TenantProvisioningRequest request,string storeId,CancellationToken ct)
+    {
+        var storeUrl=options.StoreUrl(request);var adminUrl=options.AdminUrl(request);
+        if(request.Domain is {} selected)
+        {
+            if(domains==null)throw new InvalidOperationException("The domain ownership registry is missing.");
+            var binding=await domains.RequireVerifiedAsync(selected.Id,selected.OwnerSubject,request.TenantId,options.DeploymentId,ct);
+            if(TenantDomainSelection.From(binding)!=selected)throw new InvalidOperationException("Custom route ownership differs from the saved request.");
+            foreach(var (host,role) in new[]{(selected.StoreHost,"store"),(selected.AdminHost,"admin")})
+            {
+                var alias=new TenantCustomHostRoute(1,"Portable",request.TenantId,request.Slug,storeId,selected.Id,host,role,storeUrl,adminUrl,true);
+                alias.Validate(host);
+                await WriteOwnedAsync(TenantCustomHostRoutes.PathFor(options.RouteDirectory,host),request.TenantId,
+                    JsonSerializer.Serialize(alias,new JsonSerializerOptions(JsonSerializerDefaults.Web)),ct);
+            }
+        }
+    }
+    public async Task VerifyCustomAsync(TenantProvisioningRequest request,string storeId,CancellationToken ct)
+    {
+        if(request.Domain==null || custom==null)throw new InvalidOperationException("A verified custom ingress is required.");
+        await TenantIngressProbe.WaitForCustomDnsAsync(request.Domain,custom.OriginIpv4,ct);
+        using var ingress=clients.CreateClient("onboarding-custom-ingress");
+        await TenantIngressProbe.VerifyAsync(ingress,options.StoreUrl(request),options.AdminUrl(request),request.TenantId,storeId,ct);
     }
     private static async Task WriteOwnedAsync(string path,string tenant,string json,CancellationToken ct)
     {

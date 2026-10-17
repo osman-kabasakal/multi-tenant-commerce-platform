@@ -329,6 +329,9 @@ internal sealed class GoogleServer : HttpMessageHandler
     public HttpStatusCode MissingProjectStatus = HttpStatusCode.NotFound;
     public HttpStatusCode? ProjectLookupFailure;
     public string? BillingAccount, UploadProtocol, DistributedGroup; public byte[]? UploadBytes;
+    public Dictionary<string, JsonArray> Certificates = new(); public int CertificateCreates, TeamPatches;
+    public bool IgnoreCertificateWrites, ConflictCertificateOnce, IgnoreTeamWrites;
+    public JsonObject App(string id) => apps.Values.SelectMany(x => x).Single(x => x["appId"]!.GetValue<string>() == id);
     public ContractTokens Tokens = new();
     public GoogleRestClient Client() => new(new HttpClient(this, disposeHandler: false), Tokens);
     private static HttpResponseMessage Reply(object value, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = JsonContent.Create(value) };
@@ -397,10 +400,34 @@ internal sealed class GoogleServer : HttpMessageHandler
                     : $"<?xml version=\"1.0\"?><!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"><plist><dict><key>PROJECT_ID</key><string>{projectId}</string><key>GCM_SENDER_ID</key><string>{number}</string><key>GOOGLE_APP_ID</key><string>{appId}</string><key>BUNDLE_ID</key><string>{package}</string></dict></plist>";
                 return Reply(new {configFileContents=Convert.ToBase64String(Encoding.UTF8.GetBytes(config))});
             }
+            if (parts.Length == 6 && parts[5] == "sha")
+            {
+                var parent = $"projects/{id}/{kind}/{parts[4]}";
+                if (!Certificates.TryGetValue(parent, out var certificates)) Certificates[parent] = certificates = new();
+                if (post)
+                {
+                    CertificateCreates++; var certificate = body.DeepClone().AsObject(); certificate["name"] = parent + "/sha/" + body["shaHash"]!.GetValue<string>();
+                    if (!IgnoreCertificateWrites) certificates.Add(certificate);
+                    if (ConflictCertificateOnce) { ConflictCertificateOnce = false; return Reply(new { }, HttpStatusCode.Conflict); }
+                    return Reply(certificate);
+                }
+                return Reply(new { certificates });
+            }
+            if (parts.Length == 5)
+            {
+                var app = App(parts[4]);
+                if (request.Method == HttpMethod.Patch)
+                {
+                    Assert.AreEqual("?updateMask=teamId", uri.Query); Assert.AreEqual(app["etag"]!.GetValue<string>(), body["etag"]!.GetValue<string>());
+                    Assert.AreEqual(3, body.Count); TeamPatches++;
+                    if (!IgnoreTeamWrites) app["teamId"] = body["teamId"]!.DeepClone();
+                }
+                return Reply(app);
+            }
             if (post)
             {
                 var appId = $"1:{number}:{(kind=="androidApps"?"android":"ios")}:a{++AppCreates}";
-                var app = body.DeepClone().AsObject(); app["appId"]=appId; app["name"]=$"projects/{id}/{kind}/{appId}"; app["state"]="ACTIVE"; apps[key].Add(app);
+                var app = body.DeepClone().AsObject(); app["appId"]=appId; app["name"]=$"projects/{id}/{kind}/{appId}"; app["state"]="ACTIVE"; app["etag"]="app-version"; apps[key].Add(app);
                 return Reply(Done(app));
             }
             if (Paginate && !uri.Query.Contains("pageToken=")) return Reply(new { apps = Array.Empty<object>(), nextPageToken = "next-page" });

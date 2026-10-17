@@ -63,6 +63,7 @@ internal sealed class AndroidGoogle : HttpMessageHandler
     public Dictionary<string,TenantFirebaseConfiguration> Tenants=new();public int Uploads,Deliveries,ReleaseReads,Requests;
     public bool FailUploadOnce,FailDistributeOnce;public bool ForeignProject {get;set;}public string BuildVersion="1";
     public List<string> BinaryHashes=[];public List<string> Groups=[];
+    public Dictionary<string,JsonArray> Certificates=new();public int CertificateWrites;public bool FailCertificateOnce;
     private static HttpResponseMessage Reply(object value,HttpStatusCode status=HttpStatusCode.OK)=>new(status){Content=new StringContent(JsonSerializer.Serialize(value),Encoding.UTF8,"application/json")};
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct)
     {
@@ -70,8 +71,19 @@ internal sealed class AndroidGoogle : HttpMessageHandler
         if(request.RequestUri.Host=="cloudresourcemanager.googleapis.com")
         {
             var tenant=Tenants[path.Split('/').Last()];
-            return Reply(new{name="projects/"+tenant.ProjectNumber,parent="folders/123456",state="ACTIVE",
+            return Reply(new{projectId=tenant.ProjectId,name="projects/"+tenant.ProjectNumber,parent="folders/123456",state="ACTIVE",
                 labels=new Dictionary<string,string>{{"platform-tenant",ForeignProject?new string('f',32):tenant.TenantId},{"platform-deployment","android-contract"}}});
+        }
+        if(request.RequestUri.Host=="firebase.googleapis.com")
+        {
+            var parts=Uri.UnescapeDataString(path).Split('/');var config=Tenants[parts[3]];
+            if(parts[^1]=="sha")
+            {
+                if(!Certificates.TryGetValue(config.AndroidAppId,out var items))Certificates[config.AndroidAppId]=items=new();
+                if(request.Method==HttpMethod.Post){CertificateWrites++;if(FailCertificateOnce){FailCertificateOnce=false;return Reply(new{},HttpStatusCode.ServiceUnavailable);}var cert=JsonNode.Parse(await request.Content!.ReadAsStringAsync(ct))!.AsObject();cert["name"]=$"projects/{config.ProjectId}/androidApps/{config.AndroidAppId}/sha/"+cert["shaHash"]!.GetValue<string>();items.Add(cert);return Reply(cert);}
+                return Reply(new{certificates=items});
+            }
+            return Reply(new{name=$"projects/{config.ProjectId}/androidApps/{config.AndroidAppId}",appId=config.AndroidAppId,packageName=config.AndroidPackageName,state="ACTIVE"});
         }
         if(path.StartsWith("/upload/v1/",StringComparison.Ordinal))
         {
@@ -131,7 +143,7 @@ internal sealed class AndroidFixture : IDisposable
     public AndroidReleasePipeline Pipeline(AndroidReleaseOptions? options=null,IAndroidReleaseBuilder? builder=null,ITenantSecrets? secrets=null)
     {
         var store=secrets??Secrets;var signing=new TenantAndroidSigningKeys(store,Keys);
-        return new(options??Options,Deployment,Google,store,signing,builder??Builder,new FirebaseAppDistribution(new GoogleRestClient(new HttpClient(Server,disposeHandler:false),new AndroidToken()),Google));
+        return new(options??Options,Deployment,Google,store,signing,builder??Builder,new FirebaseAppDistribution(new GoogleRestClient(new HttpClient(Server,disposeHandler:false),new AndroidToken()),Google),new FirebaseAppIdentity(new GoogleRestClient(new HttpClient(Server,disposeHandler:false),new AndroidToken()),Google));
     }
     public void Dispose(){Server.Dispose();Directory.Delete(Root,true);}
 }

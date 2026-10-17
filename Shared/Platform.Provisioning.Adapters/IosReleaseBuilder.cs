@@ -98,6 +98,8 @@ public sealed class IosReleaseBuilder(IosReleaseOptions options, AppleApiOptions
     {
         if ((result.TryGetProperty("iosPushTransport", out var transport) ? transport.GetString() : "Fcm") != plan.PushTransport)
             throw new InvalidOperationException("The signed iOS result uses another push transport.");
+        if(plan.MobileIdentityId is {} identity && (!result.TryGetProperty("mobileIdentityId",out var boundIdentity) || boundIdentity.GetString()!=identity.ToString("N")))
+            throw new InvalidOperationException("The native iOS artifact does not match its mobile identity version.");
         var expected = new Dictionary<string, string> { ["tenantId"] = plan.TenantId, ["deploymentId"] = plan.DeploymentId,
             ["developmentTeam"] = plan.DevelopmentTeam, ["iosBundleId"] = plan.IosBundleId, ["projectId"] = plan.ProjectId,
             ["projectNumber"] = plan.ProjectNumber, ["iosAppId"] = plan.IosAppId, ["sourceHash"] = plan.SourceHash,
@@ -132,6 +134,7 @@ public sealed class IosReleaseBuilder(IosReleaseOptions options, AppleApiOptions
             await MobileReleaseFiles.WriteAsync(Path.Combine(inputs, "plan.json"), JsonSerializer.SerializeToUtf8Bytes(plan, MobileReleaseFiles.Json), ct);
             await MobileReleaseFiles.WriteAsync(Path.Combine(inputs, "tenant.json"), JsonSerializer.SerializeToUtf8Bytes(new {
                 tenantId = plan.TenantId, slug = request.Slug, displayName = request.StoreName, baseUrl = plan.StoreUrl, localDemo = false,
+                verifiedDomain=request.Domain,mobileIdentityId=plan.MobileIdentityId?.ToString("N")??"",
                 androidApplicationId = firebase.AndroidPackageName, iosBundleId = firebase.IosBundleId,
                 firebase = new { enabled = true, projectId = firebase.ProjectId, projectNumber = firebase.ProjectNumber, androidAppId = firebase.AndroidAppId, iosAppId = firebase.IosAppId }
             }, MobileReleaseFiles.Json), ct);

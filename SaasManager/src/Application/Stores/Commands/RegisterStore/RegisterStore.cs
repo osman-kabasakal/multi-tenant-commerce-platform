@@ -19,6 +19,7 @@ public record RegisterStoreCommand : IRequest<ServiceResponse<TenantStatusMessag
 {
     public string StoreName { get; set; }= string.Empty;
     public Guid BusinessId { get; set; }
+    public Guid? DomainRequestId { get; set; }
     public string StoreSubDomain { get; set; }= string.Empty;
     public string LogoUrl { get; set; }= string.Empty;
     public string OwnerEmail { get; set; }= string.Empty;
@@ -59,6 +60,7 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
     private readonly ITenantSecrets _tenantSecrets;
     private readonly IWorkContext _workContext;
     private readonly IProvisioningQueue? _provisioning;
+    private readonly TenantDomainRegistry? _domains;
 
     private const string CHANNEL_NAME = "tenant-status-events";
 
@@ -69,7 +71,8 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
         IConfiguration configuration,
         ITenantSecrets tenantSecrets,
         IWorkContext workContext,
-        IProvisioningQueue? provisioning = null
+        IProvisioningQueue? provisioning = null,
+        TenantDomainRegistry? domains = null
         )
     {
         _context = context;
@@ -79,6 +82,7 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
         _tenantSecrets = tenantSecrets;
         _workContext = workContext;
         _provisioning = provisioning;
+        _domains = domains;
     }
     
     public async Task<ServiceResponse<TenantStatusMessage>> Handle(RegisterStoreCommand request, CancellationToken cancellationToken)
@@ -103,7 +107,19 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
         if (_configuration.GetValue<bool>("Provisioning:Enabled"))
         {
             if (_provisioning == null) throw new InvalidOperationException("Register the durable provisioning queue.");
-            var businessAppForProvisioning = await _context.BusinessApps.FirstOrDefaultAsync(x => x.BusinessId == request.BusinessId, cancellationToken);
+            var businessAppForProvisioning = await _context.BusinessApps.FirstOrDefaultAsync(x => x.BusinessId == request.BusinessId && x.Type == SaasManager.Domain.Enums.AppType.CustomerMobile && !x.IsDeleted, cancellationToken);
+            Guid? savedDomainId = null;
+            if (businessAppForProvisioning?.BuildConfiguration.RootElement.TryGetProperty("mobileIdentityPolicy",out var identityPolicy) == true &&
+                identityPolicy.TryGetProperty("domainRequestId",out var selected) && selected.ValueKind == JsonValueKind.String) savedDomainId = selected.GetGuid();
+            if (request.DomainRequestId != null && request.DomainRequestId != savedDomainId) throw new ProvisioningConflictException();
+            TenantDomainSelection? selection = null;
+            if (savedDomainId is {} domainId)
+            {
+                if (!_configuration.GetValue<bool>("Provisioning:CustomDomains:Enabled") || _domains == null || _workContext.KeycloakId == null)
+                    throw new TenantDomainException("DomainNotVerified");
+                selection = TenantDomainSelection.From(await _domains.RequireVerifiedAsync(domainId,_workContext.KeycloakId.Value,tenantId,
+                    _configuration["Provisioning:DeploymentId"]??"",cancellationToken));
+            }
             // Save once before enqueueing; a replay must not rotate credentials used by an in-flight installer.
             await _tenantSecrets.GetOrCreateAsync(tenantId, TenantSecretNames.InitialPassword,
                 () => string.IsNullOrWhiteSpace(request.Password) ? throw new ArgumentException("Initial password is required.") : request.Password,
@@ -111,7 +127,7 @@ public class RegisterStoreCommandHandler : IRequestHandler<RegisterStoreCommand,
             await _provisioning.EnqueueAsync(new TenantProvisioningRequest(tenantId, request.StoreSubDomain,
                 request.StoreName, request.OwnerEmail, request.FirstName, request.Lastname,
                 request.CompanyAddress, request.CompanyPhoneNumber, request.CompanyEmail,
-                businessAppForProvisioning?.PackageName, businessAppForProvisioning?.PackageName, _configuration["Provisioning:DeploymentId"], mobileProfile), cancellationToken);
+                businessAppForProvisioning?.PackageName, businessAppForProvisioning?.PackageName, _configuration["Provisioning:DeploymentId"], mobileProfile) { Domain = selection }, cancellationToken);
             return ServiceResponse<TenantStatusMessage>.Success(new TenantStatusMessage {
                 TenantId = tenantId, StatusEventType = TenantStatusEvent.Registered,
                 StoreName = request.StoreName, StoreSubDomain = request.StoreSubDomain,

@@ -111,6 +111,8 @@ try
     var rejected=(await queue.GetAsync(guardedRequest.TenantId))!;
     Check(guard.Calls==1 && completedStep.Calls==0 && rejected.State=="Failed" && rejected.ErrorCode=="pipeline:InvalidOperationException",
         "Deployment guards run before checkpoint-only replay and prevent false completion");
+    await TenantDomainRegistryFixture.RunAsync(test.ConnectionString);
+    await MobileIdentityRegistryFixture.RunAsync(queue,test.ConnectionString);
     await CombinedIosReleaseFixture.RunAsync(test.ConnectionString,master);
     await AndroidBuildQueueFixture.RunAsync(queue,test.ConnectionString,request);
     await IosReleaseQueueFixture.RunAsync(queue,test.ConnectionString,childConfigPath,request);

@@ -9,8 +9,11 @@ public sealed record TenantProvisioningRequest(
     string FirstName, string LastName, string CompanyAddress, string CompanyPhone,
     string CompanyEmail, string? AndroidPackageName = null, string? IosBundleId = null, string? DeploymentId = null, string? MobileReleaseProfile = null)
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public TenantDomainSelection? Domain { get; init; }
     public void Validate()
     {
+        Domain?.Validate();
         if (!Guid.TryParseExact(TenantId, "N", out var id) || id == Guid.Empty || id.ToString("N") != TenantId)
             throw new ArgumentException("TenantId must be a nonempty canonical business ID.");
         if (!Regex.IsMatch(Slug, "^[a-z][a-z0-9-]{1,38}[a-z0-9]$"))

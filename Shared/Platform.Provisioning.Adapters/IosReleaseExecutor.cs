@@ -6,7 +6,7 @@ namespace Platform.Provisioning.Adapters;
 
 /// <summary>Use one durable native artifact for symbols and App Distribution, including after Mac restart.</summary>
 public sealed class IosReleaseExecutor(IosReleaseOptions options, GoogleCloudOptions google, IProvisioningQueue parents,
-    ITenantSecrets secrets, AppleTenantProvisioner apple, IIosReleaseBuilder builder, FirebaseAppDistribution distribution) : IIosReleaseExecutor
+    ITenantSecrets secrets, AppleTenantProvisioner apple, IIosReleaseBuilder builder, FirebaseAppDistribution distribution,MobileIdentityRegistry? identities=null) : IIosReleaseExecutor
 {
     public const string ArtifactSecret = "ios-initial-release-artifact-v1";
     public const string SymbolsSecret = "ios-initial-release-symbols-v1";
@@ -39,12 +39,27 @@ public sealed class IosReleaseExecutor(IosReleaseOptions options, GoogleCloudOpt
             throw new InvalidOperationException("The queued iOS plan targets a different Mac source or deployment.");
         var parent = await parents.GetAsync(plan.TenantId, ct) ?? throw new InvalidOperationException("The iOS job has no tenant onboarding parent.");
         var request = parent.Request; request.Validate();
-        if (request.MobileReleaseProfile != "AndroidIosAppDistribution" || request.TenantId != plan.TenantId || request.DeploymentId != plan.DeploymentId || parent.State is not ("Pending" or "Running") ||
-            (request.IosBundleId ?? "com.example.tenant" + request.TenantId) != plan.IosBundleId ||
-            !parent.Steps.TryGetValue("publication", out var published) || published.Resources.GetValueOrDefault("readiness") != "Verified" ||
-            published.Resources.GetValueOrDefault("storeUrl") != plan.StoreUrl || !parent.Steps.TryGetValue("google-firebase", out var cloud))
-            throw new InvalidOperationException("The iOS job requires its owned, verified public tenant and Google checkpoints.");
-        var firebase = MobileReleaseFiles.Parse<TenantFirebaseConfiguration>(await secrets.GetAsync(plan.TenantId, TenantFirebaseConfiguration.SecretName, ct));
+        var firebaseName=TenantFirebaseConfiguration.SecretName;
+        ProvisioningStepResult cloud;
+        if(plan.MobileIdentityId is {} versionId)
+        {
+            var version=identities==null?null:await identities.GetForWorkerAsync(plan.TenantId,versionId,ct);
+            if(version==null || version.State!="WaitingBuilds" || version.Prepared?.IosPlan!=plan || parent.State!="Succeeded" ||
+                version.Request.OriginalRequestSha256!=DomainActivationPlan.Digest(parent.Request))throw new ProvisioningConflictException();
+            version.Prepared.Validate(version.Request);
+            request=request with {AndroidPackageName=version.Request.AndroidPackageName,IosBundleId=version.Request.IosBundleId,Domain=version.Request.Domain};
+            firebaseName=version.Prepared.FirebaseSecretName;
+            cloud=new("Google",new Dictionary<string,string>{{"projectId",version.Prepared.ProjectId},{"iosAppId",version.Prepared.IosAppId}});
+        }
+        else
+        {
+            if (request.MobileReleaseProfile != "AndroidIosAppDistribution" || request.TenantId != plan.TenantId || request.DeploymentId != plan.DeploymentId || parent.State is not ("Pending" or "Running") ||
+                (request.IosBundleId ?? "com.example.tenant" + request.TenantId) != plan.IosBundleId ||
+                !parent.Steps.TryGetValue("publication", out var published) || published.Resources.GetValueOrDefault("readiness") != "Verified" ||
+                published.Resources.GetValueOrDefault("storeUrl") != plan.StoreUrl || !parent.Steps.TryGetValue("google-firebase", out cloud!))
+                throw new InvalidOperationException("The iOS job requires its owned, verified public tenant and Google checkpoints.");
+        }
+        var firebase = MobileReleaseFiles.Parse<TenantFirebaseConfiguration>(await secrets.GetAsync(plan.TenantId, firebaseName, ct));
         FirebaseConfigValidator.Validate(firebase);
         if (firebase.TenantId != plan.TenantId || firebase.ProjectId != google.ProjectId(plan.TenantId) || firebase.ProjectId != plan.ProjectId ||
             firebase.ProjectNumber != plan.ProjectNumber || firebase.IosAppId != plan.IosAppId || firebase.IosBundleId != plan.IosBundleId ||
@@ -55,26 +70,27 @@ public sealed class IosReleaseExecutor(IosReleaseOptions options, GoogleCloudOpt
             throw new InvalidOperationException("The authoritative Firebase SDK or target differs from the immutable iOS plan.");
         // Check remote ownership before Apple provisioning or Crashlytics submission, not only at IPA upload.
         await distribution.VerifyTargetAsync(firebase, "ios", ct);
-        var saved = await FindAsync(plan.TenantId, ArtifactSecret, ct);
+        string Scoped(string name)=>plan.MobileIdentityId is {} identity ? name.Replace("initial","identity-"+identity.ToString("N"),StringComparison.Ordinal):name;
+        var saved = await FindAsync(plan.TenantId, Scoped(ArtifactSecret), ct);
         if (saved == null)
         {
             var signing = await apple.PrepareAsync(plan, ct);
             var candidate = await builder.BuildAsync(plan, request, firebase, signing, ct);
             Match(candidate, plan); await builder.VerifyAsync(candidate, ct); ct.ThrowIfCancellationRequested();
-            saved = await secrets.GetOrCreateAsync(plan.TenantId, ArtifactSecret, () => JsonSerializer.Serialize(candidate, MobileReleaseFiles.Json), ct);
+            saved = await secrets.GetOrCreateAsync(plan.TenantId, Scoped(ArtifactSecret), () => JsonSerializer.Serialize(candidate, MobileReleaseFiles.Json), ct);
             // An interrupted/reclaimed build may leave an unselected private workspace; never replace the committed winner.
         }
         var artifact = MobileReleaseFiles.Parse<IosBuiltArtifact>(saved); Match(artifact, plan);
         await builder.VerifyAsync(artifact, ct);
-        var symbols = await FindAsync(plan.TenantId, SymbolsSecret, ct);
+        var symbols = await FindAsync(plan.TenantId, Scoped(SymbolsSecret), ct);
         if (symbols == null)
         {
             await builder.UploadSymbolsAsync(artifact, ct); ct.ThrowIfCancellationRequested();
-            symbols = await secrets.GetOrCreateAsync(plan.TenantId, SymbolsSecret,
+            symbols = await secrets.GetOrCreateAsync(plan.TenantId, Scoped(SymbolsSecret),
                 () => JsonSerializer.Serialize(Expected(artifact, "uploaded"), MobileReleaseFiles.Json), ct);
         }
         if (ReadSubmission(symbols, artifact).Value != "uploaded") throw new InvalidOperationException("The selected IPA has no completed matching symbol submission.");
-        var previous = await FindAsync(plan.TenantId, DistributionSecret, ct);
+        var previous = await FindAsync(plan.TenantId, Scoped(DistributionSecret), ct);
         string release;
         if (previous != null)
         {
@@ -86,7 +102,7 @@ public sealed class IosReleaseExecutor(IosReleaseOptions options, GoogleCloudOpt
             if (await MobileReleaseFiles.HashAsync(binary, ct) != artifact.IpaSha256) throw new InvalidOperationException("The IPA changed before App Distribution upload.");
             ct.ThrowIfCancellationRequested();
             release = await distribution.UploadAndDistributeAsync(firebase, "ios", binary, ct); ct.ThrowIfCancellationRequested();
-            var stored = await secrets.GetOrCreateAsync(plan.TenantId, DistributionSecret,
+            var stored = await secrets.GetOrCreateAsync(plan.TenantId, Scoped(DistributionSecret),
                 () => JsonSerializer.Serialize(Expected(artifact, release), MobileReleaseFiles.Json), ct);
             if (ReadSubmission(stored, artifact).Value != release) throw new InvalidOperationException("The initial iOS release acquired another distribution identity.");
         }

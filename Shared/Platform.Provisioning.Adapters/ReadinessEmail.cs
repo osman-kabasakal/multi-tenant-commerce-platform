@@ -72,8 +72,8 @@ public static class ReadinessEmailMessage
         var expectedProvider=infrastructure.IsLocal?"Local":"Portable";
         if((request.DeploymentId??"")!=options.Deployment(infrastructure) || lease.BindingSha256!=options.Fingerprint(infrastructure) ||
             lease.Publication.Provider!=expectedProvider || request.OwnerEmail.Any(char.IsControl) ||
-            !lease.Publication.Resources.TryGetValue("storeUrl",out var store) || store!=infrastructure.StoreUrl(request.Slug) ||
-            !lease.Publication.Resources.TryGetValue("adminUrl",out var admin) || admin!=infrastructure.AdminUrl(request.Slug) ||
+            !lease.Publication.Resources.TryGetValue("storeUrl",out var store) || store!=infrastructure.StoreUrl(request) ||
+            !lease.Publication.Resources.TryGetValue("adminUrl",out var admin) || admin!=infrastructure.AdminUrl(request) ||
             !infrastructure.IsLocal && (!lease.Publication.Resources.TryGetValue("readiness",out var ready) || ready!="Verified"))
             throw new InvalidOperationException("Readiness email does not match its original tenant, deployment and verified public URLs.");
         var domain=new MailAddress(options.FromAddress).Host;

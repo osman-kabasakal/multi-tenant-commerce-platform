@@ -28,7 +28,7 @@ namespace Grand.Installer.Cli.Services;
 
 public static class ManagedTenantTasks
 {
-    public static readonly string[] Names = ["tenant-plugins", "tenant-migrations", "tenant-settings"];
+    public static readonly string[] Names = ["tenant-plugins", "tenant-migrations", "tenant-settings", "tenant-domain"];
     public static readonly string[] AddressFields = ["lat", "long", "bno", "dno", "kno", "adres_tarifi"];
 
     private static int VerifyOriginalSettings(IServiceScope scope)
@@ -119,6 +119,11 @@ public static class ManagedTenantTasks
                 recorded.Add(migration.Identity);
             }
         }
+        else if(task=="tenant-domain")
+        {
+            var selected=await ManagedTenantDomain.VerifyAsync(config,message)??throw new InvalidOperationException("A verified domain selection is required.");
+            await ManagedTenantDomain.UpdateAsync(store,scope.ServiceProvider.GetRequiredService<Grand.Business.Core.Interfaces.Common.Stores.IStoreService>(),selected);
+        }
         else
         {
             var customer = await scope.ServiceProvider.GetRequiredService<ICustomerService>().GetCustomerByEmail(message.OwnerEmail);
@@ -193,8 +198,9 @@ public static class ManagedTenantTasks
                 settings.LoadSetting<TaxProviderSettings>().ActiveTaxProviderSystemName != "Tax.FixedRate")
                 throw new InvalidOperationException("Managed tenant business defaults did not pass their readiness check.");
         }
-        var target = Path.Combine(Path.GetDirectoryName(output)!, message.StoreSubDomain + "." + task + ".json");
-        var result = new { version = 1, profile = "Portable", task, tenantId = message.TenantId, slug = message.StoreSubDomain, storeId = store.Id, verifiedBusinessSettings=verifiedSettings };
+        var domainSelection=task=="tenant-domain"?await ManagedTenantDomain.VerifyAsync(config,message):null;
+        var target = Path.Combine(Path.GetDirectoryName(output)!, message.StoreSubDomain + "." + task + (domainSelection==null?"":"."+domainSelection.Id.ToString("N")) + ".json");
+        var result = new { version = 1, profile = "Portable", task, tenantId = message.TenantId, slug = message.StoreSubDomain, storeId = store.Id, verifiedBusinessSettings=verifiedSettings,domainRequestId=domainSelection?.Id.ToString("N"),storeUrl=domainSelection==null?null:"https://"+domainSelection.StoreHost };
         var temporary = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {

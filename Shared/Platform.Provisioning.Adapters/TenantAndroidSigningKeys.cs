@@ -80,4 +80,36 @@ public sealed class TenantAndroidSigningKeys(ITenantSecrets secrets,IAndroidSign
         var saved=await secrets.GetOrCreateAsync(tenant,SecretName,()=>JsonSerializer.Serialize(candidate,MobileReleaseFiles.Json),ct);
         var winner=MobileReleaseFiles.Parse<AndroidSigningKey>(saved);winner.Validate(tenant,package);await factory.VerifyAsync(winner,ct);return winner;
     }
+    public static string PackageSecretName(string package)
+    {
+        if (package.Length > 200 || !System.Text.RegularExpressions.Regex.IsMatch(package, "^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+\\z"))
+            throw new ArgumentException("Use a valid bounded Android package identity.");
+        return "android-package-signing-v1-" + Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(package))).ToLowerInvariant();
+    }
+    public async Task<AndroidSigningKey> ReadPackageAsync(string tenant, string package, CancellationToken ct)
+    {
+        var name = PackageSecretName(package);
+        string value;
+        try { value = await secrets.GetAsync(tenant, name, ct); }
+        catch (KeyNotFoundException)
+        {
+            // The original release may predate per-package storage. It is never copied, rotated or reused by another package.
+            var legacy = MobileReleaseFiles.Parse<AndroidSigningKey>(await secrets.GetAsync(tenant, SecretName, ct));
+            legacy.Validate(tenant, legacy.PackageName);
+            if (legacy.PackageName != package) throw new KeyNotFoundException("No signing identity exists for this package.");
+            await factory.VerifyAsync(legacy, ct); return legacy;
+        }
+        var key = MobileReleaseFiles.Parse<AndroidSigningKey>(value); key.Validate(tenant, package);
+        await factory.VerifyAsync(key, ct); return key;
+    }
+    public async Task<AndroidSigningKey> GetOrCreatePackageAsync(string tenant, string package, CancellationToken ct)
+    {
+        try { return await ReadPackageAsync(tenant, package, ct); } catch (KeyNotFoundException) { }
+        var name = PackageSecretName(package);
+        var candidate = await factory.CreateAsync(tenant, package, ct); candidate.Validate(tenant, package);
+        var saved = await secrets.GetOrCreateAsync(tenant, name, () => JsonSerializer.Serialize(candidate, MobileReleaseFiles.Json), ct);
+        var winner = MobileReleaseFiles.Parse<AndroidSigningKey>(saved); winner.Validate(tenant, package);
+        await factory.VerifyAsync(winner, ct); return winner;
+    }
+
 }

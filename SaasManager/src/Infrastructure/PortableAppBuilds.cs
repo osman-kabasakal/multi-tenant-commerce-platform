@@ -15,7 +15,7 @@ using NotFoundException = Ardalis.GuardClauses.NotFoundException;
 
 namespace SaasManager.Infrastructure;
 
-public sealed class PortableAppBuilds(IApplicationDbContext db,IProvisioningQueue onboarding,AndroidBuildQueue builds,IConfiguration config):IPortableAppBuilds
+public sealed class PortableAppBuilds(IApplicationDbContext db,IProvisioningQueue onboarding,AndroidBuildQueue builds,IConfiguration config,MobileIdentityRegistry identities,TenantDomainRegistry domains,SaasManager.Application.Common.Interfaces.Identity.IWorkContext work):IPortableAppBuilds
 {
     private string Deployment=>config["Provisioning:DeploymentId"]??"";
     private bool AndroidEnabled=>config["Provisioning:Mobile:Provider"] is "AndroidAppDistribution" or "AndroidIosAppDistribution";
@@ -35,7 +35,15 @@ public sealed class PortableAppBuilds(IApplicationDbContext db,IProvisioningQueu
     {
         var state=await StateAsync(app,ct);
         if(!state.Ready || request.Version!=app.Version)throw new ProvisioningConflictException();
-        var job=await builds.EnqueueAsync(request.RequestId,app.BusinessId.ToString("N"),app.Id,Deployment,request.BuildNumber,ct);
+        SaasManager.Application.Stores.Provisioning.TrialEnrollmentPolicy.Owner(work);
+        var tenant=app.BusinessId.ToString("N");var owner=work.KeycloakId!.Value;
+        var original=await onboarding.GetAsync(tenant,ct)??throw new ProvisioningConflictException();
+        await identities.EnsureInitialAsync(original,app.Id,owner,ct);
+        var active=(await identities.ListAsync(tenant,owner,ct)).Single(x=>x.State=="Active");
+        var primary=(await domains.ListAsync(tenant,owner,ct)).SingleOrDefault(x=>x.IsPrimary);
+        var storeUrl=primary==null?original.Steps["publication"].Resources["storeUrl"]:"https://"+primary.Request.StoreHost;
+        var binding=MobileIdentityBuildScopes.Android(active,original,storeUrl,domain:primary==null?null:TenantDomainSelection.From(primary));
+        var job=await builds.EnqueueAsync(request.RequestId,tenant,app.Id,Deployment,request.BuildNumber,ct,binding);
         return new(){RequestId=job.Id,BusinessAppId=app.Id,Version=app.Version,BuildNumber=job.BuildNumber,BuildStatus=Status(job.State)};
     }
     public async Task<AppBuildList> ListAsync(Guid business,int page,int size,CancellationToken ct)
@@ -51,6 +59,13 @@ public sealed class PortableAppBuilds(IApplicationDbContext db,IProvisioningQueu
                 if(job.AppId==app.Id && job.DeploymentId==Deployment)
                     rows.Add(job.Receipt is {} receipt ? Row(job.Id,app.Version,receipt,job.UpdatedAt.UtcDateTime) :
                         new(){Id=job.Id,Platform="Android",Version=app.Version,BuildNumber=job.BuildNumber,BuildStatus=Status(job.State),BuildDate=job.CreatedAt.UtcDateTime});
+        }
+        if(app!=null && AndroidEnabled)
+        {
+            SaasManager.Application.Stores.Provisioning.TrialEnrollmentPolicy.Owner(work);
+            foreach(var identity in await identities.ListAsync(business.ToString("N"),work.KeycloakId!.Value,ct))
+                if(!identity.Legacy && identity.Request.BusinessAppId==app.Id && identity.AndroidReceipt is {} receipt)
+                    rows.Add(Row(identity.Request.Id,app.Version,receipt,identity.UpdatedAt.UtcDateTime));
         }
         return new(new PaginatedList<AppBuildDto>(rows.OrderByDescending(x=>x.BuildNumber).Skip((page-1)*size).Take(size).ToArray(),rows.Count,page,size));
     }
@@ -72,6 +87,13 @@ public sealed class PortableAppBuilds(IApplicationDbContext db,IProvisioningQueu
         {
             var job=(await builds.ListAsync(business.ToString("N"),ct)).SingleOrDefault(j=>j.Id==build && j.AppId==app.Id && j.DeploymentId==Deployment && j.State=="Succeeded");
             receipt=job?.Receipt;
+            if(receipt==null)
+            {
+                SaasManager.Application.Stores.Provisioning.TrialEnrollmentPolicy.Owner(work);
+                var identity=await identities.GetAsync(build,work.KeycloakId!.Value,ct);
+                if(identity?.Request.TenantId==business.ToString("N") && identity.Request.BusinessAppId==app.Id && identity.Request.DeploymentId==Deployment)
+                    receipt=identity.AndroidReceipt;
+            }
         }
         var digest=receipt?.Resources.GetValueOrDefault("sha256");
         var root=config["Provisioning:Mobile:ArtifactDirectory"];

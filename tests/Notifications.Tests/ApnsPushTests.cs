@@ -17,6 +17,35 @@ namespace Platform.Notifications.Tests;
 public sealed class ApnsPushTests
 {
     [TestMethod]
+    public async Task OldAndVersionedIosRegistrationsUseSeparateOwnedTopicsAndConnections()
+    {
+        using var test=new Fixture();var original=test.Add("a","notify-project-a","600001");var id=Guid.NewGuid();
+        var package="com.publisher.newstore";
+        var version=original with {IosBundleId=package,IosAppId=original.IosAppId+"a",IosConfigPlist=original.IosConfigPlist.Replace(original.IosBundleId,package,StringComparison.Ordinal).Replace(original.IosAppId,original.IosAppId+"a",StringComparison.Ordinal)};
+        test.Store.Values[(original.TenantId,"firebase-mobile-identity-"+id.ToString("N"))]=JsonSerializer.Serialize(version,new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var token=ApnsRegistrationToken.VersionPrefix+id.ToString("N")+":AABB";
+        var result=await test.Sender.SendAsync("a",[ApnsRegistrationToken.Prefix+"aabb",token,token.ToLowerInvariant()],new("Title","Body"));
+        Assert.AreEqual(2,result.Accepted);Assert.AreEqual(2,test.Http.Pools);
+        CollectionAssert.AreEqual(new[]{original.IosBundleId,package},test.Http.Topics.ToArray());
+        Assert.AreEqual(id,ApnsRegistrationToken.Identity(token));Assert.AreEqual("aabb",ApnsRegistrationToken.Decode(token));
+        Assert.AreEqual(ApnsRegistrationToken.VersionPrefix+id.ToString("N")+":aabb",ApnsRegistrationToken.Normalize(token));
+    }
+    [TestMethod]
+    public async Task AVersionCannotUseAnotherTenantsConfigurationOrSwitchItsFirebaseProject()
+    {
+        using var test=new Fixture();var original=test.Add("a","notify-project-a","600001");var foreign=test.Add("b","notify-project-b","600002");
+        var id=Guid.NewGuid();var name="firebase-mobile-identity-"+id.ToString("N");var token=ApnsRegistrationToken.VersionPrefix+id.ToString("N")+":aabb";
+        test.Store.Values[(foreign.TenantId,name)]=JsonSerializer.Serialize(foreign);
+        await Assert.ThrowsExceptionAsync<KeyNotFoundException>(()=>test.Sender.SendAsync("a",[token],new("Title","Body")));
+        test.Store.Values[(original.TenantId,name)]=JsonSerializer.Serialize(foreign);
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(()=>test.Sender.SendAsync("a",[token],new("Title","Body")));
+        Assert.AreEqual(0,test.Http.Pools);
+        using var google=new FcmServer();var sender=new FcmApnsTenantPushSender(new(test.Store,new(google.Client())),test.Sender);
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(()=>sender.SendAsync("a",["android-device",token],new("Title","Body")));
+        Assert.AreEqual(0,google.Messages.Count);
+    }
+
+    [TestMethod]
     public void ProviderJwtUsesTheTeamP256KeyAndReusesItAcrossTopicsForFortyMinutes()
     {
         using var test = new Fixture();

@@ -284,6 +284,10 @@ def restore_state(backup, state):
             (inputs / source).chmod(0o600)
             apns['KeyFile'] = str(inputs / source)
             replacements.append((apns, 'KeyFile', source))
+        if plan['Providers'].get('CustomDomains', {}).get('Enabled'):
+            custom = plan['Providers']['CustomDomains']; source = 'cloudflare-custom-domains'
+            shutil.copyfile(restored / 'secrets' / source, inputs / source); (inputs / source).chmod(0o600)
+            custom['ApiTokenFile'] = str(inputs / source); replacements.append((custom, 'ApiTokenFile', source))
         # Validate credentials, certificates and original directory/key ownership before Docker writes.
         config.prepare(plan, restored, deployment.definition['services']['saas']['image'])
         config.write_json(restored / '.restore-operation.json', {'id': operation})

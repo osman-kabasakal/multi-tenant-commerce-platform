@@ -49,6 +49,10 @@ Cloudflare’in standart nameserver kurulumunda ücretsiz Universal SSL, `tenant
 
 Cloudflare ile ayrı DNS kaydı oluşturmayı tercih ederseniz [domain sağlayıcısı ayarlarını](PORTABLE_PROVISIONING.md#domain-providers) uygulayın. Tenant alan adlarını tek tek kaynak koduna yazmayın.
 
+### 2a. İsteğe bağlı işletme alan adı ve paket kökü
+
+Yeni işletmeler için `MobileApplicationIdPrefix` değerini kendi reverse-DNS kökünüzle seçin; örneğin `com.yourcompany`. Paket adının son parçası işletme adından kurallara uygun üretilir ve kalıcı atanır. Özel alan adını ilk kayıtta almak veya mevcut işletmeye sonradan eklemek için `Providers:CustomDomains` bölümünü yapılandırın. Ayrı Cloudflare token'ı, TXT sahiplik doğrulaması, A kaydı taşıma kuralı ve sertifika saklama adımları [alan adı ve mobil kimlik rehberindedir](TENANT_DOMAINS_AND_MOBILE_IDENTITIES.md).
+
 ### 3. Kullanıcı kaydı ve e-posta teslimini açın
 
 1. [identity.example.json](../infra/production/identity.example.json) dosyasındaki `Identity` bölümünü özel Production girdisine ekleyin.
@@ -181,6 +185,8 @@ Mevcut akışta bir hesap tek işletmeye bağlanır. Başka bir işletme için a
 | Posta kodu | 5 rakam |
 | Mağaza yönetimi parolası | 12–128 karakter |
 
+Kendi alan adınızı kullanacaksanız aynı ekrandaki alan adı bölümünde önce Cloudflare kontrolünü başlatın, gösterilen TXT kaydını DNS panelinizde ekleyin ve doğrulayın. Farklı sunucuyu gösteren mevcut A kaydı, sahiplik ve tek işletme ataması sonrası mağazaya taşınabilir; zaten platform sunucusuna işaret eden sahipsiz veya başka işletmeye atanmış kayıt devralınmaz. Boş bırakırsanız platformun mağaza/yönetim adresleri kullanılır. Detaylar [alan adı rehberindedir](TENANT_DOMAINS_AND_MOBILE_IDENTITIES.md#ilk-işletme-kaydında-sıralı-işlem).
+
 **“Deneme aboneliğini başlat”** düğmesine basın. Bu yol kart istemez ve ödeme almaz; deneme süresini sunucudaki plandan alır. Ücretli abonelik farklı bir seçimdir: gerçek merchant ayarları ve sunucunun doğruladığı aktivasyon gerekir; [PAYMENTS.md](PAYMENTS.md) izlenir. Canlı ödeme kabulü tamamlanmadan deneme sonucunu ödeme kanıtı saymayın.
 
 Tarayıcı aynı kayıt kimliğini yeniden kullanır. Sayfayı yenilemek veya aynı isteği tekrarlamak ikinci işletme/deneme oluşturmak ya da mağaza parolasını değiştirmek için kullanılmaz.
@@ -223,6 +229,10 @@ Portable kurulumun üçüncü satırındaki görevler tenant başına sırayla �
 Bu akış test dağıtımıdır. Google Play veya App Store mağaza yayını, incelemesi ve mağaza kaydı otomatik tamamlanmış sayılmaz. Uygulamanın sonraki sürümlerini yayımlamak, ilk kurulum kuyruğunu silip yeniden çalıştırarak yapılmaz.
 
 Sürekli tenant işleri için [ayrı görev servisini](TENANT_BACKGROUND_TASKS.md) yapılandırıp etkinleştirin. Yeni siparişin yönetim paneline bildirimi, mağazanın kalıcı sipariş kaydından mevcut bir dakikalık görevle tamamlanır ve [ortak Redis SignalR kanalından](DISTRIBUTED_NOTIFICATIONS.md) yayınlanır. Görev kapalıysa bağlı panel için sürekli yayın beklemeyin. Yönetici oturumunun doğru mağaza ve `Orders` izniyle açılması gerekir.
+
+### 12a. Daha sonra alan adı veya mobil paket değişimi
+
+Portalda **Alan adı ve uygulama** sayfasını açın. Yeni domaini TXT kaydıyla doğrulayıp etkinleştirin; isterseniz aynı Firebase projesinde yeni Android/iOS paketlerini de hazırlatın. Web adresi doğrulanmış HTTPS sonrasında değişir. Mobil aktif kimlik ise iki platformun imzalı sonucu gelene kadar korunur. Eski paketler, Firebase uygulamaları ve anahtarlar geçmişte tutulur; sıradaki derleme kendi paketinin sertifikasını kullanır. [Sıralı geçiş ve müdahale adımları](TENANT_DOMAINS_AND_MOBILE_IDENTITIES.md#mevcut-işletmeye-alan-adı-ekleme-veya-değiştirme).
 
 ### 13. Bildirim ve Crashlytics kabulünü tamamlayın
 

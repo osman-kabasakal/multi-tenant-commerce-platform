@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Platform.Security;
+using Platform.Hosting;
 
 namespace Platform.Gateway;
 
@@ -11,6 +12,11 @@ public sealed class TenantRoutes(GatewayOptions options, ITenantSecrets secrets)
 {
     public async Task<TenantRoute?> ResolveAsync(HostString requested, CancellationToken ct)
     {
+        if (options.CustomDomainsEnabled)
+        {
+            var custom = await ResolveCustomAsync(requested,ct);
+            if (custom != null) return custom;
+        }
         var host = requested.Host.ToLowerInvariant(); var store = new Uri(options.StoreBaseUrl); var admin = new Uri(options.AdminBaseUrl);
         var isAdmin = host.EndsWith("." + admin.Host, StringComparison.OrdinalIgnoreCase);
         var parent = isAdmin ? admin : store;
@@ -37,4 +43,14 @@ public sealed class TenantRoutes(GatewayOptions options, ITenantSecrets secrets)
             throw new InvalidOperationException("Tenant route ownership does not match the secret store.");
         return new(tenant, slug, storeId, isAdmin);
     }
+    public async Task<TenantRoute?> ResolveCustomAsync(HostString requested,CancellationToken ct)
+    {
+        if(!options.CustomDomainsEnabled || (requested.Port??443)!=443)return null;
+        var custom=await TenantCustomHostRoutes.FindAsync(options.RouteDirectory,requested.Host.ToLowerInvariant(),ct);
+        if(custom==null)return null;
+        if(await secrets.ResolveAsync(custom.Slug,ct)!=custom.TenantId || await secrets.ResolveAsync(custom.StoreId,ct)!=custom.TenantId)
+            throw new InvalidOperationException("Custom route ownership does not match the tenant secret store.");
+        return new(custom.TenantId,custom.Slug,custom.StoreId,custom.Role=="admin");
+    }
+
 }

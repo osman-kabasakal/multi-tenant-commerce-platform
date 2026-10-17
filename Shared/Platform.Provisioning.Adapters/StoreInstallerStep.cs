@@ -18,8 +18,8 @@ public sealed class StoreInstallerStep(OnboardingInfrastructureOptions options, 
     {
         request.Validate();
         var metadata=Path.Combine(options.TenantDirectory,request.Slug+".json");
-        var output=task == null ? metadata : Path.Combine(options.TenantDirectory, request.Slug+"."+task+".json");
-        if (task != null && (options.IsLocal || !ManagedTenantStep.Tasks.Contains(task) || !File.Exists(metadata)))
+        var output=task == null ? metadata : Path.Combine(options.TenantDirectory, request.Slug+"."+task+(task=="tenant-domain" && request.Domain!=null?"."+request.Domain.Id.ToString("N"):"")+".json");
+        if (task != null && (options.IsLocal || !(ManagedTenantStep.Tasks.Contains(task) || task=="tenant-domain" && request.Domain!=null) || !File.Exists(metadata)))
             throw new InvalidOperationException("Managed tasks require the completed portable store installation.");
         if (task != null)
         {
@@ -87,7 +87,10 @@ public sealed class StoreInstallerStep(OnboardingInfrastructureOptions options, 
                 start.Environment["PlatformConfiguration__Provider"]=new Microsoft.Extensions.Configuration.ConfigurationBuilder()
                     .AddJsonFile(options.CommerceConfigPath).Build()["PlatformConfiguration:Provider"];
                 start.Environment["Provisioning__ManagedInstallerProfile"]="Portable";start.Environment["Provisioning__TenantOutput"]=metadata;
-                start.Environment["Provisioning__StoreUrl"]=options.StoreUrl(request.Slug);
+                start.Environment["Provisioning__StoreUrl"]=options.StoreUrl(request);
+                start.Environment["Provisioning__DeploymentId"]=portable.DeploymentId;
+                start.Environment.Remove("Provisioning__VerifiedDomain");
+                if(request.Domain!=null)start.Environment["Provisioning__VerifiedDomain"]=JsonSerializer.Serialize(request.Domain);
             }
             start.Environment["Provisioning__ManagedInstaller"]="true";
             start.Environment.Remove("Provisioning__ManagedInstallerTask");
@@ -120,6 +123,8 @@ public sealed class StoreInstallerStep(OnboardingInfrastructureOptions options, 
                 !completed.TryGetValue("store",out var store) || !store.Resources.TryGetValue("storeId",out var owned) || owned!=storeId ||
                 await secrets.ResolveAsync(storeId,ct)!=request.TenantId)
                 throw new InvalidOperationException("The managed task checkpoint is not owned by this store.");
+            if(task=="tenant-domain" && (result.RootElement.GetProperty("domainRequestId").GetString()!=request.Domain!.Id.ToString("N") ||
+                result.RootElement.GetProperty("storeUrl").GetString()!=options.StoreUrl(request)))throw new InvalidOperationException("The domain task receipt differs from the selected origin.");
             return new("GrandNode",new Dictionary<string,string> { ["storeId"]=storeId,["profileVersion"]="1",["task"]=task });
         }
         await secrets.BindAliasAsync(request.TenantId,storeId,ct);

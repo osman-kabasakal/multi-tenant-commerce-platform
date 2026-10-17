@@ -43,6 +43,7 @@ export class DashboardLayoutComponent implements OnInit, OnDestroy {
   menuItems: MenuItem[] = [
     { icon: 'home', title: 'Ana Sayfa', route: '/dashboard' },
     { icon: 'app', title: 'Uygulamalarım', route: '/dashboard/appbuilds' },
+    { icon: 'globe', title: 'Alan adı ve uygulama', route: '/dashboard/deployment' },
     { icon: 'database', title: 'Veritabanı Sorguları', route: '/dashboard/db-queries', },
     { icon: 'package', title: 'Ürünler', route: '/products', roles: ['business_admin', 'business_staff'] },
     { icon: 'users', title: 'Müşteriler', route: '/customers', roles: ['business_admin'] },

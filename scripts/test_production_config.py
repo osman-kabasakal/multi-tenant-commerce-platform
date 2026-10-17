@@ -43,6 +43,65 @@ class ProductionConfigTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls): cls.temporary.cleanup()
 
+    def custom_domain_plan(self):
+        plan = copy.deepcopy(self.plan)
+        token = self.root / 'cloudflare-token'; token.write_text('synthetic-cloudflare-access-for-tests'); token.chmod(0o600)
+        plan['Providers']['CustomDomains'] = {'Enabled': True, 'AllowCloudWrites': True, 'ApiTokenFile': str(token), 'OriginIpv4': '1.1.1.1', 'AcmeEmail': 'operator@example.net'}
+        return plan
+
+    def test_custom_domains_keep_api_authority_only_in_worker_and_persist_operator_owned_certificates(self):
+        plan = self.custom_domain_plan(); state = self.root / 'custom-domains'; original = config.prepare(self.plan, state, 'commerce-platform:fixture')
+        active = config.prepare(plan, state, 'commerce-platform:fixture')
+        self.assertEqual(original['MasterKey'], active['MasterKey']); self.assertEqual(original['Credentials'], active['Credentials'])
+        definition = json.loads((state / 'compose.json').read_text()); edge = definition['services']['edge']
+        self.assertEqual(str(os.getuid()) + ':' + str(os.getgid()), edge['user'])
+        self.assertEqual('0', edge['sysctls']['net.ipv4.ip_unprivileged_port_start']); self.assertEqual(['ALL'], edge['cap_drop']); self.assertEqual(['NET_BIND_SERVICE'], edge['cap_add'])
+        tls = next(item for item in edge['volumes'] if item['target'] == '/data')
+        self.assertEqual(str(state / 'edge-tls'), tls['source']); self.assertFalse(tls['read_only'])
+        self.assertFalse(any(item.startswith('/data:') for item in edge['tmpfs']))
+        self.assertEqual(0o600, (state / 'secrets/cloudflare-custom-domains').stat().st_mode & 0o777)
+        for role, service in definition['services'].items():
+            targets = {item['target'] for item in service.get('volumes', []) if isinstance(item, dict)}
+            self.assertEqual(role == 'worker', '/run/secrets/cloudflare-custom-domains' in targets)
+        worker = json.loads((state / 'config/worker.json').read_text())['Provisioning']['CustomDomains']
+        self.assertEqual('/run/secrets/cloudflare-custom-domains', worker['ApiTokenFile'])
+        self.assertIn(plan['PortalHost'], worker['ReservedHosts'])
+        saas = json.loads((state / 'config/saas.json').read_text())['Provisioning']['CustomDomains']
+        self.assertEqual({'Enabled': True}, saas)
+        gateway = json.loads((state / 'config/gateway.json').read_text())
+        self.assertTrue(gateway['Gateway']['CustomDomainsEnabled'])
+        self.assertEqual(definition['services']['edge']['networks']['platform']['ipv4_address'], gateway['Gateway']['CertificatePermissionPeer'])
+        caddy = (state / 'config/Caddyfile').read_text()
+        self.assertIn('ask http://gateway:8080/_gateway/certificate-permission', caddy); self.assertIn('on_demand', caddy)
+        self.assertIn('tls /run/secrets/tls-fullchain.pem /run/secrets/tls-private.key', caddy)
+        (state / 'edge-tls/operator-owned-certificate').write_text('synthetic retained certificate')
+        config.prepare(plan, state, 'commerce-platform:fixture')
+        self.assertEqual('synthetic retained certificate', (state / 'edge-tls/operator-owned-certificate').read_text())
+        (state / 'routes/custom-host-synthetic.json').write_text('{}')
+        with self.assertRaisesRegex(ValueError, 'Keep custom domains enabled'): config.prepare(self.plan, state, 'commerce-platform:fixture')
+
+    def test_custom_domain_inputs_reject_unusable_origin_ports_and_readable_credentials(self):
+        for update in ({'AllowCloudWrites': False}, {'OriginIpv4': '127.0.0.1'}, {'OriginIpv4': '192.168.0.1'}, {'AcmeEmail': 'invalid'}, {'ApiTokenFile': 'relative-file'}):
+            plan = self.custom_domain_plan(); plan['Providers']['CustomDomains'].update(update)
+            with self.subTest(fields=tuple(update)), self.assertRaises(ValueError): config.validate(plan)
+        plan = self.custom_domain_plan(); plan['HttpsPort'] = 9443
+        with self.assertRaises(ValueError): config.validate(plan)
+        plan = self.custom_domain_plan(); Path(plan['Providers']['CustomDomains']['ApiTokenFile']).chmod(0o640)
+        with self.assertRaises(ValueError): config.validate(plan)
+
+    def test_mobile_publisher_namespace_is_explicit_validated_and_rendered_without_changing_deployment(self):
+        plan = copy.deepcopy(self.plan); plan['MobileApplicationIdPrefix'] = 'com.publisher'
+        state = self.root / 'publisher-state'; original = config.prepare(plan, state, 'commerce-platform:fixture')
+        for role in ('saas', 'bootstrap'):
+            self.assertEqual('com.publisher', json.loads((state / 'config' / (role + '.json')).read_text())['TenantOnboarding']['MobileApplicationIdPrefix'])
+        plan['MobileApplicationIdPrefix'] = 'com.nextpublisher'
+        replay = config.prepare(plan, state, 'commerce-platform:fixture')
+        self.assertEqual(original['Credentials'], replay['Credentials']); self.assertEqual(original['MasterKey'], replay['MasterKey'])
+        del plan['MobileApplicationIdPrefix']; self.assertEqual('test.example', config.validate(plan)['MobileApplicationIdPrefix'])
+        for prefix in ('', 'com.example', 'com.example.app', 'com.class', 'com.owner-name', 'Com.Publisher', 'com.' + 'a' * 147):
+            invalid = copy.deepcopy(self.plan); invalid['MobileApplicationIdPrefix'] = prefix
+            with self.subTest(prefix=prefix), self.assertRaises(ValueError): config.validate(invalid)
+
     def test_private_identity_route_preserves_public_issuer_and_admin_boundary(self):
         state = self.root / 'private-identity-state'
         original = config.prepare(self.plan, state, 'commerce-platform:fixture')

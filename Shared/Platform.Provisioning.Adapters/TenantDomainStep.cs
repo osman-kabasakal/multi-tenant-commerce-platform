@@ -35,14 +35,22 @@ public sealed class TenantDomainOptions
     public string TargetFingerprint()=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new {Provider,WildcardConfigured,ZoneId,ZoneName,TargetHost,Proxied}))));
 }
 
-public sealed class TenantDomainStep(PortableOnboardingOptions options,TenantDomainOptions dns,IHttpClientFactory clients) : IProvisioningStep
+public sealed class TenantDomainStep(PortableOnboardingOptions options,TenantDomainOptions dns,IHttpClientFactory clients,CloudflareTenantDomains? custom=null,TenantDomainRegistry? registry=null) : IProvisioningStep
 {
     public string Name=>"domains";
     public async Task<ProvisioningStepResult> ExecuteAsync(TenantProvisioningRequest request,IReadOnlyDictionary<string,ProvisioningStepResult> completed,CancellationToken ct)
     {
         request.Validate();
-        var hosts=new[] {new Uri(options.StoreUrl(request.Slug)).Host,new Uri(options.AdminUrl(request.Slug)).Host};
+        var hosts=new[] {new Uri(options.StoreUrl(request)).Host,new Uri(options.AdminUrl(request)).Host};
         var resources=new Dictionary<string,string> { ["storeHost"]=hosts[0],["adminHost"]=hosts[1] };
+        if(request.Domain is {} selected)
+        {
+            if(custom==null || registry==null)throw new InvalidOperationException("Configure the custom domain worker before tenant enrollment.");
+            var binding=await registry.RequireVerifiedAsync(selected.Id,selected.OwnerSubject,request.TenantId,options.DeploymentId,ct);
+            if(TenantDomainSelection.From(binding)!=selected)throw new InvalidOperationException("The domain binding differs from the immutable tenant request.");
+            foreach(var pair in await custom.EnsureRecordsAsync(binding,ct))resources[pair.Key]=pair.Value;
+            resources["domainRequestId"]=selected.Id.ToString("N");return new("CloudflareCustom",resources);
+        }
         if (dns.Provider=="Wildcard") return new("Wildcard",resources);
         if (dns.Provider!="Cloudflare" || !dns.AllowCloudWrites) throw new InvalidOperationException("Cloud DNS writes have not been enabled.");
         using var client=clients.CreateClient("onboarding-dns");

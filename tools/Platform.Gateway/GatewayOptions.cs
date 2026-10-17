@@ -6,6 +6,8 @@ public sealed class GatewayOptions
 {
     public string Provider { get; init; } = "";
     public string RouteDirectory { get; init; } = "";
+    public bool CustomDomainsEnabled { get; init; }
+    public string CertificatePermissionPeer { get; init; } = "";
     public string StoreBaseUrl { get; init; } = "";
     public string AdminBaseUrl { get; init; } = "";
     public string CommerceUpstream { get; init; } = "";
@@ -28,6 +30,8 @@ public sealed class GatewayOptions
             throw new InvalidOperationException("Mount an absolute private tenant route directory.");
         for (var path = new DirectoryInfo(RouteDirectory); path != null; path = path.Parent)
             if (path.LinkTarget != null) throw new InvalidOperationException("Tenant route directories cannot contain symbolic links.");
+        if (CustomDomainsEnabled && !System.Net.IPAddress.TryParse(CertificatePermissionPeer,out _))
+            throw new InvalidOperationException("Bind custom domain certificate permission to the private edge peer.");
         var store = Origin(StoreBaseUrl, false); var admin = Origin(AdminBaseUrl, false);
         if (store.Host == admin.Host || Uri.CheckHostName(store.Host) != UriHostNameType.Dns || Uri.CheckHostName(admin.Host) != UriHostNameType.Dns)
             throw new InvalidOperationException("Configure distinct store/admin parent domain origins.");

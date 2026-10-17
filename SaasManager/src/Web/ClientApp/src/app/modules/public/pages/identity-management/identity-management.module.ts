@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { IdentityManagementRoutingModule } from './identity-management-routing.module';
 import {ReactiveFormsModule} from '@angular/forms';
 import { RegistrationComponent } from './registration/registration.component';
+import {TenantDomainOwnershipComponent} from '../../../shared/components/tenant-domain-ownership/tenant-domain-ownership.component';
 import {SharedModule} from '../../../shared/shared.module';
 
 
@@ -16,6 +17,7 @@ import {SharedModule} from '../../../shared/shared.module';
     CommonModule,
     IdentityManagementRoutingModule,
     SharedModule,
+    TenantDomainOwnershipComponent,
   ],
   exports: [
 

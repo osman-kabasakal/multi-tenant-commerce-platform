@@ -74,7 +74,7 @@ public sealed class IosReleaseCoordinator(IosReleaseBindingOptions options, Port
     {
         Policy(request);
         if (!completed.TryGetValue("publication", out var published) || published.Provider != "Portable" ||
-            published.Resources.GetValueOrDefault("readiness") != "Verified" || published.Resources.GetValueOrDefault("storeUrl") != deployment.StoreUrl(request.Slug) ||
+            published.Resources.GetValueOrDefault("readiness") != "Verified" || published.Resources.GetValueOrDefault("storeUrl") != deployment.StoreUrl(request) ||
             !completed.TryGetValue("google-firebase", out var cloud) || cloud.Provider != "Google")
             throw new InvalidOperationException("iOS scheduling requires verified public tenant readiness and Google provisioning.");
         var firebase = MobileReleaseFiles.Parse<TenantFirebaseConfiguration>(await secrets.GetAsync(request.TenantId, TenantFirebaseConfiguration.SecretName, ct));
@@ -90,7 +90,7 @@ public sealed class IosReleaseCoordinator(IosReleaseBindingOptions options, Port
             throw new InvalidOperationException("The encrypted Firebase configuration belongs to another tenant, deployment or checkpoint.");
         var plan = new IosReleasePlan(request.TenantId, deployment.DeploymentId, firebase.IosBundleId, options.DevelopmentTeam,
             options.SigningCertificateSha256, options.ExpectedSourceHash, options.BuildNumber, firebase.ProjectId, firebase.ProjectNumber,
-            firebase.IosAppId, IosReleaseOptions.SdkHash(firebase), deployment.StoreUrl(request.Slug))
+            firebase.IosAppId, IosReleaseOptions.SdkHash(firebase), deployment.StoreUrl(request))
             { IosPushTransport = firebase.IosPushTransport == "Apns" ? "Apns" : null };
         plan.Validate(); return (plan, firebase);
     }

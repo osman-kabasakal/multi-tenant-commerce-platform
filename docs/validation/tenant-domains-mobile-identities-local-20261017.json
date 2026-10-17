@@ -1,0 +1,44 @@
+{
+  "dateUtc": "2026-10-17",
+  "scope": "local staged-source validation for tenant domains and versioned mobile identities",
+  "cleanSourceSnapshot": true,
+  "publicSourceFilenameGuard": {
+    "passed": true,
+    "trackedFiles": 13256
+  },
+  "gitleaks": {
+    "passed": true,
+    "findings": 0
+  },
+  "tests": {
+    "portableProvisioning": 157,
+    "googleProvisioning": 89,
+    "gateway": 55,
+    "registrationSecurity": 127,
+    "notificationRouting": 31,
+    "postgresIntegrationChecks": 158,
+    "angularHeadless": 8,
+    "flutterApnsBridge": 12,
+    "mobilePythonTools": 52,
+    "productionConfigAndBackupPython": 31
+  },
+  "builds": {
+    "portalRelease": true,
+    "macIosWorker": true,
+    "cloudTool": true,
+    "installerWithBuildTypeInstaller": true,
+    "angularProduction": true
+  },
+  "liveAcceptance": {
+    "newDomainDnsAndTls": false,
+    "newPackageNativeAndroid": false,
+    "newPackageSignedIos": false,
+    "physicalDevice": false
+  },
+  "remoteGithubActionsRun": false,
+  "notes": [
+    "Native build and cloud delivery gates remain separate from synthetic local receipts.",
+    "GitHub Actions account quota prevented a new remote run.",
+    "Existing dependency audit warnings remain tracked in docs/DEPENDENCY_SECURITY.md."
+  ]
+}

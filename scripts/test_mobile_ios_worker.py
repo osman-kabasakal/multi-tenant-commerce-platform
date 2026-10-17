@@ -33,6 +33,16 @@ class IosWorkerNativeTests(unittest.TestCase):
     def private_json(self, name, value):
         path = self.root / name; path.write_text(json.dumps(value)); path.chmod(0o600); return path
 
+    def test_versioned_ios_plan_binds_the_native_identity_before_signing(self):
+        identity='33333333-3333-3333-3333-333333333333'
+        plan=dict(self.plan, mobileIdentityId=identity)
+        self.assertEqual(worker.read_plan(self.private_json('identity-plan.json',plan)),plan)
+        tenant=dict(self.tenant, mobileIdentityId=identity.replace('-', ''))
+        worker.bind(plan,tenant,self.inputs)
+        with self.assertRaises(ValueError): worker.bind(plan,self.tenant,self.inputs)
+        for value in [None,'0' * 32,'00000000-0000-0000-0000-000000000000','../foreign']:
+            with self.subTest(value=value), self.assertRaises(ValueError): worker.read_plan(self.private_json('bad-identity.json',dict(plan,mobileIdentityId=value)))
+
     def test_complete_private_plan_is_required(self):
         path = self.private_json("plan.json", self.plan)
         self.assertEqual(worker.read_plan(path), self.plan)

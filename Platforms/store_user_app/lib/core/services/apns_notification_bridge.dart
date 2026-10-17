@@ -17,6 +17,7 @@ class ApnsNotificationBridge {
     this.channel = const MethodChannel('multi_tenant_commerce/apns_v1'),
     this.expectedBundle = const String.fromEnvironment('PACKAGE_NAME_IOS'),
     this.expectedTeam = const String.fromEnvironment('IOS_DEVELOPMENT_TEAM'),
+    this.identityId = const String.fromEnvironment('MOBILE_IDENTITY_ID'),
   });
 
   static bool get enabled =>
@@ -28,6 +29,7 @@ class ApnsNotificationBridge {
   final MethodChannel channel;
   final String expectedBundle;
   final String expectedTeam;
+  final String identityId;
   final Future<void> Function(String) onToken;
   final Future<void> Function(Map<String, dynamic>) onOpened;
   final FutureOr<void> Function(Map<String, dynamic>) onMessage;
@@ -35,12 +37,18 @@ class ApnsNotificationBridge {
   String? _pendingToken;
   Future<ApnsRegistration>? _initializing;
 
-  static String encode(String token) {
+  static String encode(String token, {String identityId = ''}) {
     if (token.length < 2 ||
         token.length > 512 ||
         token.length.isOdd ||
         !RegExp(r'^[a-fA-F0-9]+$').hasMatch(token)) {
       throw const FormatException('Invalid APNs device token.');
+    }
+    if (identityId.isNotEmpty) {
+      if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(identityId) || identityId == '0' * 32) {
+        throw const FormatException('Invalid mobile identity reference.');
+      }
+      return 'apns-v2:production:$identityId:${token.toLowerCase()}';
     }
     return prefix + token.toLowerCase();
   }
@@ -76,7 +84,7 @@ class ApnsNotificationBridge {
     _pendingToken = null;
     return ApnsRegistration(
       allowed,
-      allowed && token is String ? encode(token) : null,
+      allowed && token is String ? encode(token, identityId: identityId) : null,
     );
   }
 
@@ -87,12 +95,12 @@ class ApnsNotificationBridge {
         if (token is! String) {
           throw const FormatException('Invalid APNs registration event.');
         }
-        encode(token);
+        encode(token, identityId: identityId);
         if (!_verified) {
           _pendingToken = token;
           return;
         }
-        await onToken(encode(token));
+        await onToken(encode(token, identityId: identityId));
       case 'opened':
         if (_verified && call.arguments is Map) {
           await onOpened(Map<String, dynamic>.from(call.arguments as Map));
@@ -112,7 +120,7 @@ class ApnsNotificationBridge {
   Future<String?> getToken() async {
     if (!await permission()) return null;
     final token = await channel.invokeMethod<String>('getToken');
-    return token == null ? null : encode(token);
+    return token == null ? null : encode(token, identityId: identityId);
   }
 
   Future<void> consumeCacheRefresh(Future<void> Function() refresh) async {
