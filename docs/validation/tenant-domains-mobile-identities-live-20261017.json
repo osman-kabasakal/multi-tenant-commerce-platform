@@ -1,6 +1,6 @@
 {
-  "checkedAtUtc": "2026-10-17T17:26:53.211787+00:00",
-  "scope": "Live custom domain and versioned Android identity; signed iOS and physical acceptance pending",
+  "checkedAtUtc": "2026-10-17T18:29:00Z",
+  "scope": "Live custom domain, actual signed Android/iOS distribution, automatic identity promotion and initial physical store-content acceptance; later UI issues tracked separately",
   "runtimeImageRevision": "a3fd3cbbd75703831bcc8cb29c548350d83b98c7",
   "schemaAndMacWorkerRevision": "22fee85e55995acaa15f619c41a4fd62f35e5c0f",
   "sameOwnedMinimalOracleVm": {
@@ -36,19 +36,60 @@
   },
   "ios": {
     "nativeArchiveReachedCodesign": true,
-    "signedIpaVerified": false,
-    "distributionVerified": false,
-    "installedOnPhysicalDevice": false,
+    "signedIpaVerified": true,
+    "distributionVerified": true,
+    "installedOnPhysicalDevice": true,
     "physicalAppFlowVerified": false,
     "apnsDeliveryVerified": false,
-    "waitingForMacKeychainAccess": true
+    "waitingForMacKeychainAccess": false,
+    "nativeXcodeArchiveAndExportSucceededInFailedAttempt": true,
+    "verificationRequirementArgumentFixed": true,
+    "realMacIdentifierAcceptanceAndRejectionTestPassed": true,
+    "pythonChecksPassed": 56,
+    "physicalAppLaunched": true,
+    "userConfirmedStoreContent": true,
+    "symbolsUploaded": true,
+    "actualDistributionDownloadMatchesRetainedIpa": true,
+    "artifactBytes": 19347385,
+    "artifactSha256": "00230ee45ee80a35f3e49d9b40feb474393cb63a782061013d554c0fb2b54a28",
+    "sourceHash": "179ff5a08df154d7d421aac3a8a13cef1d9a450de385773b86a878ee7fe7f99b"
   },
   "sourceRepair": {
     "operatorApproved": true,
     "onlyIosSourceChanged": true,
     "androidReceiptPreserved": true,
-    "appendOnlyAuditReadBack": true
+    "appendOnlyAuditReadBack": true,
+    "appendOnlyRepairCount": 3,
+    "latestIosSourceHash": "179ff5a08df154d7d421aac3a8a13cef1d9a450de385773b86a878ee7fe7f99b"
   },
   "githubActionsRun": false,
-  "newVmCreated": false
+  "newVmCreated": false,
+  "nativeIosRecipeRevision": "fb02b42f14dc488445946a8b86bbd19e5fbfc66c",
+  "branding": {
+    "tenantFlavorGenerated": true,
+    "tenantSpecificLauncherIconsGenerated": false,
+    "tenantSpecificNativeSplashGenerated": false,
+    "sharedTemplateAssetsUsed": true,
+    "scope": "First accepted signed release only; separate branding enhancement in progress"
+  },
+  "identityPromotion": {
+    "observedOldIdentityActiveWhileIosPending": true,
+    "bothActualSignedReceiptsRequired": true,
+    "newIdentityActive": true,
+    "oldIdentityRetiredAndPreserved": true,
+    "browserChecksPassed": 9
+  },
+  "backups": {
+    "completeConsistentLinuxSnapshotVerified": true,
+    "offboxAllFourArchiveChecksumsVerified": true,
+    "separateMacArtifactAndSymbolsBackupVerified": true,
+    "appleDistributionPrivateKeyExported": false
+  },
+  "subsequentUiReports": {
+    "drawerGreyArea": true,
+    "profileLogoMissing": true,
+    "registrationNetworkErrorDuringBackupOutage": true,
+    "registrationGet200AfterResume": true,
+    "completePhysicalUiAcceptance": false
+  }
 }
