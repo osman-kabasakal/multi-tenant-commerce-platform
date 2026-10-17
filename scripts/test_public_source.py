@@ -13,7 +13,7 @@ class SourceGuardTests(unittest.TestCase):
             sandbox=Path(directory);(sandbox/'scripts').mkdir();shutil.copyfile(root/'scripts/check_public_source.py',sandbox/'scripts/check_public_source.py')
             subprocess.run(['git','init','-q',str(sandbox)],check=True)
             allowed=['Ecommerce/src/Build/Grand.Common.props','Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/css/custom.css']
-            forbidden=['other/build/custom.css','Ecommerce/src/Build/private.key','Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/fonts/private.p8','Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/nested/obj/cache.json']
+            forbidden=['Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/config/appsettings.json','other/build/custom.css','Ecommerce/src/Build/private.key','Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/fonts/private.p8','Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/nested/obj/cache.json']
             for name in allowed+forbidden:
                 path=sandbox/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('fixture')
             subprocess.run(['git','add','--',*allowed],cwd=sandbox,check=True)

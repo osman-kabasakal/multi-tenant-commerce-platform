@@ -58,3 +58,6 @@ output/
 !**/wwwroot/assets/files/exportimport/Index.htm
 **/wwwroot/assets/images/uploaded/*
 !**/wwwroot/assets/images/uploaded/placeholder.txt
+
+# Runtime settings are never source UI assets.
+Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/**/appsettings*.json

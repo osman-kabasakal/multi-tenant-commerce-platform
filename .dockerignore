@@ -43,3 +43,6 @@
 **/*service-account*.json
 **/*service_account*.json
 **/credentials.json
+
+# Runtime settings are never source UI assets.
+Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/**/appsettings*.json

@@ -17,6 +17,7 @@ for name in filter(None,files):
     if '/wwwroot/assets/files/exportimport/' in name and Path(name).name != 'Index.htm':errors.append(name)
     if '/wwwroot/assets/images/uploaded/' in name and Path(name).name != 'placeholder.txt':errors.append(name)
     base=Path(name).name
+    if name.startswith('Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/') and base.startswith('appsettings') and base.endswith('.json'):errors.append(name)
     if (base=='.env' or base.startswith('.env.')) and base!='.env.example':errors.append(name)
 if errors:
     print('Forbidden tracked files:\n'+'\n'.join(sorted(set(errors))),file=sys.stderr);sys.exit(1)

@@ -42,8 +42,9 @@ def main():
             raise RuntimeError('The real Docker context retained private runtime configuration or keys.')
         if any((root / path).exists() for path in ('.git', '.local', '.codegraph')):
             raise RuntimeError('The real Docker context retained Git history or private local state.')
-        if any((root / ui_probe.relative_to(ROOT) / relative).exists() for relative in ui_private):
-            raise RuntimeError('The source UI build-directory exception retained private or generated content.')
+        retained = [relative for relative in ui_private if (root / ui_probe.relative_to(ROOT) / relative).exists()]
+        if retained:
+            raise RuntimeError('The source UI build-directory exception retained synthetic private/generated files: ' + ', '.join(retained))
         if not (root / ui.relative_to(ROOT) / 'css/custom.css').is_file() or not (root / ui.relative_to(ROOT) / 'js/jquery.min.js').is_file():
             raise RuntimeError('The actual Docker context lost the shipped admin CSS or JavaScript.')
         for path in root.rglob('*'):
