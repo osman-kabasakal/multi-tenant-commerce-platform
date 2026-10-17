@@ -1,11 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net8.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><IsTestProject>true</IsTestProject><IsPackable>false</IsPackable></PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../Ecommerce/src/Web/Grand.Web/Controllers/PushNotificationsController.cs" Link="Production/PushNotificationsController.cs" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="8.0.13" />
     <ProjectReference Include="../../Ecommerce/src/Web/Grand.Web.Common/Grand.Web.Common.csproj" Private="true" AdditionalProperties="BuildType=Backend" />
     <ProjectReference Include="../../Ecommerce/src/AdminPlugins/Famizyo.Simpra/Famizyo.Simpra.csproj" AdditionalProperties="BuildType=Backend" />
     <Compile Include="../../Ecommerce/src/Web/Grand.Web.Admin/Infrastructure/StorePushLinks.cs" Link="Production/StorePushLinks.cs" />
-    <ProjectReference Include="../../Shared/Platform.Notifications/Platform.Notifications.csproj" />
-    <ProjectReference Include="../../Ecommerce/src/Business/Grand.Business.Marketing/Grand.Business.Marketing.csproj" />
+    <ProjectReference Include="../../Shared/Platform.Notifications/Platform.Notifications.csproj" AdditionalProperties="BuildType=Backend" />
+    <ProjectReference Include="../../Ecommerce/src/Business/Grand.Business.Marketing/Grand.Business.Marketing.csproj" AdditionalProperties="BuildType=Backend" />
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
     <PackageReference Include="MSTest.TestAdapter" Version="3.3.1" />

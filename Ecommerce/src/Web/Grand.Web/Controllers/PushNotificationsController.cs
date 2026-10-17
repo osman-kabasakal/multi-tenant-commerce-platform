@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Grand.Business.Core.Interfaces.Marketing.PushNotifications;
 using Grand.Domain.PushNotifications;
 using Grand.Infrastructure;
@@ -18,8 +19,21 @@ public class PushNotificationsController : BasePublicController
         _pushNotificationsService = pushNotificationsService;
     }
 
+    // Authenticated mobile clients use JSON; the existing browser endpoint accepts form fields.
     [IgnoreApi]
     [HttpPost]
+    [ActionName(nameof(ProcessRegistration))]
+    [Consumes("application/json")]
+    public virtual Task<IActionResult> ProcessRegistrationJson([FromBody] PushRegistrationRequest model)
+    {
+        if (!ModelState.IsValid || model == null || model.Success == null || model.Success.Value && string.IsNullOrWhiteSpace(model.Value))
+            return Task.FromResult<IActionResult>(BadRequest("Invalid notification registration."));
+        return ProcessRegistration(model.Success.Value, model.Value);
+    }
+
+    [IgnoreApi]
+    [HttpPost]
+    [Consumes("application/x-www-form-urlencoded", "multipart/form-data")]
     public virtual async Task<IActionResult> ProcessRegistration(bool success, string value)
     {
         if (success)
@@ -68,4 +82,11 @@ public class PushNotificationsController : BasePublicController
 
         return new JsonResult("");
     }
+}
+public sealed class PushRegistrationRequest
+{
+    [Required]
+    public bool? Success { get; set; }
+    [StringLength(4096)]
+    public string Value { get; set; } = "";
 }
