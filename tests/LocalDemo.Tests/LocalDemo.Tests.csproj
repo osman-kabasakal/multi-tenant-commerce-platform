@@ -8,6 +8,9 @@
   </PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <Compile Include="../../Ecommerce/src/Installer/Grand.Installer.Cli/Services/ManagedTenantDomain.cs" Link="Production/ManagedTenantDomain.cs" />
+    <Compile Include="../../Ecommerce/src/Installer/Grand.Installer.Cli/Models/TenantStatusMessage.cs" Link="Production/TenantStatusMessage.cs" />
+    <ProjectReference Include="../../Shared/Platform.Provisioning/Platform.Provisioning.csproj" />
     <Compile Include="../../Ecommerce/src/Web/Grand.Web.ExternalSettings/DataProtection/TenantAwareDataProtectionProvider.cs" Link="Production/TenantAwareDataProtectionProvider.cs" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
     <PackageReference Include="Moq" Version="4.20.72" />

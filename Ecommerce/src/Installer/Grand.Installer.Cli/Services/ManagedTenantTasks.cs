@@ -122,7 +122,7 @@ public static class ManagedTenantTasks
         else if(task=="tenant-domain")
         {
             var selected=await ManagedTenantDomain.VerifyAsync(config,message)??throw new InvalidOperationException("A verified domain selection is required.");
-            await ManagedTenantDomain.UpdateAsync(store,scope.ServiceProvider.GetRequiredService<Grand.Business.Core.Interfaces.Common.Stores.IStoreService>(),selected);
+            await ManagedTenantDomain.UpdateAsync(store,scope.ServiceProvider.GetRequiredService<Grand.Business.Core.Interfaces.Common.Stores.IStoreService>(),selected,scope.ServiceProvider.GetRequiredService<Grand.Infrastructure.MultiTenant.ITenantIdentityAccessor>());
         }
         else
         {

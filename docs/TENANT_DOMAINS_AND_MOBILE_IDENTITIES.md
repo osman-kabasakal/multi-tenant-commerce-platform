@@ -124,3 +124,28 @@ dotnet run --project tools/Platform.Cloud -- export-mobile \
 - Aktif kimliği değiştirmek için SQL kısıtlarını kaldırmayın. Veri/anahtar kaybında tutarlı yedeği geri getirin; farklı sertifika veya kaynak seçmek mevcut hazırlanmış işi değiştirmez.
 
 [GrandNode installer](TENANT_INITIALIZATION.md), [yedekleme](BACKUP_RESTORE.md), [Google/Firebase](GOOGLE_FIREBASE.md), [portal derlemeleri](PORTAL_APP_BUILDS.md) ve [SSH/Docker dağıtımı](ORACLE_SSH_DOCKER_DEPLOYMENT.md) ayrıntıları tamamlayıcıdır.
+
+
+## Geçişte doğrulama ve tekrar deneme
+
+Portalda TXT doğrulama isteği sunucu hatası veriyorsa operatör dar SaaS rolünün güncel runtime izinlerini kontrol etmelidir. Normal `production.py up` işlemi owner bootstrap sonrasında [aynı SQL kaynağını](../infra/production/runtime-security-grants.sql) uygular. `domain_requests.error_code` alanını temizleme yetkisi TXT tekrar kontrolü için gereklidir; bu yetki sahipliği `Verified` yapma veya challenge değiştirme yetkisi vermez. Uygulamaya owner/superuser hesabı vermeyin. [Gerçek üretim rolü regresyonu](../tests/Provisioning.Integration/ProductionPermissionsFixture.cs) aynı SQL dosyasını izole PostgreSQL'de uygular ve bu sınırları denetler.
+
+DNS ve TLS hazır olduğu hâlde mağaza `x-store-token header is not valid for this request` döndürüyorsa yalnızca genel DNS sonucuna bakmak yeterli değildir. Commerce servisi `TenantRouting:CustomDomainsEnabled=true` ile aynı worker-owned `routes` dizinini **salt okunur** bağlamalıdır. Mağaza, özel host kaydındaki canonical slug ile JWT audience ve `sub_domainname` claim'ini doğrular; çözülen store ID de aynı host kaydına ait olmalıdır. İstemciden gelen `X-Platform-Tenant` başlığı sahiplik kanıtı değildir. Yönetim hostname'i mağaza rolü olarak kabul edilmez. Standart Production renderer bu ayar ve mount'u üretir.
+
+Operatör hata nedenini giderdikten sonra portalda **Geçişi yeniden dene** seçilir. Aynı değiştirilemez plan ve tamamlanan aşamalar korunur; yeni domain isteği, yinelenen DNS kaydı veya ikinci Firebase projesi oluşturulmaz. `dns` aşamasının tamamlanması tek başına ana adresin değiştiği anlamına gelmez: gerçek HTTPS, tenant/store hazır olma yanıtı ve yönetim login yönlendirmesi de doğrulanır. Mobil aktif kimlik alanını elle değiştirmeyin; her iki imzalı native makbuz planla eşleştiğinde otomatik güncellenir.
+
+
+## Installer tenant bağlamı ve bileşen güncellemesi
+
+GrandNode cache ve store olayları HTTP isteği olmayan CLI içinde de seçili mağaza bağlamını gerektirir. Alan adı güncellemesi sahipliği doğrulanan **Store.Id** ile `ITenantIdentityAccessor` bağlamını kurar; platform tenant UUID'si cache öneki yerine kullanılmaz. İşlem mevcut başka işletme bağlamını reddeder, aynı mağaza bağlamını korur ve kendisinin kurduğu bağlamı hata durumunda da temizler. `StoreService.UpdateStore` üzerinden normal cache invalidation ve store olayları çalışmaya devam eder. Bu sınır [gerçek AsyncLocal kullanan testlerle](../tests/LocalDemo.Tests/ManagedTenantDomainContextTests.cs) denetlenir.
+
+Yeni kurulum ve genel uygulama değişikliği için standart Production Dockerfile kullanılır. Yalnız installer bileşeninin kaynakları değiştiğinde, operatör mevcut doğrulanmış sunucu/Android imajlarından Android SDK'yı yeniden indirmeden güncelleme yapabilir:
+
+```sh
+python3 scripts/production_installer.py --base-revision FULL_PREVIOUS_COMMIT_SHA
+python3 scripts/production_image.py verify --image commerce-platform:NEW_COMMIT_FIRST_12
+python3 scripts/production_android.py verify --image commerce-platform:NEW_COMMIT_FIRST_12-android
+python3 scripts/production.py up --config /absolute/private/deployment.json --state /absolute/private/state --image commerce-platform:NEW_COMMIT_FIRST_12 --no-build
+```
+
+Önce düzeltmeyi commit edin; araç yalnız committed Git arşivini kullanır. Aynı Linux amd64 operatörünün iki temel imajı bulunmalı, tam temel commit kimliği eşleşmeli ve en az 12 GiB boş alan olmalıdır. Araç değişen dosyaları denetler: installer dışındaki çalışma zamanı veya genel derleme kaynağı değişmişse kısmi güncellemeyi reddeder. Installer `BuildType=Installer` ile tüm eklentileriyle yeniden yayınlanır. Diğer uygulama ve Android SDK temel katmanları, kullanıcı, ortam, entrypoint ve komut ayarları karşılaştırılarak korunur. Git dışında oluşan makinece okunabilir kayıt, temel/hedef revision ve imaj kimliklerini içerir. Bu yöntem yeni bir tam SaaS/worker/SDK derlemesi olarak raporlanmaz; tam temiz kurulum güncel standart Dockerfile ile yapılabilir.

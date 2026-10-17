@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Grand.Business.Core.Interfaces.Common.Stores;
 using Grand.Domain.Stores;
+using Grand.Infrastructure.MultiTenant;
 using Grand.Installer.Cli.Models;
 using Microsoft.Extensions.Configuration;
 using Platform.Provisioning;
@@ -34,20 +35,28 @@ public static class ManagedTenantDomain
             throw new InvalidOperationException("The custom installer origin differs from its owned domain snapshot.");
         return selected;
     }
-    public static async Task UpdateAsync(Store store,IStoreService service,TenantDomainSelection domain)
+    public static async Task UpdateAsync(Store store,IStoreService service,TenantDomainSelection domain,ITenantIdentityAccessor identity)
     {
-        var storeUrl="https://"+domain.StoreHost;
-        // Keep previous hosts for installed clients and saved links. Only the canonical origin changes.
-        if(Uri.TryCreate(store.Url,UriKind.Absolute,out var previous) && !store.Domains.Any(x=>x.HostName==previous.Host))
-            store.Domains.Add(new DomainHost{HostName=previous.Host,Url=previous.GetLeftPart(UriPartial.Authority)});
-        foreach(var host in store.Domains)host.Primary=false;
-        foreach(var (name,url,primary) in new[]{(domain.StoreHost,storeUrl,true),(domain.AdminHost,"https://"+domain.AdminHost,false)})
+        if(string.IsNullOrWhiteSpace(store.Id))throw new InvalidOperationException("Use the owned store identity for domain migration.");
+        var assigned=string.IsNullOrEmpty(identity.TenantId);
+        if(!assigned && identity.TenantId!=store.Id)throw new InvalidOperationException("Domain migration cannot replace another tenant context.");
+        if(assigned)identity.TenantId=store.Id;
+        try
         {
-            var alias=store.Domains.SingleOrDefault(x=>x.HostName==name);
-            if(alias==null){alias=new DomainHost{HostName=name};store.Domains.Add(alias);}
-            alias.Url=url;alias.Primary=primary;
+            var storeUrl="https://"+domain.StoreHost;
+            // Keep previous hosts for installed clients and saved links. Only the canonical origin changes.
+            if(Uri.TryCreate(store.Url,UriKind.Absolute,out var previous) && !store.Domains.Any(x=>x.HostName==previous.Host))
+                store.Domains.Add(new DomainHost{HostName=previous.Host,Url=previous.GetLeftPart(UriPartial.Authority)});
+            foreach(var host in store.Domains)host.Primary=false;
+            foreach(var (name,url,primary) in new[]{(domain.StoreHost,storeUrl,true),(domain.AdminHost,"https://"+domain.AdminHost,false)})
+            {
+                var alias=store.Domains.SingleOrDefault(x=>x.HostName==name);
+                if(alias==null){alias=new DomainHost{HostName=name};store.Domains.Add(alias);}
+                alias.Url=url;alias.Primary=primary;
+            }
+            store.Url=storeUrl;store.SecureUrl=storeUrl;store.SslEnabled=true;
+            await service.UpdateStore(store);
         }
-        store.Url=storeUrl;store.SecureUrl=storeUrl;store.SslEnabled=true;
-        await service.UpdateStore(store);
+        finally {if(assigned)identity.TenantId=null;}
     }
 }
