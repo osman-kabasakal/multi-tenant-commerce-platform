@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--managed', action='store_true', help='Also verify durable customer dependencies, reconnect recovery and lost PubSub.')
     parser.add_argument('--redis-server', type=Path, help='Optional existing Redis executable; otherwise use an owned Docker container.')
     args = parser.parse_args()
     os.umask(0o077)
@@ -65,6 +66,9 @@ def main():
             settings.chmod(0o600)
             subprocess.run(['dotnet', 'run', '--project', str(ROOT / 'tests/Cache.Integration/Cache.Integration.csproj'),
                 '-c', 'Release', '--', '--verify', str(settings)], cwd=ROOT, check=True, timeout=180)
+            if args.managed:
+                subprocess.run(['dotnet', 'run', '--project', str(ROOT / 'tests/Cache.Integration/Cache.Integration.csproj'),
+                    '-c', 'Release', '--no-build', '--', '--verify-journal', str(settings)], cwd=ROOT, check=True, timeout=180)
         finally:
             if native is not None:
                 native.terminate()

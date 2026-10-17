@@ -1,8 +1,9 @@
+using Grand.Infrastructure;
+using Grand.Infrastructure.Caching.Redis;
 using Grand.Business.Core.Interfaces.Common.Directory;
 using Grand.Data;
 using Grand.Data.Mongo;
 using Grand.Domain.Cache;
-using Grand.Web.Common.Extensions;
 using Grand.Web.MultiTenant.Commands.Queries.StaleCache.Models;
 using Grand.Web.MultiTenant.Commands.StaleCache.Models;
 using MediatR;
@@ -21,17 +22,26 @@ public class StaleCacheKeyQueryHandler : IRequestHandler<StaleCacheQuery, StaleC
     private readonly IDateTimeService _dateTimeService;
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<StaleCacheKeyQueryHandler> _logger;
+    private readonly TenantCacheJournal _journal;
+    private readonly IWorkContext _workContext;
 
     public StaleCacheKeyQueryHandler(
         IRepository<CacheKeyCorrelation> cacheKeyCorrelationRepository, 
         IDateTimeService dateTimeService,
         IConnectionMultiplexer redis,
         ILogger<StaleCacheKeyQueryHandler> logger)
+        : this(cacheKeyCorrelationRepository, dateTimeService, redis, logger, null, null) { }
+
+    public StaleCacheKeyQueryHandler(IRepository<CacheKeyCorrelation> cacheKeyCorrelationRepository,
+        IDateTimeService dateTimeService, IConnectionMultiplexer redis, ILogger<StaleCacheKeyQueryHandler> logger,
+        TenantCacheJournal journal, IWorkContext workContext)
     {
         _cacheKeyCorrelationRepository = cacheKeyCorrelationRepository;
         _dateTimeService = dateTimeService;
         _redis = redis;
         _logger = logger;
+        _journal = journal;
+        _workContext = workContext;
     }
 
     public async Task<StaleCacheResponse> Handle(StaleCacheQuery request, CancellationToken cancellationToken)
@@ -39,6 +49,25 @@ public class StaleCacheKeyQueryHandler : IRequestHandler<StaleCacheQuery, StaleC
         if (request.StaleCacheItems == null || request.StaleCacheItems.Count == 0)
         {
             return new StaleCacheResponse();
+        }
+
+        if (_journal?.Enabled == true)
+        {
+            var ids = request.StaleCacheItems.Select(x => x.CorrelationId).ToArray();
+            var store = _journal.CurrentStore();
+            var customer = _workContext?.CurrentCustomer;
+            if (string.IsNullOrEmpty(store) || _workContext?.CurrentStore?.Id != store || customer == null || string.IsNullOrEmpty(customer.Id))
+                throw new InvalidOperationException("Check client cache only in the current owned customer/store context.");
+            try
+            {
+                var stale = await _journal.StaleAsync(store, customer.Id, ids);
+                return new StaleCacheResponse { StaleCorrelationIds = stale.ToList(), AsOf = DateTime.UtcNow };
+            }
+            catch (RedisException error)
+            {
+                _logger.LogWarning("Client cache tracking unavailable: {ErrorType}", error.GetType().Name);
+                return new StaleCacheResponse { StaleCorrelationIds = ids.Distinct().ToList(), AsOf = DateTime.UtcNow };
+            }
         }
 
         var minAsof = request.StaleCacheItems.OrderBy(x => x.AsOf).First().AsOf;

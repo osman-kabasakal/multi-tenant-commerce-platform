@@ -1,3 +1,9 @@
+using Grand.Infrastructure;
+using Grand.Domain.Customers;
+using Grand.Domain.Stores;
+using Grand.Web.MultiTenant.Controllers;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
@@ -15,7 +21,7 @@ using StackExchange.Redis;
 if (args.Length < 2) throw new ArgumentException("Choose --verify or --server and the private cache fixture config.");
 var config = new ConfigurationBuilder().AddJsonFile(Path.GetFullPath(args[1])).Build();
 if (config["Fixture:Purpose"] != "isolated-tenant-cache-v1") throw new InvalidOperationException("Enable only the isolated cache fixture.");
-if (args[0] == "--server")
+if (args[0] is "--server" or "--server-managed" or "--server-managed-no-subscribe")
 {
     var builder = WebApplication.CreateBuilder(Array.Empty<string>());
     builder.Logging.ClearProviders();
@@ -30,22 +36,59 @@ if (args[0] == "--server")
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddSingleton<ITenantIdentityAccessor, TenantIdentityAccessor>();
     builder.Services.AddSingleton<IMediator>(FixtureProxy.For<IMediator>((method, _) => method.Name == "Publish" ? Task.CompletedTask : throw new NotSupportedException()));
+    builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
+        ["Provisioning:ManagedRuntime"] = (args[0] != "--server").ToString(),
+        ["Redis:RedisPubSubEnabled"] = "true", ["Redis:RedisPubSubChannel"] = config["Fixture:Channel"]
+    });
+    builder.Services.AddSingleton<TenantCacheJournal>();
+    builder.Services.AddSingleton<ClientCacheSocket>();
     builder.Services.AddSingleton<RedisCacheCoordinator>();
     builder.Services.AddSingleton<IMessageBus, RedisMessageBus>();
     builder.Services.AddSingleton<ICacheBase, RedisMessageCacheManager>();
+    builder.Services.AddAuthentication().AddJwtBearer(FrontendAPIConfig.AuthenticationScheme, options => options.TokenValidationParameters = new TokenValidationParameters {
+        ValidateIssuer = true, ValidIssuer = "isolated-cache-fixture", ValidateAudience = true, ValidAudience = "isolated-cache-fixture",
+        ValidateIssuerSigningKey = true, IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(new string('x', 32))),
+        ValidateLifetime = true, ClockSkew = TimeSpan.Zero
+    });
+    builder.Services.AddScoped<IWorkContext>(services => FixtureProxy.For<IWorkContext>((method, _) => {
+        var context = services.GetRequiredService<IHttpContextAccessor>().HttpContext!;
+        return method.Name switch {
+            "get_CurrentStore" => new Store { Id = context.Items["StoreId"]?.ToString() ?? "store-a" },
+            "get_CurrentCustomer" => new Customer { Id = context.Items["CurrentCustomerId"]!.ToString(), Active = true, StoreId = "store-a",
+                CustomerGuid = Guid.Parse(context.Items["CurrentCustomerId"]!.ToString() == "customer-b" ? "00000000-0000-0000-0000-000000000002" : "00000000-0000-0000-0000-000000000001") },
+            _ => throw new NotSupportedException()
+        };
+    }));
+    builder.Services.AddControllers().AddApplicationPart(typeof(FcmWebSocketController).Assembly);
     var app = builder.Build();
+    app.UseWebSockets();
     app.Use(async (context, next) => {
         var store = context.Request.Headers["X-Fixture-Store"].ToString();
         if (store is not ("store-a" or "store-b" or "")) { context.Response.StatusCode = 400; return; }
         context.RequestServices.GetRequiredService<ITenantIdentityAccessor>().TenantId = string.IsNullOrEmpty(store) ? null : store;
         if (context.Request.Query["background"] == "true") context.Items = new Dictionary<object, object?>();
         else if (store.Length > 0) context.Items["StoreId"] = store;
+        context.Items["CurrentCustomerId"] = context.Request.Headers["X-Fixture-Customer"].ToString() is "customer-b" ? "customer-b" : "customer-a";
+        var correlation = Guid.NewGuid().ToString("D");
+        context.Items["CorrelationId"] = correlation;
+        context.Response.Headers["X-Correlation-ID"] = correlation;
         await next();
     });
-    app.MapGet("/value", async (string key, string value, string mode, ICacheBase cache) => {
+    app.MapGet("/value", async (string key, string value, string mode, HttpContext context, ICacheBase cache, IConnectionMultiplexer redis) => {
+        async Task<string> Acquire() {
+            var gate = context.Request.Query["gate"].ToString();
+            if (Guid.TryParseExact(gate, "N", out _)) {
+                var db = redis.GetDatabase(); var prefix = "fixture:cache-acquire:" + gate;
+                await db.StringSetAsync(prefix + ":started", "yes", TimeSpan.FromSeconds(20));
+                using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                while (!await db.KeyExistsAsync(prefix + ":release")) await Task.Delay(20, limit.Token);
+            }
+            return value;
+        }
         var result = mode switch {
-            "async" => await cache.GetAsync(key, () => Task.FromResult(value)),
-            "async-time" => await cache.GetAsync(key, () => Task.FromResult(value), 10),
+            "async" => await cache.GetAsync(key, Acquire),
+            "async-time" => await cache.GetAsync(key, Acquire, 10),
+            "uncached" => await cache.GetAsync(key, Acquire, 0),
             "sync" => cache.Get(key, () => value),
             "sync-time" => cache.Get(key, () => value, 10),
             "set" => await cache.SetAsync(key, () => Task.FromResult(value)),
@@ -62,13 +105,17 @@ if (args[0] == "--server")
         try { await cache.Clear(); return Results.Ok(); }
         catch (InvalidOperationException) { return Results.BadRequest(); }
     });
+    app.MapGet("/socket", async (HttpContext context, ClientCacheSocket stream, TenantCacheJournal journal) =>
+        await stream.ServeAsync(context, journal.CurrentStore(), journal.CurrentCustomer(), TimeSpan.FromMinutes(1)));
+    app.MapControllers();
     _ = app.Services.GetRequiredService<ICacheBase>();
-    await app.Services.GetRequiredService<IMessageBus>().SubscribeAsync();
+    if (args[0] != "--server-managed-no-subscribe") await app.Services.GetRequiredService<IMessageBus>().SubscribeAsync();
     await app.StartAsync();
     Console.WriteLine("READY " + app.Urls.Single()); Console.Out.Flush();
     await app.WaitForShutdownAsync();
     return;
 }
+if (args[0] == "--verify-journal") { await JournalVerification.Run(config, Path.GetFullPath(args[1])); return; }
 if (args[0] != "--verify") throw new ArgumentException("Unknown cache fixture mode.");
 var children = new List<Process>();
 var errors = new List<Task<string>>();
@@ -111,7 +158,7 @@ try
 {
     var first = await Server(Path.GetFullPath(args[1])); var second = await Server(Path.GetFullPath(args[1]));
     await File.WriteAllTextAsync(foreignPath, JsonSerializer.Serialize(new { Fixture = new { Purpose = "isolated-tenant-cache-v1", Connection = config["Fixture:Connection"], Channel = config["Fixture:Channel"] + "-foreign" } }));
-    if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(foreignPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+    if (!System.OperatingSystem.IsWindows()) File.SetUnixFileMode(foreignPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
     var foreign = await Server(foreignPath);
     Check(await Read(first, "store-a", "shared", "a") == "a" && await Read(first, "store-a", "shared", "wrong", "async-time") == "a" &&
         await Read(first, "store-a", "shared", "wrong", "sync") == "a" && await Read(first, "store-a", "shared", "wrong", "sync-time") == "a",

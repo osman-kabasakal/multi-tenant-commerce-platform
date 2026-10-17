@@ -29,6 +29,7 @@ python3 scripts/build_ecommerce_plugins.py --build-type Frontend
 python3 scripts/build_ecommerce_plugins.py --build-type Backend
 python3 scripts/build_ecommerce_plugins.py --build-type Installer
 python3 scripts/build_ecommerce_plugins.py --build-type Background
+python3 scripts/build_ecommerce_plugins.py --build-type Uploader
 ```
 
 Docker bağlamına yerelde oluşmuş uygulama `Plugins` klasörleri alınmaz; kaynak `src/Plugins` ve `src/AdminPlugins` projeleri içeride derlenir. Böylece daha önce başka hedef için üretilmiş ya da eski konumda kalmış DLL’ler imaja karışmaz.

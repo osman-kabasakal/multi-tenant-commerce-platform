@@ -4,6 +4,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="MongoDB.Driver" Version="3.1.0" />
     <ProjectReference Include="../../Shared/Platform.Provisioning.Adapters/Platform.Provisioning.Adapters.csproj" />
+    <Compile Include="../../Ecommerce/src/Installer/Grand.Installer.Cli/Services/ManagedClientCacheTaskRegistration.cs" Link="Production/ManagedClientCacheTaskRegistration.cs" />
     <Compile Include="../../Ecommerce/src/Installer/Grand.Installer.Cli/Services/ManagedScheduleBatch.cs" Link="Production/ManagedScheduleBatch.cs" />
     <Compile Include="../../TenantManager/Provisioning/TenantScheduleHost.cs" Link="Production/TenantScheduleHost.cs" />
   </ItemGroup>

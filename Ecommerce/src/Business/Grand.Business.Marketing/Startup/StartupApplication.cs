@@ -1,3 +1,5 @@
+using Grand.Business.Core.Interfaces.System.ScheduleTasks;
+using Grand.Business.Marketing.Services.BackgroundServices;
 using Grand.Business.Core.Interfaces.Marketing.Campaigns;
 using Grand.Business.Core.Interfaces.Marketing.Contacts;
 using Grand.Business.Core.Interfaces.Marketing.Courses;
@@ -29,6 +31,7 @@ public class StartupApplication : IStartupApplication
         RegisterDocumentsService(services);
         RegisterCommon(services);
         services.AddTenantNotifications(configuration);
+        services.AddScoped<IScheduleTask, ClientCacheNotificationTask>();
         RegisterCustomer(services);
     }
 

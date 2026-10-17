@@ -39,15 +39,8 @@ public class Startup : IStartupApplication
     {
         // application.UseMiddleware<ReleatedCacheKeysMiddleware>();
         
-        // WebSocket desteğini etkinleştir
-        // application.UseWebSockets(new Microsoft.AspNetCore.Builder.WebSocketOptions
-        // {
-        //     KeepAliveInterval = TimeSpan.FromMinutes(2),
-        //     AllowedOrigins = { "*" } // Güvenlik gereksinimlerine göre ayarlanabilir
-        // });
-// WebSocket servisleri için middleware
-        // application.UseMiddleware<WebSocketServiceMiddleware>();
-        
+        application.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
+
         // Eski middleware'i kaldırıp yeni Redis tabanlı middleware'i ekle
         application.UseMiddleware<RedisCacheTrackingMiddleware>();
         

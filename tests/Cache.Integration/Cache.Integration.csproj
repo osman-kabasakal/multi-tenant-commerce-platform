@@ -2,6 +2,14 @@
   <PropertyGroup><TargetFramework>net8.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../Ecommerce/src/Core/Grand.Infrastructure/Grand.Infrastructure.csproj" />
+    <ProjectReference Include="../../Ecommerce/src/Business/Grand.Business.Core/Grand.Business.Core.csproj" />
+    <ProjectReference Include="../../Shared/Platform.Notifications/Platform.Notifications.csproj" />
+    <Compile Include="../../Ecommerce/src/Business/Grand.Business.Marketing/Services/BackgroundServices/ClientCacheNotificationTask.cs" Link="Production/ClientCacheNotificationTask.cs" />
+    <Compile Include="../../Ecommerce/src/Web/Grand.Web.MultiTenant/Controllers/FcmWebSocketController.cs" Link="Production/FcmWebSocketController.cs" />
     <Compile Include="../../Ecommerce/src/Business/Grand.Business.Tenants/Services/TenantServiceProvider/TenantIdentityAccessor.cs" Link="Production/TenantIdentityAccessor.cs" />
+    <Compile Include="../../Ecommerce/src/Web/Grand.Web.MultiTenant/Commands/StaleCache/Handlers/StaleCacheKeyQueryHandler.cs" Link="Production/StaleCacheKeyQueryHandler.cs" />
+    <Compile Include="../../Ecommerce/src/Web/Grand.Web.MultiTenant/Commands/StaleCache/Models/StaleCacheQuery.cs" Link="Production/StaleCacheQuery.cs" />
+    <Compile Include="../../Ecommerce/src/Web/Grand.Web.MultiTenant/Commands/StaleCache/Models/StaleCacheItem.cs" Link="Production/StaleCacheItem.cs" />
+    <Compile Include="../../Ecommerce/src/Web/Grand.Web.MultiTenant/Commands/StaleCache/Models/StaleCacheResponse.cs" Link="Production/StaleCacheResponse.cs" />
   </ItemGroup>
 </Project>

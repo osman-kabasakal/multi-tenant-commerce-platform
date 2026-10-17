@@ -31,7 +31,7 @@ python3 scripts/production.py up --config /absolute/private/deployment.json --st
 python3 scripts/production.py verify --state /absolute/private/production-state
 ```
 
-Kurulum, mevcut anahtar ve hesapları koruyarak ayrı servis ayarını oluşturur. Ortak PostgreSQL okuyucusuna var olan iş tablosunda yalnızca `SELECT` hakkı eklenir; görev servisi veritabanı şeması oluşturmaz veya provisioning işi sahiplenmez. Google proje oluşturucu, Apple anahtarı ve Keycloak yönetici bilgileri bu servise verilmez.
+Kurulum, mevcut anahtar ve hesapları koruyarak ayrı servis ayarını oluşturur. Ortak PostgreSQL okuyucusuna var olan iş tablosunda yalnızca `SELECT` hakkı eklenir; görev servisi veritabanı şeması oluşturmaz veya provisioning işi sahiplenmez. Google proje oluşturucu, App Store Connect dağıtım kimliği ve Keycloak yönetici bilgileri bu servise verilmez. FCM/APNs bildirim görevi seçildiyse mevcut `NotificationCredentialsFile` dosyası ve `FcmApns` için ortak APNs anahtarı salt okunur bağlanır. Alt süreç, parent ortamındaki geniş Google kimliğini temizler ve yalnızca açıkça seçilen bildirim gönderici dosyasını kullanır.
 
 4. Tenant yönetiminde zamanlanmış görevlerin etkinliğini ve aralığını kontrol edin. Harici entegrasyonlar kendi hesap ve ayarlarını gerektirir. SMTP hesabı installer tarafından yapılandırılmışsa parola `platform-secret:store-smtp-password` referansından, o tenant’ın mağaza bağlamıyla çözülür.
 5. Görev kaydındaki son başlangıç/başarı/hata zamanlarını izleyin. E-posta görevi her mesajın hata ve deneme sayısını ayrı tutar: görevde başarı zamanı bulunması bütün mesajların teslim edildiği anlamına gelmez. `QueuedEmail.SentOnUtc` ve `SentTries` alanlarını da kontrol edin.
@@ -53,6 +53,8 @@ GrandNode alt süreci, üç kurulum makbuzunu ve yüklü eklenti sürümlerini d
 Görev alt süreci eklenti DLL’lerini yayımlanan Installer sürümünün `Plugins` klasöründen yükler; tenant’ın ilk kurulumundan kalan kopyaları çalıştırmaz. Yayımlanan klasör salt okunur olabilir. Tenant’ın içerik/ayar kökü ve yazılabilir `Plugins/bin` alanı kendi çalışma dizininde kalır; görev yolunda shadow copy kapatılır. Böylece kod güncellemesi tenant’ın dosyalarını taşımadan yeni sürüme geçer.
 
 Yeni host, yayımlanmış **Installer** uygulamasını kullanır. Dolayısıyla onun eklentileri `BuildType=Installer` ile derlenir. `BaseDir` elle değiştirilmez: [beş hedefin çıktı eşlemesi](TENANT_INITIALIZATION.md#buildtype-ve-çıktı-klasörleri) geçerlidir. Eski `Grand.BackgroundJobExecuter` çıktısının `BuildType=Background` eşlemesi de korunur; Portable görev servisi bu eski hostu açmaz.
+
+Mobil cache değişikliklerinin ayrı gönderimi için host, ilk doğrulanmış tenant çalışmasında `ClientCacheNotificationTask` kaydını ekler. Başlangıç aralığı bir dakikadır; mevcut görev satırı ve yönetici seçimleri değiştirilmez. Ortak FCM/APNs sağlayıcısı, müşteri izinleri ve yeniden deneme sınırları [istemci cache rehberinde](TENANT_CACHE.md#mobil-websocket-ve-ayrı-push-görevi) açıklanır.
 
 ## Kilit ve yeniden başlatma davranışı
 

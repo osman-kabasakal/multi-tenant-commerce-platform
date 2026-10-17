@@ -67,5 +67,6 @@ if [ -n "$PUBLISH" ] && [ -n "$PUBLISH_FOLDER" ]; then
         -c "$CONFIGURATION" \
         -o "$PUBLISH_FOLDER" \
         -p:SourceRevisionId="$GIT_COMMIT" \
-        -p:GitBranch="$GIT_BRANCH"
+        -p:GitBranch="$GIT_BRANCH" \
+        -p:BuildType="$BUILD_TYPE"
 fi

@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "utc": "2026-10-17T06:02:36.674738+00:00",
+  "baseCommit": "5fd350c7f079a3e30a9268e921897828f833fb4e",
+  "checks": {
+    "legacyCache": 12,
+    "managedJournalSocketAndTask": 32,
+    "realMongoScheduleAndCredentialBoundary": 19,
+    "productionConfiguration": 32,
+    "existingNotificationContracts": 29
+  },
+  "nativeRedisCommandPassed": true,
+  "dockerRedisCommandPassed": true,
+  "realWebProcesses": true,
+  "actualFrontendApiJwtValidation": true,
+  "jwtIssuer": "isolated-synthetic-fixture",
+  "actualSocketController": true,
+  "actualStaleQueryHandler": true,
+  "actualNotificationTask": true,
+  "actualLocalSinkSender": true,
+  "controlledHttpStoreAndCustomerRepositories": true,
+  "externalMessagesSent": 0,
+  "remoteGithubActionsExecuted": false,
+  "oracleDeploymentPerformed": false,
+  "sourceFiles": [
+    {
+      "path": "Ecommerce/src/Core/Grand.Infrastructure/Caching/Redis/TenantCacheJournal.cs",
+      "sha256": "c7d4dc542fe4d2c90d50f137a1943cbe1dc85bbe1170e84ea0bdff436eab1cb4"
+    },
+    {
+      "path": "Ecommerce/src/Core/Grand.Infrastructure/Caching/Redis/ClientCacheSocket.cs",
+      "sha256": "fc98816485c4442c2ee4a334aec8e57adb9f9256691b1a72342bac61d42f44ce"
+    },
+    {
+      "path": "Ecommerce/src/Core/Grand.Infrastructure/Caching/RedisTrackedMemoryCacheBase.cs",
+      "sha256": "62802c7a418c3d4b0732eb1192f421ab7debce13248c823878aae3b953b8b0a4"
+    },
+    {
+      "path": "Ecommerce/src/Core/Grand.Infrastructure/Caching/Redis/RedisMessageCacheManager.cs",
+      "sha256": "6d7deb6519a42f0678cd29fce0ac8db9ceb99ce17de2812933fc3dff4cef12b5"
+    },
+    {
+      "path": "Ecommerce/src/Core/Grand.Infrastructure/Extensions/ServiceCollectionExtensions.cs",
+      "sha256": "a47a680e782b8bde008c55db429c50d025146d2d2fa9ce8e35414eebd153886f"
+    },
+    {
+      "path": "Ecommerce/src/Web/Grand.Web.MultiTenant/Controllers/FcmWebSocketController.cs",
+      "sha256": "e2ffd1099dbab963d198892a52ce2696414b1a53648765784068b50cad40bd6f"
+    },
+    {
+      "path": "Ecommerce/src/Web/Grand.Web.MultiTenant/Controllers/StaleCacheController.cs",
+      "sha256": "07443ad45f07994fde3a0246e87778336293010557e29bb93fa3431db556fa86"
+    },
+    {
+      "path": "Ecommerce/src/Web/Grand.Web.MultiTenant/Commands/StaleCache/Handlers/StaleCacheKeyQueryHandler.cs",
+      "sha256": "ab1e81ae3e38c16d967a78a57ae966b7a5f48992f6fcbfbc89390eadefd46ec9"
+    },
+    {
+      "path": "Ecommerce/src/Web/Grand.Web.MultiTenant/Startup.cs",
+      "sha256": "f90ebbca033c5bcb9b8b1ca2f550c5e2eae03cd25d7b864d60abd54e90d44d0f"
+    },
+    {
+      "path": "Ecommerce/src/Business/Grand.Business.Marketing/Services/BackgroundServices/ClientCacheNotificationTask.cs",
+      "sha256": "ca211fdb7d69b5a0193b51618199b57f91f7107c240218c747f246415f4e2636"
+    },
+    {
+      "path": "Ecommerce/src/Business/Grand.Business.Marketing/Startup/StartupApplication.cs",
+      "sha256": "c61cabd19ac6ee4230eeb6c38715ea0504ddf3a96141608d9d063ecd3f7b7e2c"
+    },
+    {
+      "path": "Ecommerce/src/Installer/Grand.Installer.Cli/Services/ManagedClientCacheTaskRegistration.cs",
+      "sha256": "16c2edc8842c88dd960be7cfc01896b8f997812ad77bceb3971e88c7e3340c1e"
+    },
+    {
+      "path": "Ecommerce/src/Installer/Grand.Installer.Cli/Services/ManagedScheduledTasks.cs",
+      "sha256": "a52d8e8f226dbf003fc6c50fede32dd36afa8f0ce648cde9c7de6bebb09c3b84"
+    },
+    {
+      "path": "TenantManager/Provisioning/TenantScheduleHost.cs",
+      "sha256": "42e4b524428c6cc2c199b5c0c2822af4e3d1172b57ad96e9da5c3f5e7bc86ad5"
+    },
+    {
+      "path": "scripts/production_config.py",
+      "sha256": "13a611f09f777296f74f212e9b3c1e37b70f41f7113359d2f24a236bc327ae84"
+    },
+    {
+      "path": "scripts/test_production_config.py",
+      "sha256": "c15978509aa8f12999e437366fe3fee690930349084c94da1b434eaf9b922803"
+    },
+    {
+      "path": "scripts/smoke_cache.py",
+      "sha256": "8c333010d6aa53f185a02cc8927f6019e1c5c7e772f6de0cc236b1ba01a021e3"
+    },
+    {
+      "path": "tests/Cache.Integration/Program.cs",
+      "sha256": "38160185d8260cc3b6e0e8c8229a0e055c9d9fe0f8b06e1f3b595f4cb2629458"
+    },
+    {
+      "path": "tests/Cache.Integration/JournalVerification.cs",
+      "sha256": "c2ff846314304f0bd73cddf4ad4a5b064ea48cbe97c6af863f9fdc69ac55bc6f"
+    },
+    {
+      "path": "tests/Tenant.Tasks.Integration/Program.cs",
+      "sha256": "4c2bf811c094f95fbcc5efd9d0aa63bfef6fa8c26c10a8a7ad415edf677a6b53"
+    }
+  ],
+  "remainingAcceptance": [
+    "Flutter lifecycle, reconnect and foreground/background push consumption",
+    "Normal Keycloak/gateway ingress and physical Android/iOS device cache acceptance",
+    "Rollout of this source to a permitted running deployment"
+  ],
+  "scope": "Real Redis in native and owned Docker modes; isolated JWT issuer and actual socket controller; current store/repositories and data producers controlled; actual LocalSink delivery only. Does not prove provider-to-device or full mobile acceptance.",
+  "cleanReleaseBuilds": [
+    "Frontend",
+    "Installer",
+    "TenantManager"
+  ],
+  "excludedOperatorEdits": [
+    "Ecommerce/GrandNode.sln",
+    "Ecommerce/src/Web/Grand.Web.Common/Grand.Web.Common.csproj"
+  ]
+}

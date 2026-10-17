@@ -21,12 +21,13 @@ public sealed class TenantScheduleOptions
     public int PollSeconds { get; init; } = 30;
     public int TimeoutMinutes { get; init; } = 20;
     public string[] TenantIds { get; init; } = [];
+    public string NotificationCredentialsFile { get; init; } = "";
 
     public void Validate()
     {
         if (!Enabled || string.IsNullOrWhiteSpace(DeploymentId) || PollSeconds is < 5 or > 3600 || TimeoutMinutes is < 1 or > 120)
             throw new InvalidOperationException("Enable the bounded tenant schedule explicitly.");
-        foreach (var path in new[] { InstallerPath, CommerceConfigPath, WorkingDirectory, TenantDirectory })
+        foreach (var path in new[] { InstallerPath, CommerceConfigPath, WorkingDirectory, TenantDirectory }.Concat(string.IsNullOrEmpty(NotificationCredentialsFile) ? Array.Empty<string>() : new[] { NotificationCredentialsFile }))
         {
             if (!Path.IsPathFullyQualified(path) || Path.GetFullPath(path) == Path.GetPathRoot(path))
                 throw new InvalidOperationException("Supply absolute owned schedule paths.");
@@ -42,6 +43,9 @@ public sealed class TenantScheduleOptions
         if (child.GetValue<bool>("LocalDemo:Enabled") || !child.GetValue<bool>("Provisioning:ManagedRuntime") ||
             !child.GetValue<bool>("PlatformSecurity:ReadOnly") || child["PlatformConfiguration:Provider"] != "Environment")
             throw new InvalidOperationException("The task child requires a portable runtime with read-only shared secrets.");
+        var sends = child["Notifications:Provider"] is "Fcm" or "FcmApns";
+        if (sends != !string.IsNullOrEmpty(NotificationCredentialsFile) || sends && !File.Exists(NotificationCredentialsFile))
+            throw new InvalidOperationException("Configure the explicit limited notification credential file for the task child.");
     }
 }
 
@@ -86,6 +90,32 @@ public sealed class TenantScheduleWorker(TenantScheduleOptions options, IService
         }
     }
 
+    internal static ProcessStartInfo ChildStartInfo(TenantScheduleOptions options, string tenant, string slug, string path, string databaseConnection)
+    {
+        var start = new ProcessStartInfo("dotnet") { WorkingDirectory = Path.Combine(options.WorkingDirectory, tenant), UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+        start.ArgumentList.Add(options.InstallerPath);
+        var executablePath = start.Environment["PATH"];
+        start.Environment.Clear(); // Keep ambient cloud/provisioning authority out of the task child.
+        start.Environment["PATH"] = executablePath;
+        // Only the explicit limited sender credential is forwarded, never the parent's provisioning ADC.
+        if (!string.IsNullOrEmpty(options.NotificationCredentialsFile))
+            start.Environment["GOOGLE_APPLICATION_CREDENTIALS"] = options.NotificationCredentialsFile;
+        start.Environment["DOTNET_ENVIRONMENT"] = "Production";
+        start.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
+        start.Environment["LocalDemo__Enabled"] = "false";
+        start.Environment["PlatformConfiguration__ConfigPath"] = options.CommerceConfigPath;
+        start.Environment["PlatformConfiguration__Provider"] = "Environment";
+        start.Environment["Provisioning__ManagedInstaller"] = "true";
+        start.Environment["Provisioning__ManagedInstallerProfile"] = "Portable";
+        start.Environment["Provisioning__TenantOutput"] = path;
+        start.Environment["Provisioning__RunScheduledTasks"] = "true";
+        start.Environment["Provisioning__StoreUrl"] = new UriBuilder(options.StoreBaseUrl) { Host = slug + "." + new Uri(options.StoreBaseUrl).Host }.Uri.GetLeftPart(UriPartial.Authority);
+        start.Environment["TenantMessage__TenantId"] = tenant;
+        start.Environment["TenantMessage__StoreSubDomain"] = slug;
+        start.Environment["TenantMessage__MongoConnectionString"] = databaseConnection;
+        return start;
+    }
+
     public async Task RunTenantAsync(string path, CancellationToken ct)
     {
         if (Path.GetFullPath(Path.GetDirectoryName(path)!) != Path.GetFullPath(options.TenantDirectory) || new FileInfo(path).LinkTarget != null)
@@ -108,24 +138,7 @@ public sealed class TenantScheduleWorker(TenantScheduleOptions options, IService
         if (await secrets.ResolveAsync(store.Resources["storeId"], ct) != tenant) throw new InvalidOperationException("Foreign store alias rejected.");
         var work = Path.Combine(options.WorkingDirectory, tenant);
         if (!Directory.Exists(Path.Combine(work, "Plugins"))) throw new InvalidOperationException("Restore the initialized tenant workspace.");
-        var start = new ProcessStartInfo("dotnet") { WorkingDirectory = work, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
-        start.ArgumentList.Add(options.InstallerPath);
-        var executablePath = start.Environment["PATH"];
-        start.Environment.Clear(); // Do not inherit Google/Apple credentials or provisioning authority into a task child.
-        start.Environment["PATH"] = executablePath;
-        start.Environment["DOTNET_ENVIRONMENT"] = "Production";
-        start.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
-        start.Environment["LocalDemo__Enabled"] = "false";
-        start.Environment["PlatformConfiguration__ConfigPath"] = options.CommerceConfigPath;
-        start.Environment["PlatformConfiguration__Provider"] = "Environment";
-        start.Environment["Provisioning__ManagedInstaller"] = "true";
-        start.Environment["Provisioning__ManagedInstallerProfile"] = "Portable";
-        start.Environment["Provisioning__TenantOutput"] = path;
-        start.Environment["Provisioning__RunScheduledTasks"] = "true";
-        start.Environment["Provisioning__StoreUrl"] = new UriBuilder(options.StoreBaseUrl) { Host = slug + "." + new Uri(options.StoreBaseUrl).Host }.Uri.GetLeftPart(UriPartial.Authority);
-        start.Environment["TenantMessage__TenantId"] = tenant;
-        start.Environment["TenantMessage__StoreSubDomain"] = slug;
-        start.Environment["TenantMessage__MongoConnectionString"] = await secrets.GetAsync(tenant, TenantSecretNames.DatabaseConnection, ct);
+        var start = ChildStartInfo(options, tenant, slug, path, await secrets.GetAsync(tenant, TenantSecretNames.DatabaseConnection, ct));
         using var process = Process.Start(start) ?? throw new InvalidOperationException("The tenant task child could not start.");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromMinutes(options.TimeoutMinutes));

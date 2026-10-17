@@ -91,7 +91,7 @@ jobs:
       - name: Verify distributed notifications with real Redis and WebSockets
         run: python3 scripts/smoke_signalr.py
       - name: Verify tenant cache scope and invalidation across real web processes
-        run: python3 scripts/smoke_cache.py
+        run: python3 scripts/smoke_cache.py --managed
       - name: Verify durable order notifications, tenant isolation and process recovery
         run: python3 scripts/smoke_order_notifications.py
       - name: Verify durable readiness mail and the independent SMTP worker

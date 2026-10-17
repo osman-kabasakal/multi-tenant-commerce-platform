@@ -97,6 +97,35 @@ class ProductionConfigTests(unittest.TestCase):
             plan['Providers']['TenantTasks'] = invalid
             with self.assertRaises(ValueError): config.validate(plan)
 
+    def test_schedule_notification_credentials_and_apns_reach_only_the_explicit_sender_child(self):
+        for provider in ('Fcm', 'FcmApns'):
+            plan = self.apns_plan() if provider == 'FcmApns' else copy.deepcopy(self.plan)
+            plan['Providers']['TenantTasks'] = {'Enabled': True}
+            plan['Providers']['Notifications']['Provider'] = provider
+            with self.subTest(provider=provider), self.assertRaises(ValueError): config.validate(plan)
+            credential = self.root / ('limited-sender-' + provider + '.json')
+            credential.write_text('{"fixture":"synthetic-private-adc"}')
+            plan['NotificationCredentialsFile'] = str(credential)
+            state = self.root / ('task-sender-' + provider)
+            config.prepare(plan, state, 'commerce-platform:fixture')
+            services = json.loads((state / 'compose.json').read_text())['services']
+            service = services['task-worker']
+            mounts = {item['target']: item for item in service['volumes']}
+            self.assertTrue(mounts['/run/secrets/google-notifications.json']['read_only'])
+            self.assertNotIn('/run/secrets/google-provisioning.json', mounts)
+            self.assertNotIn('GOOGLE_APPLICATION_CREDENTIALS', service['environment'])
+            child = json.loads((state / 'config/task-installer.json').read_text())
+            host = json.loads((state / 'config/task-worker.json').read_text())
+            self.assertEqual(child['Notifications']['Provider'], provider)
+            self.assertEqual(host['Provisioning']['Schedule']['NotificationCredentialsFile'], '/run/secrets/google-notifications.json')
+            self.assertTrue(child['PlatformSecurity']['ReadOnly'])
+            self.assertNotIn('Google', child.get('Provisioning', {}))
+            self.assertEqual('/run/secrets/apns-key.p8' in mounts, provider == 'FcmApns')
+            if provider == 'FcmApns':
+                self.assertTrue(mounts['/run/secrets/apns-key.p8']['read_only'])
+                self.assertEqual(child['Notifications']['Apns']['KeyFile'], '/run/secrets/apns-key.p8')
+                self.assertEqual(json.loads((state / 'config/installer.json').read_text())['Notifications'], {'Provider': 'Disabled'})
+
     def test_disabling_tasks_stops_only_the_previously_owned_task_host(self):
         state = self.root / 'stopped-schedule-state'
         record = config.prepare(self.plan, state, 'commerce-platform:fixture')

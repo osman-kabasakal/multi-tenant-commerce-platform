@@ -44,6 +44,8 @@ namespace Grand.Infrastructure.Extensions
             
             // Redis cache koordinatörü
             services.AddSingleton<RedisCacheCoordinator>();
+            services.AddSingleton<TenantCacheJournal>();
+        services.AddSingleton<ClientCacheSocket>();
             
             // Redis ile izlenen memory cache
             // services.AddScoped<ICacheBase, RedisTrackedMemoryCacheBase>();

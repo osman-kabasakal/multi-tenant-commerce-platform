@@ -57,6 +57,8 @@ public static class ManagedScheduledTasks
         // Resolve only the selected implementation, rather than every optional integration's constructor.
         var registry = registrations.Where(x => x.ServiceType == typeof(IScheduleTask) && x.ImplementationType != null)
             .Select(x => x.ImplementationType!).Distinct().ToDictionary(x => x.FullName + ", " + x.Assembly.GetName().Name, StringComparer.Ordinal);
+        if (!registry.ContainsKey(ManagedClientCacheTaskRegistration.Type)) throw new InvalidOperationException("The client cache task must be registered in this release.");
+        await ManagedClientCacheTaskRegistration.EnsureAsync(database, store.Id);
         var batch = new ManagedScheduleBatch(database, store.Id);
         await batch.RunAsync(async task =>
         {

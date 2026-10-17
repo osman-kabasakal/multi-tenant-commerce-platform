@@ -76,6 +76,48 @@ lostFinish.SetResult(); await Task.Delay(100);
 Check((await Row("lost"))["LeasedByMachineName"].AsString == "replacement" && (await Row("lost"))["LastSuccessUtc"].IsBsonNull, "stale callback cannot overwrite replacement worker metadata");
 Check(await new ManagedScheduleBatch(database, "store-a", 3).RunAsync(_ => Task.CompletedTask, default) == 1, "expired tenant and task leases recover immediately without waiting the normal interval");
 
+await Reset(TaskRow("custom-existing", false));
+await Task.WhenAll(Enumerable.Range(0, 10).Select(_ => ManagedClientCacheTaskRegistration.EnsureAsync(database, "store-a")));
+var cacheTask = await tasks.Find(new BsonDocument("Type", ManagedClientCacheTaskRegistration.Type)).SingleAsync();
+Check(cacheTask["StoreId"] == "store-a" && cacheTask["Enabled"].AsBoolean && cacheTask["TimeInterval"].AsInt32 == 1 && !cacheTask["StopOnError"].AsBoolean,
+    "parallel scheduler starts register exactly one owned client cache task");
+await tasks.UpdateOneAsync(new BsonDocument("_id", cacheTask["_id"]), Builders<BsonDocument>.Update.Set("Enabled", false).Set("TimeInterval", 42));
+await ManagedClientCacheTaskRegistration.EnsureAsync(database, "store-a");
+cacheTask = await Row(cacheTask["_id"].AsString);
+Check(!cacheTask["Enabled"].AsBoolean && cacheTask["TimeInterval"].AsInt32 == 42 && !(await Row("custom-existing"))["Enabled"].AsBoolean,
+    "automatic task registration preserves administrator choices and existing task rows");
+await ManagedClientCacheTaskRegistration.EnsureAsync(database, "store-b");
+Check(await tasks.CountDocumentsAsync(new BsonDocument("Type", ManagedClientCacheTaskRegistration.Type)) == 2 &&
+    (await tasks.Find(new BsonDocument { ["Type"] = ManagedClientCacheTaskRegistration.Type, ["StoreId"] = "store-b" }).SingleAsync())["_id"] != cacheTask["_id"],
+    "a foreign store task cannot suppress registration for the owned store");
+var existingGlobal = TaskRow("legacy-cache", false); existingGlobal["Type"] = ManagedClientCacheTaskRegistration.Type; existingGlobal["StoreId"] = "";
+await Reset(existingGlobal);
+await ManagedClientCacheTaskRegistration.EnsureAsync(database, "store-a");
+Check(await tasks.CountDocumentsAsync(FilterDefinition<BsonDocument>.Empty) == 1 && !(await Row("legacy-cache"))["Enabled"].AsBoolean,
+    "an existing tenant-wide disabled task is retained without creating a replacement");
+
+var originalAdc = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
+var originalAuthority = Environment.GetEnvironmentVariable("GOOGLE_PROVISIONER_FIXTURE");
+try
+{
+    Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", "/private/synthetic-broad-provisioner.json");
+    Environment.SetEnvironmentVariable("GOOGLE_PROVISIONER_FIXTURE", "must-not-inherit");
+    var childOptions = new TenantScheduleOptions { InstallerPath = "/private/installer.dll", WorkingDirectory = "/private/work",
+        CommerceConfigPath = "/private/child.json", StoreBaseUrl = "https://shops.example.test", NotificationCredentialsFile = "/private/limited-sender.json" };
+    var child = TenantScheduleWorker.ChildStartInfo(childOptions, "a".PadLeft(32, 'a'), "fixture-shop", "/private/metadata.json", "synthetic-tenant-db");
+    Check(child.Environment["GOOGLE_APPLICATION_CREDENTIALS"] == "/private/limited-sender.json" && !child.Environment.ContainsKey("GOOGLE_PROVISIONER_FIXTURE") &&
+        child.Environment["PlatformConfiguration__ConfigPath"] == "/private/child.json" && child.ArgumentList.Count == 1 && child.ArgumentList[0] == "/private/installer.dll",
+        "the actual child launcher forwards only the explicit sender identity and keeps credentials out of command arguments");
+    var disabled = TenantScheduleWorker.ChildStartInfo(new TenantScheduleOptions { InstallerPath = "/private/installer.dll", WorkingDirectory = "/private/work",
+        CommerceConfigPath = "/private/child.json", StoreBaseUrl = "https://shops.example.test" }, "a".PadLeft(32, 'a'), "fixture-shop", "/private/metadata.json", "synthetic-tenant-db");
+    Check(!disabled.Environment.ContainsKey("GOOGLE_APPLICATION_CREDENTIALS"), "a task child without a sender cannot inherit its parent's broad Google credential");
+}
+finally
+{
+    Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", originalAdc);
+    Environment.SetEnvironmentVariable("GOOGLE_PROVISIONER_FIXTURE", originalAuthority);
+}
+
 var rejected = false;
 try { new TenantScheduleOptions { Enabled = false }.Validate(); } catch (InvalidOperationException) { rejected = true; }
 Check(rejected, "schedule host cannot start without explicit opt in");

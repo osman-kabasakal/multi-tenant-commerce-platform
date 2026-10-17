@@ -17,6 +17,9 @@ public class StaleCacheController(
     public async Task<IActionResult> GetStaleCorrelationIds(
         StaleCacheQuery staleCacheQuery
     ){
+        if (staleCacheQuery?.StaleCacheItems == null || staleCacheQuery.StaleCacheItems.Count > 100 ||
+            staleCacheQuery.StaleCacheItems.Any(item => item == null || string.IsNullOrWhiteSpace(item.CorrelationId) || item.CorrelationId.Length > 64))
+            return BadRequest(new { error = "Supply at most one hundred bounded cache correlations." });
         var response = await mediator.Send(staleCacheQuery);
         return Ok(response);
     }

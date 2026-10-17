@@ -77,6 +77,10 @@ def validate(plan):
     notifications = providers.get('Notifications', {})
     if not isinstance(notifications, dict) or notifications.get('Provider') not in ('Disabled', 'Fcm', 'FcmApns'):
         raise ValueError('Explicitly select Disabled, Fcm or FcmApns notifications.')
+    if providers.get('TenantTasks', {}).get('Enabled') and notifications.get('Provider') in ('Fcm', 'FcmApns'):
+        credential = plan.get('NotificationCredentialsFile')
+        if not isinstance(credential, str) or not Path(credential).is_absolute() or not Path(credential).is_file():
+            raise ValueError('Tenant notification tasks require an explicit existing NotificationCredentialsFile for the limited sender account.')
     if notifications.get('Provider') == 'FcmApns':
         apns = notifications.get('Apns', {})
         if not isinstance(apns, dict) or set(apns) - {'Environment', 'DevelopmentTeam', 'KeyId', 'KeyFile', 'LifetimeSeconds'}:
@@ -343,11 +347,15 @@ def render(p, state, record, image):
     task_installer = copy.deepcopy(installer)
     task_installer['PlatformSecurity'] = security('reader', True)
     task_installer['Provisioning'].pop('StoreEmail', None)  # Each tenant resolves its existing SMTP secret at execution time.
+    if p['Providers'].get('TenantTasks', {}).get('Enabled'):
+        task_installer['Notifications'] = copy.deepcopy(commerce['Notifications'])
     task_worker = copy.deepcopy(base)
     task_worker.update(PlatformSecurity=security('reader', True), Provisioning={'InitializeSchema': False, 'Schedule': dict(
         p['Providers'].get('TenantTasks', {'Enabled': False}), DeploymentId=ident,
         InstallerPath='/app/installer/Grand.Installer.Cli.dll', CommerceConfigPath='/run/secrets/task-installer.json',
         WorkingDirectory='/var/lib/commerce/onboarding', TenantDirectory='/var/lib/commerce/tenants', StoreBaseUrl=store)})
+    if p['Providers'].get('TenantTasks', {}).get('Enabled') and p['Providers']['Notifications']['Provider'] in ('Fcm', 'FcmApns'):
+        task_worker['Provisioning']['Schedule']['NotificationCredentialsFile'] = '/run/secrets/google-notifications.json'
     for role, value in {'commerce': commerce, 'admin': administration, 'installer': installer, 'gateway': gateway, 'saas': saas, 'worker': worker,
                         'task-worker': task_worker, 'task-installer': task_installer, 'bootstrap': bootstrap}.items():
         write_json(state / 'config' / (role + '.json'), value)
@@ -436,6 +444,10 @@ def compose(p, state, record, image, ip, identity):
         if role == 'task-worker':
             mounts.extend([bind('config/task-installer.json', '/run/secrets/task-installer.json'),
                            bind('onboarding', '/var/lib/commerce/onboarding', False), bind('tenants', '/var/lib/commerce/tenants')])
+            if p['Providers']['Notifications']['Provider'] in ('Fcm', 'FcmApns'):
+                mounts.append(bind('secrets/google-notifications.json', '/run/secrets/google-notifications.json'))
+            if p['Providers']['Notifications']['Provider'] == 'FcmApns':
+                mounts.append(bind('secrets/apns-key.p8', '/run/secrets/apns-key.p8'))
         mobile_worker = role == 'worker' and p['Providers'].get('Mobile', {}).get('Provider') in ('AndroidAppDistribution', 'AndroidIosAppDistribution')
         if mobile_worker:
             for directory in ('mobile-work', 'mobile-artifacts', 'mobile-cache'):
