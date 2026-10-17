@@ -2,6 +2,13 @@
   <PropertyGroup><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><IsTestProject>true</IsTestProject><IsPackable>false</IsPackable></PropertyGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <Compile Include="../../Ecommerce/src/Web/Grand.Web.MultiTenant/MiddleWares/RequestValidationMiddleware.cs" Link="Production/RequestValidationMiddleware.cs" />
+    <Compile Include="../../Ecommerce/src/Web/Grand.Web.MultiTenant/Services/IKeycloakClientTokenValidation.cs" Link="Production/IKeycloakClientTokenValidation.cs" />
+    <Compile Include="../../Ecommerce/src/Web/Grand.Web.MultiTenant/Services/PublicRouteService.cs" Link="Production/PublicRouteService.cs" />
+    <Compile Include="../../Ecommerce/src/Web/Grand.Web.ExternalSettings/Extensions/TenantStoreHosts.cs" Link="Production/TenantStoreHosts.cs" />
+    <Compile Include="../../Ecommerce/src/Web/Grand.Web.ExternalSettings/TenantToken/ITenantTokenHandler.cs" Link="Production/ITenantTokenHandler.cs" />
+    <ProjectReference Include="../../Shared/Platform.Security/Platform.Security.csproj" />
+    <ProjectReference Include="../../Shared/Platform.Hosting/Platform.Hosting.csproj" />
     <Compile Include="../../Ecommerce/src/Web/Grand.Web.MultiTenant/ModelBinders/ComplexTypeModelBinder.cs" Link="Production/ComplexTypeModelBinder.cs" />
     <Compile Include="../../Ecommerce/src/Web/Grand.Web.MultiTenant/ModelBinders/ComplexTypeModelBinderProvider.cs" Link="Production/ComplexTypeModelBinderProvider.cs" />
     <PackageReference Include="Moq" Version="4.20.72" />

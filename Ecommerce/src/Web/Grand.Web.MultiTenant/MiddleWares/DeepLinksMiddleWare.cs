@@ -8,6 +8,7 @@ using Grand.Domain.Tenants;
 using Grand.Infrastructure.Caching;
 using Grand.Infrastructure.MultiTenant;
 using Grand.Web.MultiTenant.Services;
+using Grand.Web.ExternalSettings.Extensions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -52,7 +53,8 @@ public class DeepLinksMiddleWare
                 return;
             }
             
-            var groupName = host.Split(".").FirstOrDefault();
+            var custom = await TenantStoreHosts.CustomAsync(context);
+            var groupName = custom?.Slug ?? host.Split(".").FirstOrDefault();
             var tenantGroup = groups.FirstOrDefault(x =>
                 x.Attributes.ContainsKey("StoreMongoConnectionString") &&
                 x.Attributes["StoreMongoConnectionString"].Count() > 0 && x.Name == groupName);

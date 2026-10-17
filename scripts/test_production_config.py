@@ -74,6 +74,11 @@ class ProductionConfigTests(unittest.TestCase):
         caddy = (state / 'config/Caddyfile').read_text()
         self.assertIn('ask http://gateway:8080/_gateway/certificate-permission', caddy); self.assertIn('on_demand', caddy)
         self.assertIn('tls /run/secrets/tls-fullchain.pem /run/secrets/tls-private.key', caddy)
+        commerce = json.loads((state / 'config/commerce.json').read_text())
+        self.assertEqual(commerce['TenantRouting'], {'Provider': 'Directory', 'RouteDirectory': '/var/lib/commerce/routes', 'CustomDomainsEnabled': True})
+        route_mounts = [item for item in definition['services']['commerce']['volumes'] if item.get('target') == '/var/lib/commerce/routes']
+        self.assertEqual(len(route_mounts), 1)
+        self.assertTrue(route_mounts[0]['read_only'])
         (state / 'edge-tls/operator-owned-certificate').write_text('synthetic retained certificate')
         config.prepare(plan, state, 'commerce-platform:fixture')
         self.assertEqual('synthetic retained certificate', (state / 'edge-tls/operator-owned-certificate').read_text())

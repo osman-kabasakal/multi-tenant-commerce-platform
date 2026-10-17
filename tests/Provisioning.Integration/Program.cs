@@ -116,6 +116,7 @@ try
     await CombinedIosReleaseFixture.RunAsync(test.ConnectionString,master);
     await AndroidBuildQueueFixture.RunAsync(queue,test.ConnectionString,request);
     await IosReleaseQueueFixture.RunAsync(queue,test.ConnectionString,childConfigPath,request);
+    await ProductionPermissionsFixture.RunAsync(test.ConnectionString);
     Console.WriteLine("Durable provisioning integration checks passed.");
 }
 finally

@@ -392,6 +392,7 @@ def render(p, state, record, image):
         saas['Provisioning']['CustomDomains'] = {'Enabled': True}
         worker['Provisioning']['CustomDomains'] = dict(custom, ApiTokenFile='/run/secrets/cloudflare-custom-domains', DeploymentId=ident, IngressConnectAddress=ip(10),
             ReservedHosts=[p[key] for key in ('PortalHost', 'IdentityHost', 'StoreParentDomain', 'AdminParentDomain')])
+        commerce['TenantRouting'] = {'Provider': 'Directory', 'RouteDirectory': '/var/lib/commerce/routes', 'CustomDomainsEnabled': True}
         administration['TenantRouting']['CustomDomainsEnabled'] = True
         gateway['Gateway'].update(CustomDomainsEnabled=True, CertificatePermissionPeer=ip(10))
         gateway['AllowedHosts'] = administration['AllowedHosts'] = commerce['AllowedHosts'] = '*'
@@ -489,7 +490,8 @@ def compose(p, state, record, image, ip, identity):
             environment['GOOGLE_APPLICATION_CREDENTIALS'] = target
         writable = {'worker': ['onboarding', 'tenants', 'routes', 'readiness-outbox', 'mobile'], 'saas': ['saas-files', 'saas-cookie-keys']}.get(role, [])
         for directory in writable: mounts.append(bind(directory, '/var/lib/commerce/' + directory, False))
-        if role in ('admin', 'gateway'): mounts.append(bind('routes', '/var/lib/commerce/routes'))
+        if role in ('admin', 'gateway') or role == 'commerce' and p['Providers'].get('CustomDomains', {}).get('Enabled'):
+            mounts.append(bind('routes', '/var/lib/commerce/routes'))
         if role in ('commerce', 'admin'):
             if p['Providers']['Notifications'].get('Provider') == 'FcmApns': mounts.append(bind('secrets/apns-key.p8', '/run/secrets/apns-key.p8'))
             for directory, target in (('media-images', 'images'), ('media-files', 'files')):

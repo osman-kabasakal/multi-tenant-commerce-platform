@@ -1,13 +1,10 @@
 using Platform.Security;
-using Grand.Business.Core.Interfaces.Common.Security;
+using Grand.Web.ExternalSettings.Extensions;
 using Grand.Web.ExternalSettings.TenantToken;
 using Grand.Web.MultiTenant.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Org.BouncyCastle.Utilities.Collections;
 using System.Net;
-using System.Net.Mime;
-using System.Web;
 
 namespace Grand.Web.MultiTenant.MiddleWares;
 
@@ -59,7 +56,7 @@ public class RequestValidationMiddleware
                 return;
             }
 
-            token = headerToken;
+            token = headerToken.ToString();
         }
 
 
@@ -82,25 +79,26 @@ public class RequestValidationMiddleware
 
         try
         {
-            var clientPrinciple =
-                await clientTokenValidation.ValidateJwt(token, context.Request.Host.Host.Split(".").FirstOrDefault(), true);
-            
-            var subDomainClaim = clientPrinciple.FindFirst("sub_domainname")?.Value;
-            var requestSubDomain = context.Request.Host.Host.Split(".").First();
-            if (subDomainClaim != null && !subDomainClaim.Equals(requestSubDomain, StringComparison.OrdinalIgnoreCase))
+            var custom = await TenantStoreHosts.CustomAsync(context);
+            var requestSubDomain = custom?.Slug ?? context.Request.Host.Host.Split('.')[0];
+            var clientPrinciple = await clientTokenValidation.ValidateJwt(token, requestSubDomain, true);
+            var subDomainClaim = clientPrinciple?.FindFirst("sub_domainname")?.Value;
+            if (clientPrinciple == null || string.IsNullOrEmpty(subDomainClaim) || !subDomainClaim.Equals(requestSubDomain, StringComparison.OrdinalIgnoreCase))
             {
                 context.Response.StatusCode = StatusCodes.Status400BadRequest;
                 await context.Response.WriteAsJsonAsync(new { error = "x-store-token header is not valid for this request" });
                 return;
             }
-            var storeIdClaims = clientPrinciple.FindFirst("store_id")?.Value;
+            var storeIdClaims = clientPrinciple.FindFirst("store_id")?.Value ?? throw new InvalidOperationException("Missing encrypted store claim.");
             var storeId = await encryptionService.DecryptAsync(storeIdClaims, subDomainClaim);
+            if (custom != null && storeId != custom.StoreId)
+                throw new InvalidOperationException("The tenant token does not match the custom storefront.");
             context.Items["StoreId"] = storeId;
-            var mongoConnectionClaim = clientPrinciple.FindFirst("db_connection")?.Value;
+            var mongoConnectionClaim = clientPrinciple.FindFirst("db_connection")?.Value ?? throw new InvalidOperationException("Missing encrypted database claim.");
             var mongoConnection = await encryptionService.DecryptAsync(mongoConnectionClaim, subDomainClaim);
             context.Items["StoreMongoConnectionString"] = mongoConnection;
         }
-        catch (Exception e)
+        catch (Exception)
         {
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
             await context.Response.WriteAsJsonAsync(new { error = "x-store-token header is not valid for this request" });

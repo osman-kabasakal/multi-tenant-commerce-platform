@@ -326,6 +326,23 @@ DOTNET_ENVIRONMENT=Production dotnet run \
   --config /absolute/private/mac-worker.json
 ```
 
+For an Oracle Compose deployment, use a separate SSH tunnel from the Mac to the PostgreSQL bridge address. Obtain that address from `services.postgres.networks.platform.ipv4_address` in the server's private `state/compose.json`; use the already verified Oracle SSH host-key file and deployment identity. Replace the uppercase placeholders:
+
+```sh
+ssh -F /dev/null -i /absolute/private/deploy-key \
+  -o BatchMode=yes -o IdentitiesOnly=yes \
+  -o StrictHostKeyChecking=yes \
+  -o UserKnownHostsFile=/absolute/private/known_hosts \
+  -o GlobalKnownHostsFile=/dev/null -o ForwardAgent=no \
+  -o ClearAllForwardings=no -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=20 -o ServerAliveCountMax=3 \
+  -L 127.0.0.1:54329:POSTGRES_BRIDGE_IPV4:5432 -N ubuntu@ORACLE_PUBLIC_IPV4
+```
+
+In the private Mac JSON, set both database connections to `Host=127.0.0.1;Port=54329;Database=platform_security;Username=platform_worker;Password=PRIVATE_RUNTIME_PASSWORD;SSL Mode=Disable`. The SSH connection encrypts transport to Oracle; the final connection remains on the server's private Docker bridge. Use the existing limited worker credential and the deployment's same encryption provider/master key. Keep the JSON and master-key file owner-readable only. PostgreSQL does not need a public published port. The deployment helper `oracle.py ssh_command` intentionally sets `ClearAllForwardings=yes`, so appending `-L` to that deployment command does **not** create this tunnel. Keep host verification enabled and run the separate explicit tunnel above. Keep it open while the Mac consumer runs; stop the consumer before closing the tunnel.
+
+A single Mac can retain its artifacts in a private persistent directory outside the source checkout, with a verified backup. If multiple Macs can claim the same worker identity, each must have access to the same retained artifacts. Reopening a tunnel or restarting a Mac consumer keeps queued package, source and certificate bindings unchanged.
+
 The host validates its explicit Mac policy and actual source hash before polling. The encrypted tenant Firebase record, parent deployment, verified public-store checkpoint and Google iOS app must match the queued plan before any Apple create. Google project labels/parent/number are read again before Apple provisioning or symbol submission. The queue’s `FirebaseSdkSha256` pins the **exact UTF-8 SDK export bytes**; native `iosSdkSha256` independently pins the canonical plist actually embedded in the app. These are separate checks; copying identifiers alone cannot satisfy a changed SDK export.
 
 Each build has a fresh private workspace under `ArtifactDirectory/<tenant>/<attempt-id>`. The encrypted `ios-initial-release-artifact-v1` journal selects an immutable successful workspace before any symbol/distribution upload. It binds the original plan, IPA/native-result/uploader hashes, tester-policy hash and both profiles. Restarts reverify that retained IPA/profile/native metadata/dSYM set and resume saved symbol/distribution receipts. A missing/modified selected workspace requires restoration; it never silently produces another binary for the same initial release. Failed native copies/tester inputs are removed and bounded private diagnostics retained. Successful workspaces retain the archive, SDK/profile inputs and build dependencies for later verification; allocate storage for those workspaces and back them up. A crash before selecting a workspace or a concurrent reclaimed build can leave an unselected private workspace requiring later operator cleanup.

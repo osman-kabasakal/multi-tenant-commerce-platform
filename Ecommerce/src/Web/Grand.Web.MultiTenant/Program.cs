@@ -87,8 +87,8 @@ if (app.Configuration.GetValue<bool>("Provisioning:ReadinessEndpoint"))
         try
         {
             var store=await stores.GetStoreById(storeId);
-            var tenant=await secrets.ResolveAsync(context.Request.Host.Host.Split('.')[0],context.RequestAborted);
-            if (store==null || store.Id!=storeId || await secrets.ResolveAsync(storeId,context.RequestAborted)!=tenant)
+            var tenant=await secrets.ResolveAsync(storeId,context.RequestAborted);
+            if (store==null || store.Id!=storeId)
                 return Results.StatusCode(503);
             context.Response.Headers.CacheControl="no-store";
             return Results.Json(new {tenantId=tenant,storeId=store.Id});
