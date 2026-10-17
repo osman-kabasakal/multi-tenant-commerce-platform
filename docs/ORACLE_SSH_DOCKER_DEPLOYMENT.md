@@ -253,3 +253,8 @@ Mağaza alan adındaki `/Admin` ve alt yolları geçitte 404 ile kapanır; istek
 GrandNode yönetim CSS/JavaScript ve font kaynakları `Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/` altında bulunur. Bu klasör adı üretilmiş mobil çıktılarla aynı olduğu için Git ve Docker’ın genel `build` hariç tutma kuralından dar bir istisnayla korunur. Klasördeki kaynaklar Git’te yer almalı ve yayımlanan imajda `admin/wwwroot/_content/Grand.SharedUIResources/administration/build/` altında bulunmalıdır. `production_image.py verify` temel CSS, jQuery, moment, yönetim JavaScript’i ve ikon fontunun boş olmadığını denetler. CSS/JS için 404 veya HTML yanıtını MIME başlığını zorlayarak düzeltmeyin; eksik kaynağı yayın paketine dahil edin.
 
 Canlı yönetim düzeltmesi `5618475` imajıyla yayımlandı. Ayrı test işletmesinin gerçek yönetim oturumunda ürün listesi ve 35 CSS/JS dosyası; bildirilen tenant’ın giriş ekranında 11 dosya doğrulandı. Kaynak bağlamının sonraki dar kapsamlı kural düzenlemesi ve canlı imaj ayrı sürüm kimlikleriyle [kabul kaydında](validation/oracle-admin-assets-20261017.json) bulunur.
+
+
+## Testi tekrar çalıştırma ve altyapıyı kaldırma
+
+OCI API ve SSH anahtarlarının farkı, bu çalışma ortamındaki özel yol rehberi, mevcut tenant kabul aracı, saatlik stop kuralı ve yedek sonrası Terraform Destroy sırası [Oracle test ve kaldırma rehberinde](ORACLE_TEST_VE_KALDIRMA.md) açıklanır. Stack’i silmeden önce yönetilen kaynakları ve korunan boot diskini kaldırın.

@@ -1,0 +1,313 @@
+{
+  "version": 1,
+  "recordedAtUtc": "2026-10-17T10:36:59.394443+00:00",
+  "runtimeSourceCommit": "b7567d2f2fa17b3508e3ef3563866016383a5816",
+  "serverImage": "commerce-platform:b7567d2f2fa1",
+  "serverImageId": "sha256:cc92bfad9cdfab8d704ab7c3103e6cf411c8829c410ef2a3b03958f0ff9294bc",
+  "workerImage": "commerce-platform:b7567d2f2fa1-android",
+  "acceptanceToolSha256": "8146a77a7acdee92528c40d1bf8d3a737eb28c869642618bf500515a555ab45b",
+  "infrastructure": {
+    "shape": "VM.Standard.E5.Flex",
+    "ocpus": 1,
+    "memoryGiB": 8,
+    "terraformManagedResourceCount": 9,
+    "additionalComputeCreated": false,
+    "sizingChanged": false,
+    "hourlyStopScheduleChanged": false,
+    "nextStopAtUtcAtTest": "2026-10-17T11:09:05Z",
+    "separateUnusedArmStack": "One SUCCEEDED PLAN; no apply jobs"
+  },
+  "restartRecovery": {
+    "observedAutomaticStopAtUtc": "2026-10-17T10:09:14Z",
+    "beforeKernel": "7.0.0-1013-oracle",
+    "afterKernel": "6.17.0-1020-oracle",
+    "cause": "MongoDB startup rejection on the incompatible kernel (SERVER-121912)",
+    "repair": "Select already installed 6.17 kernel in a dedicated GRUB drop-in; mark that kernel package manual; graceful stop, reboot and resume the original Compose project",
+    "databaseImageOrFormatChanged": false,
+    "allTenServicesRunning": true,
+    "services": {
+      "admin": {
+        "state": "running",
+        "health": ""
+      },
+      "commerce": {
+        "state": "running",
+        "health": ""
+      },
+      "edge": {
+        "state": "running",
+        "health": ""
+      },
+      "gateway": {
+        "state": "running",
+        "health": ""
+      },
+      "keycloak": {
+        "state": "running",
+        "health": ""
+      },
+      "mongo": {
+        "state": "running",
+        "health": "healthy"
+      },
+      "postgres": {
+        "state": "running",
+        "health": "healthy"
+      },
+      "redis": {
+        "state": "running",
+        "health": ""
+      },
+      "saas": {
+        "state": "running",
+        "health": ""
+      },
+      "worker": {
+        "state": "running",
+        "health": ""
+      }
+    }
+  },
+  "existingTenant": {
+    "version": 1,
+    "verifiedAtUtc": "2026-10-17T10:31:02.435870+00:00",
+    "serverSourceCommit": "b7567d2f2fa17b3508e3ef3563866016383a5816",
+    "serverImageId": "sha256:cc92bfad9cdfab8d704ab7c3103e6cf411c8829c410ef2a3b03958f0ff9294bc",
+    "serverImage": "commerce-platform:b7567d2f2fa1",
+    "workerImage": "commerce-platform:b7567d2f2fa1-android",
+    "configuredServices": [
+      "admin",
+      "commerce",
+      "edge",
+      "gateway",
+      "keycloak",
+      "mongo",
+      "postgres",
+      "redis",
+      "saas",
+      "worker"
+    ],
+    "completedStepNames": [
+      "database",
+      "domains",
+      "google-firebase",
+      "identity",
+      "mobile-android-release",
+      "publication",
+      "store",
+      "tenant-migrations",
+      "tenant-plugins",
+      "tenant-secrets",
+      "tenant-settings"
+    ],
+    "productPageAssetCount": 38,
+    "installedPluginCount": 23,
+    "requiredTaxRates": [
+      1,
+      10,
+      20
+    ],
+    "checks": [
+      "All configured deployment services are running",
+      "No service reports an unhealthy Docker state",
+      "The original tenant provisioning job remains Succeeded",
+      "Anonymous trial configuration access is denied",
+      "Anonymous provisioning status access is denied",
+      "Storefront admin boundary rejects /Admin",
+      "Storefront admin boundary rejects /admin/",
+      "Storefront admin boundary rejects /ADMIN/Product/List",
+      "The Keycloak administration API is not public",
+      "Client credentials with an invalid secret are rejected",
+      "Existing tenant storefront responds over trusted HTTPS",
+      "The original owner authenticates through public HTTPS OIDC and retains completed setup",
+      "SaaS still reconciles the original ready business",
+      "The owner status endpoint retains verified publication",
+      "Owner provisioning status contains no database credential or administrator password",
+      "The original tenant administrator password still authenticates",
+      "Authenticated administration opens the actual product list",
+      "All same-origin product-page CSS and JavaScript assets have valid MIME types",
+      "TRY remains both the primary store and exchange currency",
+      "Both tenant tax providers remain available",
+      "Tax categories retain the required 1, 10 and 20 percent fixed rates",
+      "Every configured administration plugin has a tenant-owned installation record",
+      "All six mobile address attributes remain required"
+    ],
+    "newTenantCreated": false,
+    "cloudResourcesCreated": false,
+    "externalMessagesSentByProbe": false,
+    "freshEnrollmentTested": false,
+    "checkoutOrDeviceDeliveryTested": false
+  },
+  "freshTenant": {
+    "version": 1,
+    "verifiedAtUtc": "2026-10-17T10:34:41.903868+00:00",
+    "serverSourceCommit": "b7567d2f2fa17b3508e3ef3563866016383a5816",
+    "serverImageId": "sha256:cc92bfad9cdfab8d704ab7c3103e6cf411c8829c410ef2a3b03958f0ff9294bc",
+    "serverImage": "commerce-platform:b7567d2f2fa1",
+    "workerImage": "commerce-platform:b7567d2f2fa1-android",
+    "configuredServices": [
+      "admin",
+      "commerce",
+      "edge",
+      "gateway",
+      "keycloak",
+      "mongo",
+      "postgres",
+      "redis",
+      "saas",
+      "worker"
+    ],
+    "completedStepNames": [
+      "database",
+      "domains",
+      "google-firebase",
+      "identity",
+      "mobile-android-release",
+      "publication",
+      "store",
+      "tenant-migrations",
+      "tenant-plugins",
+      "tenant-secrets",
+      "tenant-settings"
+    ],
+    "productPageAssetCount": 38,
+    "installedPluginCount": 23,
+    "requiredTaxRates": [
+      1,
+      10,
+      20
+    ],
+    "checks": [
+      "All configured deployment services are running",
+      "No service reports an unhealthy Docker state",
+      "The original tenant provisioning job remains Succeeded",
+      "Anonymous trial configuration access is denied",
+      "Anonymous provisioning status access is denied",
+      "Storefront admin boundary rejects /Admin",
+      "Storefront admin boundary rejects /admin/",
+      "Storefront admin boundary rejects /ADMIN/Product/List",
+      "The Keycloak administration API is not public",
+      "Client credentials with an invalid secret are rejected",
+      "Existing tenant storefront responds over trusted HTTPS",
+      "The original owner authenticates through public HTTPS OIDC and retains completed setup",
+      "SaaS still reconciles the original ready business",
+      "The owner status endpoint retains verified publication",
+      "Owner provisioning status contains no database credential or administrator password",
+      "The original tenant administrator password still authenticates",
+      "Authenticated administration opens the actual product list",
+      "All same-origin product-page CSS and JavaScript assets have valid MIME types",
+      "TRY remains both the primary store and exchange currency",
+      "Both tenant tax providers remain available",
+      "Tax categories retain the required 1, 10 and 20 percent fixed rates",
+      "Every configured administration plugin has a tenant-owned installation record",
+      "All six mobile address attributes remain required"
+    ],
+    "newTenantCreated": false,
+    "cloudResourcesCreated": false,
+    "externalMessagesSentByProbe": false,
+    "freshEnrollmentTested": false,
+    "checkoutOrDeviceDeliveryTested": false
+  },
+  "browser": {
+    "browser": "Chromium 145.0.7632.6",
+    "existingTenantChecks": [
+      "Public portal renders in an actual Chromium browser with trusted HTTPS",
+      "The identity login exposes the public Register link",
+      "Actual Angular success screen restores the original tenant storefront link",
+      "Actual Angular success screen restores the original tenant administration link",
+      "Existing owner success screen has no operation alert",
+      "Browser reload preserves the original owner and completed business",
+      "Portal emits no JavaScript page error or failed same-origin CSS/JS response",
+      "The original administrator opens Product/List in an actual browser",
+      "Tenant admin CSS and JavaScript load without HTTP or MIME failures in Chromium",
+      "Tenant admin emits no uncaught JavaScript page error"
+    ],
+    "freshTenantChecks": [
+      "Public portal renders in an actual Chromium browser with trusted HTTPS",
+      "The identity login exposes the public Register link",
+      "Actual Angular success screen restores the original tenant storefront link",
+      "Actual Angular success screen restores the original tenant administration link",
+      "Existing owner success screen has no operation alert",
+      "Browser reload preserves the original owner and completed business",
+      "Portal emits no JavaScript page error or failed same-origin CSS/JS response",
+      "The original administrator opens Product/List in an actual browser",
+      "Tenant admin CSS and JavaScript load without HTTP or MIME failures in Chromium",
+      "Tenant admin emits no uncaught JavaScript page error"
+    ],
+    "freshFormSubmission": "HTTP helper with actual HTTPS OIDC callback/cookies and CSRF; Chromium checks run after provisioning completed",
+    "registrationLinkVisible": true,
+    "freshMailboxDeliveryRetested": false
+  },
+  "freshEnrollment": {
+    "newSyntheticBusinessCount": 1,
+    "ownerPreverifiedForTest": true,
+    "jobState": "Succeeded",
+    "durableMobileProfile": "AndroidAppDistribution",
+    "completedStepNames": [
+      "database",
+      "domains",
+      "google-firebase",
+      "identity",
+      "mobile-android-release",
+      "publication",
+      "store",
+      "tenant-migrations",
+      "tenant-plugins",
+      "tenant-secrets",
+      "tenant-settings"
+    ],
+    "billingLinked": false,
+    "testerInvitationsSent": false,
+    "readinessEmailProvider": "Disabled",
+    "sameRegistrationReplayPreserved": true
+  },
+  "freshAndroid": {
+    "actualNativeApkVerified": true,
+    "providerDownloadMatchesSignedArtifact": true,
+    "artifactBytes": 33792570,
+    "BuildNumber": 1,
+    "Sha256": "f9c6ba29ba7b59b0d15f528497ee22f1d0107e8325015e24f2c9303ec70ffe34",
+    "SourceHash": "75e695637aae5dae8308b5afa196bc6217141c3c5f3a0071233f21787a99db4a",
+    "SigningCertificateSha256": "a8803802ca1a1f24a9f3112405af70f5f9034fc9dce8964bc8f5c3db4e6d89da",
+    "readOnlySharedSecretReader": true,
+    "emptyDistributionGroupVerified": true,
+    "resourceMutations": 0,
+    "transientPlaintextSigningFilesAbsent": true
+  },
+  "teardownPreparation": {
+    "configurationValidated": true,
+    "usesDownloadedRemoteTemplateAndState": true,
+    "provider": "oracle/oci 7.23.0",
+    "terraform": "1.5.7",
+    "refresh": false,
+    "preparationPlanChanges": [
+      {
+        "type": "oci_core_instance",
+        "actions": [
+          "update"
+        ]
+      },
+      {
+        "type": "oci_identity_compartment",
+        "actions": [
+          "update"
+        ]
+      }
+    ],
+    "creates": 0,
+    "deletes": 0,
+    "replacements": 0,
+    "applyExecuted": false,
+    "destroyExecuted": false,
+    "cloudResourcesChanged": false
+  },
+  "localOracleRegressionTests": 30,
+  "limitations": [
+    "Application runtime remains b7567d2; the newer 249bd4a application changes were not deployed or accepted by this test.",
+    "No actual checkout/payment, physical-device installation/crash/push, signed iOS IPA or APNs delivery acceptance.",
+    "This Oracle state was not cold-restored into an empty destination.",
+    "The current runtime has no separate task-worker service.",
+    "No new remote CI run; GitHub Actions quota is exhausted."
+  ],
+  "credentials": "Exact operator paths and test-owner passwords remain only in ignored owner-readable local files; no key contents, passwords, owner emails, tenant/cloud resource IDs or signed download URLs are recorded here."
+}

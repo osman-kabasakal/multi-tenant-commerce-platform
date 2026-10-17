@@ -6,6 +6,8 @@ GitHub yalnızca kaynak deposu olarak kullanılır. Bu akış GitHub Actions, Gi
 
 Bu sürüm altyapı için Terraform + Oracle Resource Manager, uygulama için doğrulanan SSH + mevcut [Production Compose girişini](LINUX_PRODUCTION.md) kullanır. İlk kurulumda hesap yetkilendirmesi, SSH sunucu kimliğinin doğrulanması, alan adı/TLS ve özel sağlayıcı girdileri gerekir. Bu adımlardan sonra her uygulama dağıtımı tek `deploy` çağrısıdır. Push sonrası kendiliğinden çalışan bir CI sunucusu kurulmuş değildir.
 
+Mevcut sunucuda testleri tekrar çalıştırmak, kimlik dosyalarını bulmak ve test sonunda boot disk/compartment dahil kaynakları kaldırmak için [Oracle test ve kaldırma rehberini](ORACLE_TEST_VE_KALDIRMA.md) kullanın.
+
 ## 1. Kendi Oracle hesabınızı hazırlayın
 
 [Oracle CLI'yi kurun](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm). Araç OCI CLI **3.95.0** komutlarıyla doğrulanmıştır. Ayrı bir özel profil kullanın; hesabınızı bir kez `oci setup config` ile yapılandırabilir veya kısa ömürlü `oci session authenticate` oturumu açabilirsiniz. API anahtarı, profil ve token dosyaları Git dışında, yalnızca sahibinin okuyabildiği şekilde tutulmalı. Profil dosyası `0600` olmalı; token oturumu süre dolduğunda yenilenir. Parola/anahtar içeriğini loglara veya sohbete yazmayın.
