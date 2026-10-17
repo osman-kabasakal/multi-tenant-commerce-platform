@@ -86,7 +86,7 @@ Mağaza yöneticisi bu profilde GrandNode parola doğrulamasını kullanır. Saa
 
 ## Yeni yerel işletme
 
-Yerel demo ve gerçek sunucu için tek sıralı rehber: [Yeni işletme ekleme: ilk kurulumdan mobil teslimine](docs/YENI_ISLETME_EKLEME.md). Portable üretimde eklenti derleme yolları, sıralı tenant kurulum görevleri ve korunan eski ayarlar: [Tenant kurulumu ve BuildType](docs/TENANT_INITIALIZATION.md). Tekrar eden işler için [ayrı tenant görev servisi](docs/TENANT_BACKGROUND_TASKS.md) açıkça etkinleştirilebilir. Yönetim ve görev süreçleri [ortak Redis bildirim kanalını](docs/DISTRIBUTED_NOTIFICATIONS.md) kullanır.
+Yerel demo ve gerçek sunucu için tek sıralı rehber: [Yeni işletme ekleme: ilk kurulumdan mobil teslimine](docs/YENI_ISLETME_EKLEME.md). Portable üretimde eklenti derleme yolları, sıralı tenant kurulum görevleri ve korunan eski ayarlar: [Tenant kurulumu ve BuildType](docs/TENANT_INITIALIZATION.md). Tekrar eden işler için [ayrı tenant görev servisi](docs/TENANT_BACKGROUND_TASKS.md) açıkça etkinleştirilebilir. Yönetim ve görev süreçleri [ortak Redis bildirim kanalını](docs/DISTRIBUTED_NOTIFICATIONS.md) kullanır. Sunucu önbelleğinin tenant ve süreç sınırları [önbellek rehberindedir](docs/TENANT_CACHE.md).
 
 1. `http://localhost:18081/local-onboarding.html` adresini açın; `demo-owner` hesabıyla giriş yapın. Parola `.local/credentials.json` içindeki `saas_user` değeridir.
 2. Benzersiz bir işletme adı ve en az 12 karakterlik mağaza yönetimi parolası girin. Bu akış gerçek ödeme almaz; mevcut plandan sıfır tutarlı deneme aboneliği oluşturur.

@@ -15,6 +15,8 @@ public sealed class RedisMessageBus : IMessageBus
     private readonly RedisConfig _redisConfig;
     private readonly IServiceProvider _serviceProvider;
     private readonly ISubscriber _subscriber;
+    private readonly object _subscriptionLock = new();
+    private Task _subscription;
 
     public RedisMessageBus(ISubscriber subscriber, IServiceProvider serviceProvider, RedisConfig redisConfig)
     {
@@ -44,41 +46,42 @@ public sealed class RedisMessageBus : IMessageBus
 
     public Task SubscribeAsync()
     {
-        _subscriber.SubscribeAsync(RedisChannel.Literal(_redisConfig.RedisPubSubChannel), (_, redisValue) =>
-        {
-            try
+        lock (_subscriptionLock)
+            return _subscription ??= _subscriber.SubscribeAsync(RedisChannel.Literal(_redisConfig.RedisPubSubChannel), (_, value) =>
             {
-                var message = JsonSerializer.Deserialize<MessageEventClient>(redisValue);
-                if (message != null && message.ClientId != ClientId)
-                    OnSubscriptionChanged(message);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex.Message);
-            }
-        });
-        return Task.CompletedTask;
+                try
+                {
+                    var message = JsonSerializer.Deserialize<MessageEventClient>(value);
+                    if (message != null && message.ClientId != ClientId) OnSubscriptionChanged(message);
+                }
+                catch (Exception ex) { Debug.WriteLine(ex.Message); }
+            });
     }
 
-    public void OnSubscriptionChanged(IMessageEvent message)
+    public void OnSubscriptionChanged(IMessageEvent message) => _ = ApplySubscriptionAsync(message);
+
+    private async Task ApplySubscriptionAsync(IMessageEvent message)
     {
-        using var scope = _serviceProvider.CreateScope();
-        var cache = scope.ServiceProvider.GetRequiredService<ICacheBase>();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-        switch (message.MessageType)
+        // Old unqualified ClearCache messages must not affect all tenants in this process.
+        if (string.IsNullOrWhiteSpace(message.Key)) return;
+        try
         {
-            case (int)MessageEventType.RemoveKey:
-                _ = cache.RemoveAsync(message.Key, false);
-                mediator.Publish(new EntityCacheEvent(message.Key, CacheEvent.RemoveKey));
-                break;
-            case (int)MessageEventType.RemoveByPrefix:
-                _ =
-                    cache.RemoveByPrefix(message.Key, false);
-                    mediator.Publish(new EntityCacheEvent(message.Key, CacheEvent.RemovePrefix));
-                break;
-            case (int)MessageEventType.ClearCache:
-                _ = cache.Clear(false);
-                break;
+            using var scope = _serviceProvider.CreateScope();
+            var cache = scope.ServiceProvider.GetRequiredService<ICacheBase>();
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+            switch (message.MessageType)
+            {
+                case (int)MessageEventType.RemoveKey:
+                    await cache.RemoveAsync(message.Key, false);
+                    await mediator.Publish(new EntityCacheEvent(message.Key, CacheEvent.RemoveKey));
+                    break;
+                case (int)MessageEventType.RemoveByPrefix:
+                case (int)MessageEventType.ClearCache:
+                    await cache.RemoveByPrefix(message.Key, false);
+                    await mediator.Publish(new EntityCacheEvent(message.Key, CacheEvent.RemovePrefix));
+                    break;
+            }
         }
+        catch (Exception ex) { Debug.WriteLine(ex.Message); }
     }
 }

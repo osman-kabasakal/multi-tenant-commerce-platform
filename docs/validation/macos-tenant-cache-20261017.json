@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "utc": "2026-10-17T05:19:03.630447+00:00",
+  "checks": 12,
+  "realRedis": {
+    "repository": "https://github.com/redis/redis",
+    "tag": "7.4.11",
+    "commit": "aaf0ce63b3239f4b51f86ca1da8711b055721993"
+  },
+  "realWebProcesses": 3,
+  "controlledHttpStoreIdentityAndAcquire": true,
+  "nativeAdminAuthentication": false,
+  "externalDelivery": 0,
+  "sourceFiles": {
+    "Ecommerce/src/Core/Grand.Infrastructure/Caching/RedisTrackedMemoryCacheBase.cs": "84c158ef33ceee778e7d4c57fec73cfe4bfde312d2bdda3f33436910769e9221",
+    "Ecommerce/src/Core/Grand.Infrastructure/Caching/Redis/RedisMessageCacheManager.cs": "b7cc8b2318d6d56248208de8d56d1c9994274e4d2e24c8face8ffaaac1bb975a",
+    "Ecommerce/src/Core/Grand.Infrastructure/Caching/Redis/RedisMessageBus.cs": "9caed135d90e8483ead906f5cdf66c710317bf5a414555a6d9eb423e50ed14f2",
+    "tests/Cache.Integration/Program.cs": "2b46905892d6685caf7fd9c5863cc07363545a1eff941c3305f0dd5c6d1b4508"
+  },
+  "baseline": {
+    "baseCommit": "c59a8b39663adf97877a854abf203183d1748060",
+    "failedChecks": 10,
+    "totalChecks": 12,
+    "regressions": [
+      "default and explicit sync/async reads use exactly one identical tenant namespace",
+      "both SetAsync overloads replace the same scoped cache entry",
+      "background tenant identity shares its own HTTP cache without crossing stores",
+      "an awaited real Redis key invalidation reaches a separate web process",
+      "tenant clear travels as a qualified prefix and preserves other stores/deployments",
+      "a qualified legacy clear remains confined to its named tenant",
+      "a clear without server tenant context fails before publication",
+      "concurrent HTTP/background accesses retain independent tenant scope"
+    ]
+  },
+  "scope": "Actual RedisMessageCacheManager/RedisTrackedMemoryCacheBase/RedisMessageBus in three independent web processes. Controlled HTTP store identity and acquired data; no native merchant login, checkout or mobile correlation/FCM consumer acceptance.",
+  "publicNativeSmokeCommandPassed": true,
+  "dockerSmokePathExecuted": true,
+  "remoteGithubActionsExecuted": false,
+  "dockerCacheDataUsesTmpfs": true,
+  "dockerCacheAnonymousVolumesRejected": true
+}

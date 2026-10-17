@@ -39,7 +39,7 @@ def main():
             subprocess.run(['dotnet', 'run', '--project', str(ROOT / 'tests/Tenant.Tasks.Integration/Tenant.Tasks.Integration.csproj'),
                             '-c', 'Release', '--', str(connection)], cwd=ROOT, check=True)
         finally:
-            subprocess.run(['docker', 'rm', '--force', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(['docker', 'rm', '--force', '--volumes', name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 if __name__ == '__main__': main()
