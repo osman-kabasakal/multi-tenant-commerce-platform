@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class ApnsRegistration {
@@ -107,6 +108,9 @@ class ApnsNotificationBridge {
   }
 
   Future<void> _receive(MethodCall call) async {
+    if (call.method == 'registrationError') {
+      debugPrint('PushRegistration stage=native_apns_registration_failed');
+    }
     switch (call.method) {
       case 'token':
         final token = call.arguments;

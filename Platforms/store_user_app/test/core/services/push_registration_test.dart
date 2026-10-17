@@ -18,6 +18,7 @@ class _Server implements HttpClientAdapter {
   final requests = <RequestOptions>[];
   final bodies = <String>[];
   var statusCode = 200;
+  var responseBody = '""';
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
@@ -27,7 +28,7 @@ class _Server implements HttpClientAdapter {
     requests.add(options);
     bodies.add(await utf8.decoder.bind(stream!).join());
     return ResponseBody.fromString(
-      '""',
+      responseBody,
       statusCode,
       headers: {
         Headers.contentTypeHeader: [Headers.jsonContentType],
@@ -160,6 +161,25 @@ void main() {
       );
     },
   );
+  test('release diagnostics identify HTTP failure without leaking device or response data', () async {
+    final original = debugPrint;
+    final messages = <String>[];
+    debugPrint = (String? message, {int? wrapWidth}) => messages.add(message ?? '');
+    try {
+      server.statusCode = 503;
+      server.responseBody = '"sensitive-server-body"';
+      await service.initialize();
+      final output = messages.join('\n');
+      expect(output, contains('stage=apns_identity_verified authorized=true'));
+      expect(output, contains('stage=receiver_failed'));
+      expect(output, contains('status=503'));
+      expect(output, isNot(contains('aabb')));
+      expect(output, isNot(contains('sensitive-server-body')));
+      expect(output, isNot(contains(identity)));
+    } finally {
+      debugPrint = original;
+    }
+  });
   test('concurrent startup and foreground refresh register the current customer only once', () async {
     await Future.wait([service.initialize(), service.initialize()]);
     expect(server.requests, hasLength(1));

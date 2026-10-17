@@ -66,9 +66,15 @@ class FCMService {
     return operation.whenComplete(() => _initializing = null);
   }
 
+  // Fixed stages remain visible in signed releases without exposing tokens, URLs or response bodies.
+  void _registrationDiagnostic(String stage, {bool? authorized, bool? tokenPresent, int? status, Object? error}) {
+    debugPrint('PushRegistration stage=$stage authorized=$authorized tokenPresent=$tokenPresent status=$status errorType=${error?.runtimeType}');
+  }
+
   Future<void> _initialize() async {
     if (LocalDemo.enabled) return;
     if (ApnsNotificationBridge.enabled) {
+      _registrationDiagnostic('apns_initialize_started');
       try {
         _apns ??= ApnsNotificationBridge(
           onToken: _registerCurrentToken,
@@ -80,6 +86,7 @@ class FCMService {
         );
         _isInitialized = true;
         final registration = await _apns!.initialize();
+        _registrationDiagnostic('apns_identity_verified', authorized: registration.authorized, tokenPresent: registration.token != null);
         await _apns!.consumeCacheRefresh(
           _cacheFreshness.refreshAfterBackgroundPush,
         );
@@ -88,7 +95,8 @@ class FCMService {
         } else if (registration.token != null) {
           await _registerCurrentToken(registration.token!);
         }
-      } catch (_) {
+      } catch (error) {
+        _registrationDiagnostic('apns_initialize_failed', error: error);
         _isInitialized = false;
         _logger.e('APNs registration could not be initialized');
       }
@@ -130,7 +138,9 @@ class FCMService {
   }
 
   Future<void> _registerCurrentToken(String token) async {
+    _registrationDiagnostic('native_token_received');
     await storeTokenSecurely(token);
+    _registrationDiagnostic('token_storage_complete');
     await saveTokenToServer(token);
   }
 
@@ -451,6 +461,7 @@ class FCMService {
 
   /// FCM token'ı sunucuya kaydetmek için kullanılabilir
   Future<void> saveTokenToServer(String token) async {
+    _registrationDiagnostic('receiver_attempt');
     if (!_isInitialized) {
       _logger.e('FCM henüz başlatılmadı');
       return;
@@ -477,6 +488,7 @@ class FCMService {
             settings.authorizationStatus == AuthorizationStatus.authorized ||
             settings.authorizationStatus == AuthorizationStatus.provisional;
       }
+      _registrationDiagnostic('receiver_permission_checked', authorized: allowed);
       final response = await _dio.post(
         '/PushNotifications/ProcessRegistration',
         data: {
@@ -486,6 +498,7 @@ class FCMService {
         options: Options(contentType: Headers.formUrlEncodedContentType),
       );
 
+      _registrationDiagnostic('receiver_response', status: response.statusCode);
       if (response.statusCode == 200) {
         if (kDebugMode) {
           _logger.d('Token sunucuya kaydedildi');
@@ -496,6 +509,7 @@ class FCMService {
         }
       }
     } catch (e) {
+      _registrationDiagnostic('receiver_failed', status: e is DioException ? e.response?.statusCode : null, error: e);
       if (kDebugMode) {
         _logger.e('Token kaydetme isteği başarısız oldu');
       }
