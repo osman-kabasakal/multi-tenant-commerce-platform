@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "verifiedAtUtc": "2026-10-17T12:05:32.121943+00:00",
+  "fullImageBuildRevision": "ca02d343513d0bd63c049c50586d126d52f6b4db",
+  "manualReleaseWorkerRevision": "ca02d343513d0bd63c049c50586d126d52f6b4db",
+  "finalDeploymentRevision": "aa7e835fcaccfc03604e5589e1ccaa2503cfc7d2",
+  "environment": {
+    "provider": "Oracle Cloud",
+    "ocpu": 1,
+    "memoryGiB": 8,
+    "automaticStopRuleRetained": true
+  },
+  "regression": {
+    "portableServiceTests": 38,
+    "portableProvisioningTests": 132,
+    "realPostgreSqlAssertions": 112,
+    "productionConfigurationTests": 18,
+    "angularProductionBuild": "passed",
+    "syntheticProvidersAreNotLiveCloudEvidence": true
+  },
+  "actualBrowser": {
+    "checks": [
+      "A current Trial subscription opens the actual new-build form without the false inactive-business warning",
+      "The existing initial release advances to version 2; any previous manual release requires inspection before another submission",
+      "The portable form describes rebuilding the existing application without accepting unused branding uploads",
+      "The authenticated trial owner can submit the actual Android build form",
+      "The real UI queues the requested Android version successfully",
+      "A duplicate browser request returns the same durable release identity and version",
+      "The API blocks a second active build while the durable Android job is running",
+      "The real provisioning worker completes a signed Android APK and projects the completed version into the portal list",
+      "The download probe resumes the existing version 2 without submitting another release",
+      "The completed durable release remains available in the original owner list",
+      "The completed version 2 row exposes its actual icon download action",
+      "The real authenticated endpoint returns the native APK MIME type",
+      "The actual browser download keeps the APK filename and extension",
+      "The browser APK exactly matches the independently verified native and Firebase-distributed package",
+      "Completion unlocks version 3 while the same trial remains valid",
+      "The actual build list and download have no JavaScript or asset errors"
+    ],
+    "buildNumber": 2,
+    "artifactBytes": 33858106,
+    "sha256": "8dc6a219d7338eb8b4b191f16f0ff47e137f657d9c1bd64102e646b6d9fc8a65",
+    "existingReleaseResumedAfterProbeSelectorCorrection": true,
+    "newTenantCreated": false
+  },
+  "independentApkVerification": {
+    "readOnlySharedSecretReader": true,
+    "actualNativeApkVerified": true,
+    "providerDownloadMatchesSignedArtifact": true,
+    "readOnlyVerifierResourceMutations": 0,
+    "emptyDistributionGroupVerified": true,
+    "initialSigningAndAppIdentityRetained": true,
+    "transientPlaintextSigningFilesAbsent": true,
+    "mobileSourceHash": "aaad252df505d826564683a4bbc086eb9bd3d345ce0b5ffae9f89c8dcf0e9412",
+    "verifierPackageSha256": "2806d3d7983160aea930b7d83fd1bd137f8beb0ac4c9e660bfd2936eb874df5b"
+  },
+  "ownerIsolation": {
+    "anotherOwnerDownloadStatus": 404,
+    "anotherOwnerListExcludesBuild": true,
+    "businessStatus": "Trial",
+    "initialIdentityRetained": true
+  },
+  "existingStore": {
+    "checks": [
+      "All configured deployment services are running",
+      "No service reports an unhealthy Docker state",
+      "The original tenant provisioning job remains Succeeded",
+      "Anonymous trial configuration access is denied",
+      "Anonymous provisioning status access is denied",
+      "Storefront admin boundary rejects /Admin",
+      "Storefront admin boundary rejects /admin/",
+      "Storefront admin boundary rejects /ADMIN/Product/List",
+      "The Keycloak administration API is not public",
+      "Client credentials with an invalid secret are rejected",
+      "Existing tenant storefront responds over trusted HTTPS",
+      "The original owner authenticates through public HTTPS OIDC and retains completed setup",
+      "SaaS still reconciles the original ready business",
+      "The owner status endpoint retains verified publication",
+      "Owner provisioning status contains no database credential or administrator password",
+      "The original tenant administrator password still authenticates",
+      "Authenticated administration opens the actual product list",
+      "All same-origin product-page CSS and JavaScript assets have valid MIME types",
+      "TRY remains both the primary store and exchange currency",
+      "Both tenant tax providers remain available",
+      "Tax categories retain the required 1, 10 and 20 percent fixed rates",
+      "Every configured administration plugin has a tenant-owned installation record",
+      "All six mobile address attributes remain required"
+    ],
+    "productPageAssetCount": 38,
+    "installedPluginCount": 23,
+    "requiredTaxRates": [
+      1,
+      10,
+      20
+    ]
+  },
+  "postNavigationStoreSmoke": {
+    "runtimeRevision": "aa7e835fcaccfc03604e5589e1ccaa2503cfc7d2",
+    "checkCount": 23
+  },
+  "navigationOnlyPromotion": {
+    "checks": [
+      "Both visible new-build links remain available",
+      "Visible new-build link 1 targets the owned dashboard form",
+      "Visible new-build link 2 targets the owned dashboard form",
+      "The corrected primary link opens the next version after completed release 2",
+      "The next release form is usable without submitting another build",
+      "The updated navigation has no JavaScript or same-origin asset failures"
+    ],
+    "baseRevision": "ca02d343513d0bd63c049c50586d126d52f6b4db",
+    "revision": "aa7e835fcaccfc03604e5589e1ccaa2503cfc7d2",
+    "sourceDiffOnlyOneNavigationTemplate": true,
+    "unchangedBackendAndSdkLayersReused": true,
+    "frontendArchiveSha256": "b5f5fbf509ab84e22c0a69a029b187bef964da15706fa1ff9e60658938a257fb",
+    "newBuildSubmitted": false
+  },
+  "externalMessagesSentByProbe": false,
+  "limitations": [
+    "No physical-device installation or push-delivery acceptance in this run.",
+    "The portal manual-release form supports Android; manual iOS release submission is separate work.",
+    "GitHub Actions was unavailable because of account quota; checks ran locally and on the existing Linux test VM."
+  ]
+}

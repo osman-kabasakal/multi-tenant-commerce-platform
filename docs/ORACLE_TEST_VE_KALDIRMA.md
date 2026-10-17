@@ -136,6 +136,25 @@ Kontrol, gerçek HTTPS/OIDC girişini, sahibine ait tamamlanmış kurulum işini
 
 İşletme ekleme ekranlarının ayrıntıları [yeni işletme rehberindedir](YENI_ISLETME_EKLEME.md). Sonuçların kaynak sürümü ve sınırları [doğrulama kayıtlarında](VALIDATION.md) tutulur.
 
+### Disk alanı ve derleme önbelleği
+
+Oracle'daki boot disk kapasitesi ile `df` çıktısındaki **Available** değeri farklı ölçümlerdir: biri toplam kapasiteyi, diğeri dosya sisteminde boş kalan alanı gösterir. Bölümler, dosya sistemi ve kullanılan birimler de toplam gösterimini etkiler. Bu testte kök dosya sistemi `96G` görünüyordu; Android worker hazırlığı öncesinde yalnızca yaklaşık `19G` boştu.
+
+Üretim uygulaması derlenirken .NET SDK'ları, NuGet paketleri, ara çıktılar ve Docker katmanları; mobil worker hazırlanırken Android SDK/NDK, JDK ve Flutter ayrıca yer kaplar. Önceki uygulama imajı geri dönüş için korunur. Docker build cache ve imaj boyutları ortak katman içerebildiğinden bunları toplayarak fiziksel disk tüketimi hesaplamayın. Docker volume toplamı da hosttaki mobil çalışma dizinlerini ve APK'ları kapsamaz.
+
+Sunucuda salt okunur kontrol:
+
+```sh
+df -h /
+docker system df
+docker builder du
+du -h --max-depth=1 "$server_root/state"
+```
+
+Büyük imaj dışa aktarımı sürerken Docker'ın alan raporu gecikebilir; önce `df` ve derleme logunu kontrol edin. Android worker hazırlığı en az **30 GiB boş alan** ister. Derlemeyi başlatmadan önce yeterli alan bırakın; minimuma ulaşıldığında disk dolana kadar zorlamayın.
+
+Bu denemede çalışan veritabanları, volume'lar ve imajlar korunarak kullanılmayan Docker derleme önbelleği temizlendi; boş alan yaklaşık **19 GiB'den 43 GiB'ye** çıktı. Devam eden SDK hazırlığı yeniden alan tüketti. Tekrar temizlik gerekirse önce bu makinedeki diğer projeleri ve etkin derlemeleri kontrol edin. `docker builder prune --filter until=24h` kullanılmayan eski önbelleği onayla temizler ve sonraki derlemeleri yavaşlatabilir. Genel `docker system prune --volumes` veya toplu volume silme bu bakım adımının parçası değildir. Veritabanları, master key, tenant imzalama anahtarları ve mobil çıktılar uygulama verisidir; önbellek gibi silinmemelidir.
+
 ## 4. Yeniden açılışta MongoDB başlamazsa
 
 17 Ekim testinde işletim sistemi güncellemesi sonrası `7.0.0-1013-oracle` çekirdeği açıldı ve MongoDB, `SERVER-121912` hatasıyla başlamayı reddetti. [MongoDB’nin resmî açıklaması](https://www.mongodb.com/docs/v8.0/release-notes/8.0/) Linux 6.19–7.0.13 aralığını uyumsuz olarak tanımlar; container kullanmak ana makinenin çekirdeğini değiştirmez.
