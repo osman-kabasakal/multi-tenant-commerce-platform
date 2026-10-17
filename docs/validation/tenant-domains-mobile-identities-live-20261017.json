@@ -1,0 +1,54 @@
+{
+  "checkedAtUtc": "2026-10-17T17:26:53.211787+00:00",
+  "scope": "Live custom domain and versioned Android identity; signed iOS and physical acceptance pending",
+  "runtimeImageRevision": "a3fd3cbbd75703831bcc8cb29c548350d83b98c7",
+  "schemaAndMacWorkerRevision": "22fee85e55995acaa15f619c41a4fd62f35e5c0f",
+  "sameOwnedMinimalOracleVm": {
+    "ocpus": 1,
+    "memoryGiB": 8,
+    "existingHourlyStopRetained": true
+  },
+  "customDomain": {
+    "actualPublicHttpsVerified": true,
+    "browserChecksPassed": 11,
+    "storeAdminPathsReturn404": true,
+    "managementProductAssetsVerified": true,
+    "actualKeycloakTokenBoundToCustomHost": true,
+    "activationSucceeded": true
+  },
+  "firebase": {
+    "sameExistingProjectPreserved": true,
+    "newAndroidAndIosApplicationsVerified": true,
+    "legacyApplicationsPreserved": true,
+    "iosTeamVerified": true,
+    "actualApkSha1AndSha256MatchFirebase": true
+  },
+  "android": {
+    "actualSignedNativeApkVerified": true,
+    "actualDistributionDownloadMatchesRetainedApk": true,
+    "ownPackageCertificateVerified": true,
+    "artifactBytes": 33858050,
+    "artifactSha256": "f36cd8605530e176b0b6683dba5b592acec3531af515389957f15b3955fc375b",
+    "sourceHash": "7fb31ad033c572b8ce88a36aab879c24bb05cd64f72276a1961e856e8bc02b0c",
+    "emptyDistributionGroupVerified": true,
+    "readOnlySharedSecrets": true,
+    "verifierResourceWrites": 0
+  },
+  "ios": {
+    "nativeArchiveReachedCodesign": true,
+    "signedIpaVerified": false,
+    "distributionVerified": false,
+    "installedOnPhysicalDevice": false,
+    "physicalAppFlowVerified": false,
+    "apnsDeliveryVerified": false,
+    "waitingForMacKeychainAccess": true
+  },
+  "sourceRepair": {
+    "operatorApproved": true,
+    "onlyIosSourceChanged": true,
+    "androidReceiptPreserved": true,
+    "appendOnlyAuditReadBack": true
+  },
+  "githubActionsRun": false,
+  "newVmCreated": false
+}

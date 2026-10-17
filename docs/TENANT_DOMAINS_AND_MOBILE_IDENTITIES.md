@@ -2,7 +2,7 @@
 
 Bu akış yalnızca Portable Production/Staging kurulumunda kullanılır. Yerel demo bulut DNS işlemi yapmaz. Platformun portal/kimlik ve wildcard alan adları kullanılmaya devam eder; işletme kendi mağaza ve yönetim adresini ayrıca seçebilir.
 
-**Kabul durumu:** sahiplik, tek işletmeye atama, alan adı kuyruğu, iki platform tamamlanmadan kimlik değiştirmeme, paket başına imza, bildirim hedefi ve portal kontrolleri yerelde doğrulanmıştır. Yeni alan adı üzerinden gerçek genel TLS ve yeni paketlerin gerçek imzalı Android/iOS teslimi ayrıca canlı kabul gerektirir. Yerel testlerde kullanılan sentetik derleme makbuzları gerçek IPA/APK teslimi kanıtı değildir. Sonuçlar [VALIDATION.md](VALIDATION.md) altında takip edilir.
+**Kabul durumu:** sahiplik, tek işletmeye atama, alan adı kuyruğu, paket başına imza, bildirim hedefi ve portal kontrolleri yerelde doğrulanmıştır. Canlı ortamda özel alan adının gerçek genel TLS bağlantısı, mağaza/yönetim erişimi ve yeni paketin gerçek imzalı Android teslimi doğrulandı. Android APK sertifikasının SHA-1 ve SHA-256 değerleri Firebase kayıtlarıyla eşleşti; aynı projedeki eski uygulamalar korundu. İmzalı iOS teslimi, iki gerçek makbuzla aktif kimlik geçişi ve fiziksel cihaz kabulü henüz bekliyor. Yerel testlerdeki sentetik makbuzlar bu eksik kabulün yerine geçmez. [Canlı kapsam ve kaynak sürümleri](validation/tenant-domains-mobile-identities-live-20261017.json), [tüm doğrulamalar](VALIDATION.md).
 
 ## İşletmecinin bir kez hazırlayacağı ayarlar
 
