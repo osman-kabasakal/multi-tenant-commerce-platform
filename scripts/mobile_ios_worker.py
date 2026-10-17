@@ -6,6 +6,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import sys
+import traceback
 import uuid
 
 import mobile_ios as ios
@@ -74,9 +75,17 @@ def build(args, plan):
                                      plan["developmentTeam"], plan["buildNumber"], args.ruby)
     bind(plan, tenant, args.firebase_directory)
     with ios.private_log(workspace / "ios-release.log") as log:
-        _, result, _ = release.build(workspace, tenant, args.signing_config, args.ruby, args.flutter, log,
-                                     ios.compile_unsigned, ios.verify_compiled_app,
-                                     expected_certificate_sha256=plan["signingCertificateSha256"])
+        try:
+            _, result, _ = release.build(workspace, tenant, args.signing_config, args.ruby, args.flutter, log,
+                                         ios.compile_unsigned, ios.verify_compiled_app,
+                                         expected_certificate_sha256=plan["signingCertificateSha256"])
+        except Exception as error:
+            # The parent retains only this private log when a fresh workspace fails.
+            # Never capture locals or expose provider/native details in public stderr.
+            detail = "".join(traceback.TracebackException.from_exception(error, capture_locals=False).format())[-65536:]
+            log.write("\nNative iOS build verification failed:\n" + detail + "\n")
+            log.flush()
+            raise
     result.update(deploymentId=plan["deploymentId"], firebaseSdkSha256=plan["firebaseSdkSha256"])
     ios.common.private_json(workspace / "ios-release-result.json", result)
     # No symbol/distribution upload happens before the parent stores this immutable artifact.

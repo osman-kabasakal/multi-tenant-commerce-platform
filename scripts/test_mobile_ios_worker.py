@@ -1,5 +1,7 @@
 import argparse
 import copy
+import contextlib
+import io
 import hashlib
 import json
 import plistlib
@@ -138,6 +140,26 @@ class IosWorkerNativeTests(unittest.TestCase):
             self.assertEqual(native.call_args.kwargs["expected_certificate_sha256"], self.plan["signingCertificateSha256"])
             upload.assert_not_called()
         self.assertTrue((self.workspace / "ios-release-result.json").is_file())
+
+    def test_failed_native_verification_retains_private_bounded_diagnostics_without_upload_or_public_details(self):
+        detail = "private-native-verification-detail-" + "x" * 70000
+        stderr = io.StringIO()
+        with patch.object(worker, "read_plan", return_value=self.plan), \
+             patch.object(worker.ios, "prepare", return_value=(self.workspace, self.tenant)), \
+             patch.object(worker.release, "build", side_effect=ValueError(detail)), \
+             patch.object(worker.release, "upload_symbols") as upload, contextlib.redirect_stderr(stderr):
+            code = worker.main(["build", "--manifest", str(self.args.manifest), "--plan", str(self.root / "plan.json"), "--firebase-directory", str(self.inputs),
+                                "--workspace", str(self.workspace), "--signing-config", str(self.args.signing_config),
+                                "--ruby", "ruby", "--flutter", "flutter"])
+        self.assertEqual(code, 1)
+        self.assertIn("ValueError", stderr.getvalue())
+        self.assertNotIn("private-native-verification-detail", stderr.getvalue())
+        log = self.workspace / "ios-release.log"
+        self.assertEqual(log.stat().st_mode & 0o777, 0o600)
+        self.assertLess(log.stat().st_size, 66000)
+        self.assertIn("x" * 100, log.read_text())
+        self.assertFalse((self.workspace / "ios-release-result.json").exists())
+        upload.assert_not_called()
 
     def test_mismatched_native_source_stops_before_signing(self):
         changed = dict(self.tenant, sourceHash="d" * 64)
