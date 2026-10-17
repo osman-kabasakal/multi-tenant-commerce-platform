@@ -186,6 +186,14 @@ Sadece konteynerin çalışıyor olması dağıtımı başarılı saydırmaz. Re
 
 Tenant secret'ları ortak AesGcm sağlayıcısı ve özel PostgreSQL deposuyla kullanılır. Dağıtık servisler aynı korunan master key'e erişir; mağaza ve yönetim için okuma hesabı, worker için gerekli yazma hesabı verilir. Yedekte şifreli veritabanı ile ilgili master key birlikte korunmalıdır.
 
+## Küçük sunucuda Android derleme ayarı
+
+Android mobil profili seçildiğinde Production hazırlığı `state/mobile-cache/gradle/gradle.properties` dosyasını ilk kullanımda özel izinlerle oluşturur. Varsayılan Gradle heap sınırı 2 GB, metaspace sınırı 512 MB ve paralel işçi sayısı birdir. Kotlin derleyicisi aynı Gradle sürecinde çalışır; ayrı bir compiler daemon başlatılmaz. Bu sınırlar diğer uygulama servislerine alan bırakmak içindir; tüm sunucunun toplam RAM kullanımına konulan bir limit değildir.
+
+Gradle kullanıcı dizinindeki bu dosya proje içindeki iş istasyonu ayarlarından önceliklidir. `Platforms/store_user_app/android/gradle.properties` ve mobil kaynağın hash değeri değiştirilmez. Operatör mevcut özel cache dosyasını düzenlediyse `prepare` sonraki dağıtımda onun üzerine yazmaz. Dosya sahibi, izinleri ve sembolik bağlantılar kontrol edilir. Cache diskte tutulur; imza anahtarları ve değişmez APK çıktıları ayrı kalıcı alanlarda korunur.
+
+Gradle öncelik sırası [resmî Gradle belgesinde](https://docs.gradle.org/current/userguide/build_environment.html), Kotlin süreç seçimi [resmî Kotlin belgesinde](https://kotlinlang.org/docs/gradle-compilation-and-caches.html#defining-kotlin-compiler-execution-strategy) açıklanır. Android SDK lisansları ve imza/kalıcı artifact seçenekleri açıkça seçilmeden mobil profil etkinleşmez.
+
 ## Kullanıcının isteği sunucuda nasıl ilerliyor
 
 Tarayıcı portalı HTTPS ile açınca Caddy isteği SaaS'a iletir. Giriş gerektiğinde SaaS, kullanıcıyı Keycloak'a yönlendirir. Kimlik servisi tarayıcıya açık HTTPS adresini kullanır; uygulamalar arasındaki kimlik çağrıları standart 443 kurulumunda Docker ağındaki özel edge IP'sine gider. TLS adı ve token issuer aynı kalır.

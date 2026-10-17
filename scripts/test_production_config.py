@@ -102,6 +102,23 @@ class ProductionConfigTests(unittest.TestCase):
         with self.assertRaises(ValueError): config.prepare(self.android_plan(), state, 'commerce-platform:fixture')
         self.assertEqual((state / 'secrets/platform-master-key').read_text(), original['MasterKey'])
 
+    def test_android_cache_tuning_is_private_and_survives_profile_reprepare(self):
+        state = self.root / 'android-cache-state'
+        original = config.prepare(self.android_plan(), state, 'commerce-platform:fixture')
+        settings = state / 'mobile-cache/gradle/gradle.properties'
+        self.assertEqual(settings.stat().st_mode & 0o777, 0o600)
+        self.assertIn('org.gradle.jvmargs=-Xmx2G', settings.read_text())
+        custom = 'org.gradle.jvmargs=-Xmx1536m\norg.gradle.workers.max=1\n'
+        settings.write_text(custom)
+        replay = config.prepare(self.android_plan(), state, 'commerce-platform:fixture')
+        self.assertEqual(settings.read_text(), custom)
+        self.assertEqual(original['MasterKey'], replay['MasterKey'])
+        self.assertEqual(original['Credentials'], replay['Credentials'])
+        settings.unlink(); external = self.root / 'operator-cache-settings'; external.write_text('must survive')
+        settings.symlink_to(external)
+        with self.assertRaisesRegex(ValueError, 'symbolic'): config.prepare(self.android_plan(), state, 'commerce-platform:fixture')
+        self.assertEqual(external.read_text(), 'must survive')
+
     def combined_plan(self):
         plan = self.android_plan()
         plan['Providers']['Mobile'].update(Provider='AndroidIosAppDistribution', Ios={'Release': {

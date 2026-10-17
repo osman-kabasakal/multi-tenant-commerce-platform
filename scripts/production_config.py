@@ -142,6 +142,27 @@ def fingerprint(plan):
         ('DeploymentId', 'PortalHost', 'IdentityHost', 'StoreParentDomain', 'AdminParentDomain', 'NetworkSubnet', 'HttpsPort', 'TrialPlan')}, sort_keys=True).encode()).hexdigest()
 
 
+def prepare_android_cache(state):
+    # Gradle user-home properties override the checkout's workstation defaults.
+    # Keep a small colocated worker usable without changing immutable mobile sources.
+    cache = state / 'mobile-cache/gradle'
+    if any(path.is_symlink() for path in (cache, *cache.parents)):
+        raise ValueError('Android cache paths cannot contain symbolic links.')
+    cache.mkdir(exist_ok=True, mode=0o700)
+    settings = cache / 'gradle.properties'
+    if settings.is_symlink(): raise ValueError('Android cache settings cannot be symbolic links.')
+    if settings.exists():
+        if not settings.is_file() or settings.stat().st_uid != os.getuid() or settings.stat().st_mode & 0o077:
+            raise ValueError('Android cache settings must be an operator-owned private regular file.')
+        return  # Operator tuning survives prepare/redeploy and cache reuse.
+    with tempfile.NamedTemporaryFile('w', dir=cache, delete=False) as temporary:
+        temporary.write('org.gradle.jvmargs=-Xmx2G -XX:MaxMetaspaceSize=512m -XX:ReservedCodeCacheSize=128m\n'
+                        'org.gradle.workers.max=1\norg.gradle.parallel=false\norg.gradle.daemon=false\n'
+                        'kotlin.compiler.execution.strategy=in-process\n')
+        temporary.flush(); os.fsync(temporary.fileno())
+    os.replace(temporary.name, settings)
+
+
 def prepare(plan, state, image):
     plan = validate(copy.deepcopy(plan))
     for path in (state, *state.parents):
@@ -178,6 +199,8 @@ def prepare(plan, state, image):
                 raise ValueError('An original mobile directory is missing or linked; restore the consistent signing/artifact backup.')
             path.mkdir(exist_ok=True, mode=0o700)
         record['MobilePrepared'] = True
+        if plan['Providers'].get('Mobile', {}).get('Provider') in ('AndroidAppDistribution', 'AndroidIosAppDistribution'):
+            prepare_android_cache(state)
     c = record['Credentials']
     for path in (state / 'config').iterdir():
         if path.is_symlink(): raise ValueError('Private generated configuration cannot be a symbolic link.')
