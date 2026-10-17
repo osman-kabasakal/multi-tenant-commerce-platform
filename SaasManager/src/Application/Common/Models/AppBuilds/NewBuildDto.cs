@@ -5,6 +5,7 @@ namespace SaasManager.Application.Common.Models.AppBuilds;
 public class NewBuildDto
 {
     public Guid BusinessAppId { get; set; }
+    public Guid RequestId { get; set; }
     // public BuildPlatform Platform { get; set; }
     public string Version { get; set; } = null!;
     public int BuildNumber { get; set; }

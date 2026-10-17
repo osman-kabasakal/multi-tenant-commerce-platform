@@ -112,6 +112,7 @@ try
     Check(guard.Calls==1 && completedStep.Calls==0 && rejected.State=="Failed" && rejected.ErrorCode=="pipeline:InvalidOperationException",
         "Deployment guards run before checkpoint-only replay and prevent false completion");
     await CombinedIosReleaseFixture.RunAsync(test.ConnectionString,master);
+    await AndroidBuildQueueFixture.RunAsync(queue,test.ConnectionString,request);
     await IosReleaseQueueFixture.RunAsync(queue,test.ConnectionString,childConfigPath,request);
     Console.WriteLine("Durable provisioning integration checks passed.");
 }

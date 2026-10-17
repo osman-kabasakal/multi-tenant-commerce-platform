@@ -522,6 +522,8 @@ public static class DependencyInjection
         builder.Services.AddFileStorage(builder.Configuration,builder.Environment.ContentRootPath);
 
         builder.Services.AddHostedService<RedisBackgroundListenerHostedService>();
+        if (builder.Configuration["Provisioning:Profile"] == "Portable")
+            builder.Services.AddScoped<SaasManager.Application.AppBuilds.IPortableAppBuilds, PortableAppBuilds>();
         if (builder.Configuration.GetValue<bool>("Provisioning:Enabled"))
             builder.Services.AddHostedService<SaasManager.Infrastructure.BackgorundServices.ProvisioningCompletionService>();
 

@@ -54,13 +54,15 @@ export class AppBuildListComponent {
     this.appBuildService.downloadAppBuild(buildId)
       .subscribe({
         next: (data) => {
-          const blob = new Blob([data], { type: 'application/zip' });
+          const blob = data;
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = 'app-build.zip';
+          const build = this.appBuilds.find(item => item.id === buildId);
+          a.download = data.type === 'application/vnd.android.package-archive' ? `app-${build?.buildNumber ?? 'build'}.apk` : 'app-build.zip';
           document.body.appendChild(a);
           a.click();
+          a.remove();
           window.URL.revokeObjectURL(url);
         },
         error: (err) => {

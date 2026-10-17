@@ -53,7 +53,7 @@ export class NewBuildFormComponent {
         this.isLoading = false;
       },
       error: (err) => {
-        this.error = 'Failed to load build information. Please try again.';
+        this.error = 'Derleme bilgileri yüklenemedi. Lütfen yeniden deneyin.';
         this.isLoading = false;
         console.error('Error loading build VM:', err);
       }
@@ -82,7 +82,7 @@ export class NewBuildFormComponent {
       return;
     }
 
-    if (!this.logoFile || !this.iconFile) {
+    if (!this.newBuildVm?.usesExistingBranding && (!this.logoFile || !this.iconFile)) {
       this.error = 'Both logo and icon files are required.';
       return;
     }
@@ -92,15 +92,15 @@ export class NewBuildFormComponent {
     const formValue = this.buildForm.value;
 
     // First upload the logo and icon files
-    const uploads = [
+    const uploads = this.newBuildVm?.usesExistingBranding ? [of(null)] : [
       this.blobStorageService.uploadFile(
-        this.logoFile,
+        this.logoFile!,
         formValue.businessAppId,
         AppMediaAssetType.Logo,
         "Android"
       ),
       this.blobStorageService.uploadFile(
-        this.iconFile,
+        this.iconFile!,
         formValue.businessAppId,
         AppMediaAssetType.Icon,
         "Android"
@@ -112,6 +112,7 @@ export class NewBuildFormComponent {
         switchMap(() => {
           // After files are uploaded, create the build
           return this.appBuildService.createNewBuild(<NewBuildDto>{
+            requestId: this.newBuildVm?.requestId,
             businessAppId: formValue.businessAppId,
             version: formValue.version,
             buildNumber: formValue.buildNumber,
@@ -119,7 +120,7 @@ export class NewBuildFormComponent {
           });
         }),
         catchError((error) => {
-          this.error = 'Failed to create build. Please try again.';
+          this.error = error?.error?.errorMessage || error?.message || 'Derleme başlatılamadı. Sayfayı yenileyip tekrar deneyin.';
           console.error('Error creating build:', error);
           return of(null);
         }),
@@ -131,7 +132,7 @@ export class NewBuildFormComponent {
         next: (result) => {
           if (result) {
             // Navigate to the build list on success
-            this.router.navigate(['/appbuilds']);
+            this.router.navigate(['/dashboard/appbuilds']);
           }
         }
       });

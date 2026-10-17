@@ -305,7 +305,7 @@ def render(p, state, record, image):
         AuthConfiguration={'IdentityProviderUrl': identity + '/realms/commerce', 'Audience': 'saas-manager', 'ClientId': 'saas-manager',
                            'ClientSecret': c['saas_client'], 'Scopes': ['openid', 'profile', 'email', 'roles']},
         ConnectionStrings={'SaasManagerDb': connection('platform_saas', 'saas')}, DatabaseBootstrap={'Mode': 'External'},
-        Provisioning={'Enabled': True, 'InitializeSchema': False, 'Profile': 'Portable', 'DeploymentId': ident, 'Mobile': {'Provider': mobile['Provider']}},
+        Provisioning={'Enabled': True, 'InitializeSchema': False, 'Profile': 'Portable', 'DeploymentId': ident, 'Mobile': {'Provider': mobile['Provider'], 'ArtifactDirectory': '/var/lib/commerce/mobile-artifacts'}},
         TenantOnboarding={'Trial': {'Enabled': True, 'PlanId': p['TrialPlan']['Id']}}, CardProtection={'Provider': 'Disabled'},
         FileStorage={'Provider': 'FileSystem', 'FileSystem': {'RootDirectory': '/var/lib/commerce/saas-files'}},
         Web={'AllowedOrigins': [portal], 'DataProtectionKeyDirectory': '/var/lib/commerce/saas-cookie-keys', 'DataProtectionApplicationName': ident},
@@ -449,6 +449,8 @@ def compose(p, state, record, image, ip, identity):
             if p['Providers']['Notifications']['Provider'] == 'FcmApns':
                 mounts.append(bind('secrets/apns-key.p8', '/run/secrets/apns-key.p8'))
         mobile_worker = role == 'worker' and p['Providers'].get('Mobile', {}).get('Provider') in ('AndroidAppDistribution', 'AndroidIosAppDistribution')
+        if role == 'saas' and mobile['Provider'] in ('AndroidAppDistribution', 'AndroidIosAppDistribution'):
+            mounts.append(bind('mobile-artifacts', '/var/lib/commerce/mobile-artifacts'))
         if mobile_worker:
             for directory in ('mobile-work', 'mobile-artifacts', 'mobile-cache'):
                 mounts.append(bind(directory, '/var/lib/commerce/' + directory, False))

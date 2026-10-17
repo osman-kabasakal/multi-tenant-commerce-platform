@@ -123,6 +123,7 @@ public static class PortableOnboarding
         services.AddScoped<IProvisioningStep,TenantDomainStep>();services.AddScoped<IProvisioningStep,PortableTenantPublicationStep>();
         services.AddIosReleaseQueueing(config,environment,options);
         services.AddAndroidReleases(config,environment);
+        if (options.MobileReleaseProvider is "AndroidAppDistribution" or "AndroidIosAppDistribution") services.AddHostedService<AndroidBuildWorker>();
         if (options.MobileReleaseProvider == "AndroidIosAppDistribution") services.AddScoped<IProvisioningStep,IosReleaseStep>();
         services.AddReadinessEmail(config,environment,options);
         return services;

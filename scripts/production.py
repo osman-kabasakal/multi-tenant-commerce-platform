@@ -123,6 +123,8 @@ GRANT USAGE ON SEQUENCE platform_provisioning.jobs_id_seq TO platform_saas,platf
 GRANT SELECT ON platform_bootstrap.queue_state TO platform_saas,platform_worker;
 GRANT SELECT,INSERT,UPDATE ON platform_provisioning.readiness_deliveries TO platform_worker;
 GRANT SELECT,INSERT,UPDATE ON platform_provisioning.ios_release_jobs TO platform_worker;
+GRANT SELECT,INSERT ON platform_provisioning.android_build_jobs TO platform_saas;
+GRANT SELECT,UPDATE ON platform_provisioning.android_build_jobs TO platform_worker;
 GRANT SELECT ON platform_provisioning.ios_release_jobs TO platform_saas;
 GRANT UPDATE(state,attempts,error_code,available_at,updated_at) ON platform_provisioning.ios_release_jobs TO platform_saas;
 ''', 'platform_security')

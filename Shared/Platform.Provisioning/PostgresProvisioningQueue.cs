@@ -66,6 +66,7 @@ public sealed class PostgresProvisioningQueue : IProvisioningQueue, IAsyncDispos
         await cmd.ExecuteNonQueryAsync(ct);
         await ReadinessDeliverySchema.InitializeAsync(connection,transaction,ct);
         await PostgresIosReleaseQueue.InitializeAsync(connection,transaction,ct);
+        await AndroidBuildQueue.InitializeAsync(connection, transaction, ct);
         await IosReleaseCompletionSchema.InitializeAsync(connection,transaction,ct);
         await transaction.CommitAsync(ct);
     }

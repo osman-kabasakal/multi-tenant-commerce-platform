@@ -1690,6 +1690,7 @@ export interface IServiceResponseOfNewBuildVm {
 
 export class NewBuildDto implements INewBuildDto {
     businessAppId?: string;
+    requestId?: string;
     version?: string;
     buildNumber?: number;
     buildStatus?: string;
@@ -1706,6 +1707,7 @@ export class NewBuildDto implements INewBuildDto {
     init(_data?: any) {
         if (_data) {
             this.businessAppId = _data["businessAppId"];
+            this.requestId = _data["requestId"];
             this.version = _data["version"];
             this.buildNumber = _data["buildNumber"];
             this.buildStatus = _data["buildStatus"];
@@ -1722,6 +1724,7 @@ export class NewBuildDto implements INewBuildDto {
     toJSON(data?: any) {
         data = typeof data === 'object' ? data : {};
         data["businessAppId"] = this.businessAppId;
+        data["requestId"] = this.requestId;
         data["version"] = this.version;
         data["buildNumber"] = this.buildNumber;
         data["buildStatus"] = this.buildStatus;
@@ -1731,6 +1734,7 @@ export class NewBuildDto implements INewBuildDto {
 
 export interface INewBuildDto {
     businessAppId?: string;
+    requestId?: string;
     version?: string;
     buildNumber?: number;
     buildStatus?: string;
@@ -1740,6 +1744,8 @@ export class NewBuildVm extends NewBuildDto implements INewBuildVm {
     hasActiveBuild?: boolean;
     platforms?: DropdownListItem[];
     canBuild?: boolean;
+    blockReason?: string | undefined;
+    usesExistingBranding?: boolean;
 
     constructor(data?: INewBuildVm) {
         super(data);
@@ -1755,6 +1761,8 @@ export class NewBuildVm extends NewBuildDto implements INewBuildVm {
                     this.platforms!.push(DropdownListItem.fromJS(item));
             }
             this.canBuild = _data["canBuild"];
+            this.blockReason = _data["blockReason"];
+            this.usesExistingBranding = _data["usesExistingBranding"];
         }
     }
 
@@ -1774,6 +1782,8 @@ export class NewBuildVm extends NewBuildDto implements INewBuildVm {
                 data["platforms"].push(item.toJSON());
         }
         data["canBuild"] = this.canBuild;
+        data["blockReason"] = this.blockReason;
+        data["usesExistingBranding"] = this.usesExistingBranding;
         super.toJSON(data);
         return data;
     }
@@ -1783,6 +1793,8 @@ export interface INewBuildVm extends INewBuildDto {
     hasActiveBuild?: boolean;
     platforms?: DropdownListItem[];
     canBuild?: boolean;
+    blockReason?: string | undefined;
+    usesExistingBranding?: boolean;
 }
 
 export class DropdownListItem implements IDropdownListItem {

@@ -27,7 +27,10 @@ export class AppBuildService {
   createNewBuild(newBuild: NewBuildDto): Observable<NewBuildDto> {
     return this.http
       .post<IServiceResponse<NewBuildDto>>('/api/app-builds/new-build', { newBuild })
-      .pipe(map(response => response.data!));
+      .pipe(map(response => {
+        if (!response.isSuccess || !response.data) throw new Error(response.errorMessage || "Derleme başlatılamadı.");
+        return response.data;
+      }));
   }
 
   downloadAppBuild(buildId: string): Observable<Blob> {

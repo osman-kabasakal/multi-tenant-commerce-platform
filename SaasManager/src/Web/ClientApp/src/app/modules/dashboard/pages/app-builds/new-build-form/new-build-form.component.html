@@ -11,8 +11,8 @@
     Zaten devam eden bir aktif derlemeniz var. Yeni bir derleme başlatmadan önce tamamlanmasını bekleyin.
   </div>
 
-  <div *ngIf="!isLoading && !newBuildVm?.canBuild" class="bg-yellow-100 text-yellow-700 p-4 rounded-md mb-4">
-    İşletmenizin aktif olması gerekiyor. Yardım için destekle iletişime geçin.
+  <div *ngIf="!isLoading && newBuildVm && !newBuildVm.hasActiveBuild && !newBuildVm.canBuild" class="bg-yellow-100 text-yellow-700 p-4 rounded-md mb-4">
+    {{ newBuildVm.blockReason || "Derleme şu anda başlatılamıyor. Lütfen yeniden deneyin." }}
   </div>
 
   <form [formGroup]="buildForm" (ngSubmit)="submitForm()" *ngIf="!isLoading && !newBuildVm?.hasActiveBuild && newBuildVm?.canBuild">
@@ -59,7 +59,7 @@
         </div>
       </div>
 
-      <div>
+      <div *ngIf="!newBuildVm?.usesExistingBranding">
         <div class="space-y-4">
           <div class="form-group">
             <app-file-upload-component
@@ -84,6 +84,10 @@
       </div>
     </div>
 
+    <p *ngIf="newBuildVm?.usesExistingBranding" class="mt-4 text-sm text-gray-600">
+      Mevcut uygulama yapılandırmanızla yeni bir Android sürümü oluşturulur. Firebase bağlantısı, uygulama kimliği ve imzalama anahtarınız korunur.
+    </p>
+
     <div class="mt-6 flex justify-end">
       <button
         type="button"
@@ -94,9 +98,9 @@
       <button
         type="submit"
         class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        [disabled]="buildForm.invalid || isSubmitting || !logoFile || !iconFile"
+        [disabled]="buildForm.invalid || isSubmitting || (!newBuildVm?.usesExistingBranding && (!logoFile || !iconFile))"
       >
-        {{ isSubmitting ? 'Oluşturuluyor...' : 'Yapım Oluştur' }}
+        {{ isSubmitting ? 'Oluşturuluyor...' : 'Derleme Oluştur' }}
       </button>
     </div>
   </form>

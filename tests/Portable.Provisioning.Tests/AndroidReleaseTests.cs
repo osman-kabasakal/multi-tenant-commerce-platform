@@ -12,6 +12,25 @@ namespace Portable.Provisioning.Tests;
 public sealed class AndroidReleaseTests
 {
     [TestMethod]
+    public async Task ManualReleaseGetsANewVersionWithoutReplacingInitialBindingsOrSigningKey()
+    {
+        using var f=new AndroidFixture();var initial=await f.Pipeline().ExecuteAsync(f.Request,f.Completed,default);
+        var saved=f.Secrets.Values.Where(p=>p.Key.Item2.Contains("initial-release")).ToDictionary(p=>p.Key,p=>p.Value);
+        f.Completed["mobile-android-release"]=initial;var id=Guid.NewGuid();
+        f.Server.BuildVersion="2";
+        var release=await f.Pipeline().ExecuteAsync(f.Request,f.Completed,default,id,2);
+        var replay=await f.Pipeline().ExecuteAsync(f.Request,f.Completed,default,id,2);
+        Assert.AreEqual("2",release.Resources["buildNumber"]);Assert.AreEqual(release.Resources["sha256"],replay.Resources["sha256"]);
+        Assert.AreNotEqual(initial.Resources["sha256"],release.Resources["sha256"]);
+        Assert.AreEqual(initial.Resources["signingCertificateSha256"],release.Resources["signingCertificateSha256"]);
+        Assert.AreEqual(1,f.Keys.Creates);Assert.AreEqual(2,f.Builder.Builds);
+        foreach(var value in saved)Assert.AreEqual(value.Value,f.Secrets.Values[value.Key]);
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(()=>f.Pipeline().ExecuteAsync(f.Request,f.Completed,default,id,3));
+        f.Secrets.Values.TryRemove((f.Request.TenantId,TenantAndroidSigningKeys.SecretName),out _);
+        await Assert.ThrowsExceptionAsync<KeyNotFoundException>(()=>f.Pipeline().ExecuteAsync(f.Request,f.Completed,default,Guid.NewGuid(),3));
+        Assert.AreEqual(1,f.Keys.Creates);
+    }
+    [TestMethod]
     public async Task AWorkerCannotSkipAnExplicitlyRequestedMobileRelease()
     {
         using var f=new AndroidFixture();

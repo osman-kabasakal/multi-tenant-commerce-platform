@@ -1,6 +1,5 @@
 using Core.Models.Helpers;
 using Core.Models.Responses;
-using SaasManager.Application.Common.Interfaces;
 using SaasManager.Application.Common.Interfaces.Data;
 using SaasManager.Application.Common.Interfaces.Identity;
 using SaasManager.Application.Common.Models.AppBuilds;
@@ -9,66 +8,25 @@ using SaasManager.Domain.Enums;
 
 namespace SaasManager.Application.AppBuilds.Queries.GetNewBuildVm;
 
-public record GetNewBuildVmQuery : IRequest<ServiceResponse<NewBuildVm>>
-{
-}
-
-public class GetNewBuildVmQueryValidator : AbstractValidator<GetNewBuildVmQuery>
-{
-    public GetNewBuildVmQueryValidator()
-    {
-    }
-}
-
+public record GetNewBuildVmQuery:IRequest<ServiceResponse<NewBuildVm>>;
 [Authorize]
-public class GetNewBuildVmQueryHandler : IRequestHandler<GetNewBuildVmQuery, ServiceResponse<NewBuildVm>>
+public class GetNewBuildVmQueryHandler(IApplicationDbContext context,IWorkContext workContext,IPortableAppBuilds? portable=null)
+    :IRequestHandler<GetNewBuildVmQuery,ServiceResponse<NewBuildVm>>
 {
-    private readonly IApplicationDbContext _context;
-    private readonly IWorkContext _workContext;
-
-    public GetNewBuildVmQueryHandler(IApplicationDbContext context,
-        IWorkContext workContext
-    )
+    public async Task<ServiceResponse<NewBuildVm>> Handle(GetNewBuildVmQuery request,CancellationToken ct)
     {
-        _context = context;
-        _workContext = workContext;
-    }
-
-    public async Task<ServiceResponse<NewBuildVm>> Handle(GetNewBuildVmQuery request,
-        CancellationToken cancellationToken)
-    {
-        
-        var ownerBusiness=BusinessOwnerContext.BusinessId(_workContext);
-        var businessAppQuery = from businessApp in _context.BusinessApps
-            join business in _context.Businesses on businessApp.BusinessId equals business.Id
-            where businessApp.Type == AppType.CustomerMobile &&
-                  businessApp.BusinessId == ownerBusiness && !businessApp.IsDeleted && !business.IsDeleted &&
-                  (businessApp.BuildStatus != BuildStatus.Queued && businessApp.BuildStatus != BuildStatus.Building)
-                  // (!appBuilds.Any() || !(appBuilds.Any(ab => ab.IsActive && ab.Platform == BuildPlatform.Android) &&
-                  //                        appBuilds.Any(ab => ab.IsActive && ab.Platform == BuildPlatform.Ios)))
-            select new
-            {
-                businessApp,
-                business
-            };
-        
-        var businessApps = await businessAppQuery.FirstOrDefaultAsync(cancellationToken);
-
-        var vm = new NewBuildVm
+        var eligibility=await BuildEligibility.CheckAsync(context,workContext,ct);
+        var app=eligibility.App;
+        var state=app!=null && portable!=null?await portable.StateAsync(app,ct):null;
+        var busy=state?.Busy ?? (app!=null && (app.BuildStatus is BuildStatus.Queued or BuildStatus.Building ||
+            await context.AppBuilds.AnyAsync(b=>b.BusinessAppId==app.Id && !b.IsDeleted && (b.BuildStatus=="Queued" || b.BuildStatus=="Building"),ct)));
+        var reason=eligibility.BlockReason ?? state?.BlockReason;
+        return ServiceResponse<NewBuildVm>.Success(new()
         {
-            BusinessAppId = businessApps?.businessApp?.Id??Guid.Empty,
-            Version = businessApps?.businessApp?.Version??"",
-            BuildNumber = (businessApps?.businessApp?.BuildNumber ?? 0)+1,
-            BuildStatus = BuildStatus.Queued.ToString(),
-            CanBuild = businessApps?.business?.Status != null && businessApps!.business!.Status! == BusinessStatus.Active,
-            HasActiveBuild = businessApps == null,
-            Platforms = new List<DropdownListItem>()
-            {
-                new DropdownListItem() { Text = "Google", Value = BuildPlatform.Android.ToString() },
-                new DropdownListItem() { Text = "Apple", Value = BuildPlatform.Ios.ToString() }
-            }
-        };
-
-        return ServiceResponse<NewBuildVm>.Success(vm);
+            RequestId=Guid.NewGuid(),BusinessAppId=app?.Id??Guid.Empty,Version=app?.Version??"",BuildNumber=state?.NextBuildNumber??(app?.BuildNumber??0)+1,
+            BuildStatus="Queued",CanBuild=eligibility.Allowed && (state?.Ready??true) && !busy,HasActiveBuild=busy,
+            BlockReason=reason,UsesExistingBranding=portable!=null,
+            Platforms=[new DropdownListItem{Text="Android",Value=BuildPlatform.Android.ToString()}]
+        });
     }
 }

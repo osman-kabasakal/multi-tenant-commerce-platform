@@ -24,22 +24,25 @@ public class DownloadBuildQueryHandler : IRequestHandler<DownloadBuildQuery, Dow
     private readonly IApplicationDbContext _context;
     private readonly IBlobStorageService _blobStorageService;
     private readonly IWorkContext _workContext;
+    private readonly IPortableAppBuilds? _portable;
 
     public DownloadBuildQueryHandler(
         IApplicationDbContext context,
         IBlobStorageService blobStorageService,
-        IWorkContext workContext
+        IWorkContext workContext, IPortableAppBuilds? portable = null
         )
     {
         _context = context;
         _blobStorageService = blobStorageService;
         _workContext = workContext;
+        _portable = portable;
     }
 
     public async Task<DownloadAppBuildResponse> Handle(DownloadBuildQuery request, CancellationToken cancellationToken)
     {
         var business=BusinessOwnerContext.BusinessId(_workContext);
         if(business==null)throw new NotFoundException(nameof(AppBuild),request.AppBuildId.ToString());
+        if (_portable != null) return await _portable.DownloadAsync(business.Value, request.AppBuildId, cancellationToken);
         var appBuild=await _context.AppBuilds.FirstOrDefaultAsync(x=>x.Id==request.AppBuildId && !x.IsDeleted &&
             _context.BusinessApps.Any(a=>a.Id==x.BusinessAppId && a.BusinessId==business && !a.IsDeleted),cancellationToken);
         if(appBuild == null || string.IsNullOrEmpty(appBuild.FilePath))

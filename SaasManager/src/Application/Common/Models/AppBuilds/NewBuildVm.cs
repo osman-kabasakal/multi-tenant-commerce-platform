@@ -10,4 +10,6 @@ public class NewBuildVm: NewBuildDto
     
     public ICollection<DropdownListItem> Platforms { get; set; } = new List<DropdownListItem>();
     public bool CanBuild { get; set; }
+    public string? BlockReason { get; set; }
+    public bool UsesExistingBranding { get; set; }
 }

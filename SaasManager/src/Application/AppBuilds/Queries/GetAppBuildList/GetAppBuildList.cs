@@ -18,7 +18,8 @@ public class GetAppBuildListQueryValidator : AbstractValidator<GetAppBuildListQu
 {
     public GetAppBuildListQueryValidator()
     {
-        
+        RuleFor(x => x.PageNumber).GreaterThan(0);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
     }
 }
 
@@ -27,22 +28,27 @@ public class GetAppBuildListQueryHandler : IRequestHandler<GetAppBuildListQuery,
 {
     private readonly IApplicationDbContext _context;
     private readonly IWorkContext _workContext;
+    private readonly IPortableAppBuilds? _portable;
 
     public GetAppBuildListQueryHandler(
         IApplicationDbContext context,
-        IWorkContext workContext
+        IWorkContext workContext, IPortableAppBuilds? portable = null
         )
     {
         _context = context;
         _workContext = workContext;
+        _portable = portable;
     }
 
     public async Task<ServiceResponse<AppBuildList>> Handle(GetAppBuildListQuery request, CancellationToken cancellationToken)
     {
+        var owner = BusinessOwnerContext.BusinessId(_workContext);
+        if (_portable != null && owner is {} business)
+            return ServiceResponse<AppBuildList>.Success(await _portable.ListAsync(business, request.PageNumber, request.PageSize, cancellationToken));
         var query= (from businessApp  in _context.BusinessApps
             join appBuild in  _context.AppBuilds on businessApp.Id equals  appBuild.BusinessAppId
-            where businessApp.BusinessId == _workContext.GuestRegistration!.ConvertedBusinessId
-            && businessApp.Type == AppType.CustomerMobile
+            where businessApp.BusinessId == owner
+            && businessApp.Type == AppType.CustomerMobile && !businessApp.IsDeleted && !appBuild.IsDeleted
             select new AppBuildDto
             {
                 Id = appBuild.Id,
