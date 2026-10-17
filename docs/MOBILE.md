@@ -378,3 +378,8 @@ python3 scripts/smoke_mobile_ios.py --push-transport Apns --compile-unsigned
 ```
 
 The APNs ARM64 device application and notification extension compiled successfully on the validation Mac. The probe checks the real Xcode target graph, native/Dart transport and team settings, disabled automatic FCM registration, embedded Firebase identity and ARM64 device executable. Its result explicitly keeps `signedIpaBuilt=false`, `distributed=false` and `symbolsUploaded=false`. Flutter channel tests use a simulated native endpoint, not a real device. Positive signing, tester installation, notification/tap/image behavior and readable device Crashlytics reports remain required. See [notification setup](NOTIFICATIONS.md#direct-apns-for-ios) and the [new-business walkthrough](YENI_ISLETME_EKLEME.md).
+
+
+## Fresh public SaaS Android publication
+
+A later [real Oracle HTTPS SaaS enrollment](validation/oracle-saas-android-20261017.json) durably selected Android at initial registration and completed the ordinary full worker pipeline through live Google/Firebase and signed App Distribution publication. Unlike the earlier in-memory harness, this job's original queued mobile profile was Android and was never rewritten. The actual 33,792,578-byte APK and the Firebase provider download matched; a separate SELECT-only non-root/read-only Linux consumer verified signature/package/version, Firebase/Crashlytics resources and unchanged signer/source/build after restart. The group was empty and no invitation/email/SMS was sent. This proves the automated Android publication path; this exact APK's device startup, a device crash report, FCM/APNs delivery and positive signed iOS acceptance remain open.

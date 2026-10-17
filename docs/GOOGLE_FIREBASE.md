@@ -203,3 +203,8 @@ Official references: [Firebase Console access](https://firebase.google.com/docs/
 ## Live Android distribution follow-up
 
 The actual production Android release pipeline subsequently built a signed tenant APK, uploaded it to live App Distribution and verified the provider download against the local binary. A completed replay reused the key and binary with zero adapter writes. This used an in-memory mobile profile in a private harness for an existing SaaS tenant; its original Mobile Disabled queue request was unchanged. Fresh mobile-enabled enrollment and device/Crashlytics/notification acceptance remain pending. See the [scoped validation record](validation/android-live-pipeline-d6e25d0.json).
+
+
+## Fresh mobile-enabled SaaS follow-up
+
+A later [real Oracle HTTPS SaaS enrollment](validation/oracle-saas-android-20261017.json) durably selected Android at initial registration and completed the ordinary full worker pipeline through live Google/Firebase and signed App Distribution publication. Unlike the earlier in-memory harness, this job's original queued mobile profile was Android and was never rewritten. The actual 33,792,578-byte APK and the Firebase provider download matched; a separate SELECT-only non-root/read-only Linux consumer verified signature/package/version, Firebase/Crashlytics resources and unchanged signer/source/build after restart. The group was empty and no invitation/email/SMS was sent. This proves the automated Android publication path; this exact APK's device startup, a device crash report, FCM/APNs delivery and positive signed iOS acceptance remain open.

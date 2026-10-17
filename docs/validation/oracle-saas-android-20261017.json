@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "recordedAtUtc": "2026-10-17T03:13:11.479312+00:00",
+  "runtimeSourceCommit": "b7567d2f2fa17b3508e3ef3563866016383a5816",
+  "runtimeServerImage": "commerce-platform:b7567d2f2fa1",
+  "runtimeAndroidImage": "commerce-platform:b7567d2f2fa1-android",
+  "runtimeAndroidImageId": "sha256:e058b5ef8ada77b1856509a13ea04a7e76115e5d246645f1d5402ed466e3c55f",
+  "execution": "One new trial business through actual public HTTPS/OIDC SaaS enrollment and the ordinary durable Portable worker on the original minimal Oracle VM.",
+  "enrollment": {
+    "freshMobileEnabledEnrollmentVerified": true,
+    "durableInitialRequestProfile": "AndroidAppDistribution",
+    "requestProfileRewritten": false,
+    "syntheticPreverifiedOwner": true,
+    "normalAngularAssetsServed": true,
+    "registrationCsrfAndCompanyValidationPassed": true,
+    "registrationReplayPreservedTrialAndRequest": true,
+    "sameIdDifferentCompanyRejected": true,
+    "completedCheckpointNames": [
+      "database",
+      "domains",
+      "google-firebase",
+      "identity",
+      "mobile-android-release",
+      "publication",
+      "store",
+      "tenant-migrations",
+      "tenant-plugins",
+      "tenant-secrets",
+      "tenant-settings"
+    ],
+    "originalBusinessSettingsVerified": 168,
+    "runtimePluginsInstalled": 23
+  },
+  "artifact": {
+    "bytes": 33792578,
+    "sha256": "3f610d5665f2a15960b036e27aec376bbaedbfd5dbff4a464727f96e4e4cee3f",
+    "sourceHash": "75e695637aae5dae8308b5afa196bc6217141c3c5f3a0071233f21787a99db4a",
+    "signingCertificateSha256": "4a88319b9fd57737367bea0e6971e6bc6162666cfdd443a2881cdf6ea1608cb3",
+    "buildNumber": 1,
+    "actualApkSignaturePackageVersionAndNonDebuggableVerified": true,
+    "actualFirebaseAndCrashlyticsResourcesVerified": true,
+    "liveAppDistributionUploadAndEmptyGroupDistribution": true,
+    "providerBinaryDownloadMatchesExactSignedArtifact": true
+  },
+  "distributedState": {
+    "separateReadOnlyNonRootContainer": true,
+    "readOnlyRootFilesystem": true,
+    "selectOnlySecretReader": true,
+    "readerHasNoMongoKeycloakOrWriterCredentials": true,
+    "nativeVerificationAndDownloadResourceMutations": 0,
+    "transientPlaintextSigningFilesAbsent": true
+  },
+  "restartAndBackup": {
+    "sameSucceededJobAfterRestart": true,
+    "originalOwnerPasswordStillAuthenticatesAdmin": true,
+    "actualHttpsStorefrontAfterRestart": true,
+    "artifactSourceSignerAndBuildUnchangedAfterRestart": true,
+    "postRestartIndependentProviderDownloadPassed": true,
+    "coordinatedStateMasterKeyApkAndThreeDataVolumeSnapshot": true,
+    "privateOffVmGzipMirrorRawArchiveHashesVerified": true,
+    "archiveNames": [
+      "mongo-data.tar",
+      "postgres-data.tar",
+      "redis-data.tar",
+      "state.tar"
+    ],
+    "emptyDestinationRestoreOfThisOracleSnapshotVerified": false
+  },
+  "operations": {
+    "originalVmSizingAndNativeStopDeadlineUnchanged": true,
+    "testerInvitationEmailOrSmsSent": false,
+    "billingLinked": false,
+    "githubActionsRun": false,
+    "githubActionsLimitation": "Account quota; local and actual Linux execution evidence recorded separately."
+  },
+  "iosReadOnlyPreflight": {
+    "apiAccessVerified": true,
+    "activeTeamDistributionCertificateCount": 1,
+    "enabledIosDeviceCount": 4,
+    "usableLocalSigningIdentityCount": 0,
+    "appleCertificateOrDeviceCreated": false
+  },
+  "remainingUnverified": [
+    "Signed iOS IPA and iOS App Distribution delivery",
+    "Device installation and startup of this exact Android release",
+    "Actual device Crashlytics report and FCM/APNs delivery/tap/image behavior",
+    "Continuous per-tenant background host and legacy cache-invalidation consumption",
+    "Actual merchant/payment acceptance",
+    "General public-release asset provenance and current remote CI"
+  ],
+  "diagnosticsScope": "Private receipts retain source/image/native/snapshot evidence without publishing operator credentials, Google identifiers, tenant owner credentials or signed download URLs. The first fixed-tax fixture attempt was rejected before persistence; only the observer was resumed after its refresh verb was corrected. The actual queue job was not replaced or edited."
+}
