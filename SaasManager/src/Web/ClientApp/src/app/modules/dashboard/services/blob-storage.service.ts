@@ -23,12 +23,15 @@ export class BlobStorageService {
     formData.append('file', file);
     formData.append('businessAppId', businessAppId);
     formData.append('assetType', assetType);
-    formData.append('platform', "Android");
+    formData.append('platform', platform);
 
     // Use ApiService to make the request
     return this.http.post<IServiceResponse<UploadResponse>>('/api/uploads/app-asset', formData)
       .pipe(
-        map(response => response.data!)
+        map(response => {
+          if (!response.isSuccess || !response.data) throw new Error(response.errorMessage || "Görsel yüklenemedi. Lütfen yeniden deneyin.");
+          return response.data;
+        })
       );
   }
 }
