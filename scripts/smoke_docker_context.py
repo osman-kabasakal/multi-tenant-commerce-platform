@@ -13,7 +13,8 @@ def main():
     local = ROOT / '.local'; local.mkdir(mode=0o700, exist_ok=True)
     logs = local / 'logs'; logs.mkdir(mode=0o700, exist_ok=True)
     data = ROOT / 'Ecommerce/src/Installer/Grand.Installer.Cli/App_Data'
-    with tempfile.TemporaryDirectory(prefix='docker-boundary-', dir=data) as source, tempfile.TemporaryDirectory(prefix='docker-context-', dir=local) as workspace:
+    ui = ROOT / 'Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build'
+    with tempfile.TemporaryDirectory(prefix='docker-ui-boundary-', dir=ui) as ui_source, tempfile.TemporaryDirectory(prefix='docker-boundary-', dir=data) as source, tempfile.TemporaryDirectory(prefix='docker-context-', dir=local) as workspace:
         probe = Path(source); temporary = Path(workspace)
         private = ['Settings.cfg', 'appsettings.json', 'appsettings.Production.json', 'DataProtectionKeys/key.xml',
                    '.env', 'client.pem', 'signing.key', 'signer.p12', 'key.properties', 'google-services.json', 'cloud-service-account.json']
@@ -21,6 +22,10 @@ def main():
         for relative in private:
             target = probe / relative; target.parent.mkdir(exist_ok=True); target.write_bytes(marker)
         (probe / 'resource.xml').write_bytes(b'<Resource>Public Docker context control</Resource>')
+        ui_probe = Path(ui_source)
+        ui_private = private + ['.local/operator.json', 'bin/output.dll', 'obj/cache.json']
+        for relative in ui_private:
+            target = ui_probe / relative; target.parent.mkdir(parents=True, exist_ok=True); target.write_bytes(marker)
         (temporary / 'credentials.json').write_bytes(marker)
         definition = temporary / 'Dockerfile'
         definition.write_text('FROM scratch\nCOPY . /source/\n')
@@ -37,6 +42,10 @@ def main():
             raise RuntimeError('The real Docker context retained private runtime configuration or keys.')
         if any((root / path).exists() for path in ('.git', '.local', '.codegraph')):
             raise RuntimeError('The real Docker context retained Git history or private local state.')
+        if any((root / ui_probe.relative_to(ROOT) / relative).exists() for relative in ui_private):
+            raise RuntimeError('The source UI build-directory exception retained private or generated content.')
+        if not (root / ui.relative_to(ROOT) / 'css/custom.css').is_file() or not (root / ui.relative_to(ROOT) / 'js/jquery.min.js').is_file():
+            raise RuntimeError('The actual Docker context lost the shipped admin CSS or JavaScript.')
         for path in root.rglob('*'):
             if path.is_file() and marker in path.read_bytes():
                 raise RuntimeError('Synthetic private content entered the real Docker build context.')

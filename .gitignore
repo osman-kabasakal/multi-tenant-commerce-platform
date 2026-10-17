@@ -1,3 +1,9 @@
+**/build/
+
+# GrandNode ships source UI assets in a directory named build.
+!Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/
+!Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/**
+
 # Machine-local indexes, credentials and generated artifacts
 .codegraph/
 .local/
@@ -6,7 +12,6 @@
 !.env.example
 **/bin/
 **/obj/
-**/build/
 **/node_modules/
 **/.dart_tool/
 **/.gradle/
@@ -53,7 +58,3 @@ output/
 !**/wwwroot/assets/files/exportimport/Index.htm
 **/wwwroot/assets/images/uploaded/*
 !**/wwwroot/assets/images/uploaded/placeholder.txt
-
-# GrandNode ships source UI assets in a directory named build.
-!Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/
-!Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/**

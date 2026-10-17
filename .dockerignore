@@ -1,10 +1,16 @@
+**/build
+
+# GrandNode ships source UI assets in a directory named build.
+!Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/
+!Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/**
+
 .git
 .codegraph
 .local
+**/.local
 **/bin
 **/obj
 **/node_modules
-**/build
 **/.dart_tool
 **/.git
 **/.env
@@ -37,7 +43,3 @@
 **/*service-account*.json
 **/*service_account*.json
 **/credentials.json
-
-# GrandNode ships source UI assets in a directory named build.
-!Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/
-!Ecommerce/src/Web/Grand.SharedUIResources/wwwroot/administration/build/**
