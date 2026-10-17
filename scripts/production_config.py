@@ -449,7 +449,7 @@ def compose(p, state, record, image, ip, identity):
             if p['Providers']['Notifications']['Provider'] == 'FcmApns':
                 mounts.append(bind('secrets/apns-key.p8', '/run/secrets/apns-key.p8'))
         mobile_worker = role == 'worker' and p['Providers'].get('Mobile', {}).get('Provider') in ('AndroidAppDistribution', 'AndroidIosAppDistribution')
-        if role == 'saas' and mobile['Provider'] in ('AndroidAppDistribution', 'AndroidIosAppDistribution'):
+        if role == 'saas' and p['Providers'].get('Mobile', {}).get('Provider') in ('AndroidAppDistribution', 'AndroidIosAppDistribution'):
             mounts.append(bind('mobile-artifacts', '/var/lib/commerce/mobile-artifacts'))
         if mobile_worker:
             for directory in ('mobile-work', 'mobile-artifacts', 'mobile-cache'):

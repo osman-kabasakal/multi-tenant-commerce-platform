@@ -172,6 +172,9 @@ class ProductionConfigTests(unittest.TestCase):
         for role in ('saas', 'worker'):
             settings = json.loads((state / 'config' / (role + '.json')).read_text())
             self.assertEqual(settings['Provisioning']['Mobile']['Provider'], 'AndroidAppDistribution')
+        portal_mounts = {item['target']: item for item in compose['services']['saas']['volumes']}
+        self.assertTrue(portal_mounts['/var/lib/commerce/mobile-artifacts']['read_only'])
+        self.assertNotIn('GOOGLE_APPLICATION_CREDENTIALS', compose['services']['saas']['environment'])
         worker = json.loads((state / 'config/worker.json').read_text())['Provisioning']['Mobile']['Android']
         mounts = {item['target'] for item in compose['services']['worker']['volumes']}
         self.assertIn(worker['WorkingDirectory'], mounts); self.assertIn(worker['ArtifactDirectory'], mounts)
@@ -214,7 +217,7 @@ class ProductionConfigTests(unittest.TestCase):
         self.assertEqual(original['MasterKey'], replay['MasterKey']); self.assertEqual(original['Credentials'], replay['Credentials'])
         worker = json.loads((state / 'config/worker.json').read_text())['Provisioning']['Mobile']
         saas = json.loads((state / 'config/saas.json').read_text())['Provisioning']['Mobile']
-        self.assertEqual(saas, {'Provider': 'AndroidIosAppDistribution'})
+        self.assertEqual(saas, {'Provider': 'AndroidIosAppDistribution', 'ArtifactDirectory': '/var/lib/commerce/mobile-artifacts'})
         self.assertEqual(worker['Ios'], plan['Providers']['Mobile']['Ios'])
         self.assertEqual(worker['Android']['SourceDirectory'], '/app/mobile-source')
         services = json.loads((state / 'compose.json').read_text())['services']
