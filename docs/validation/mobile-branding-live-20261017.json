@@ -1,5 +1,5 @@
 {
-  "acceptedAtUtc": "2026-10-17T19:51:35.078455+00:00",
+  "acceptedAtUtc": "2026-10-17T20:01:12.069730+00:00",
   "runtimeRevision": "efbd3f339460c37ff63614dc96685007da3dafd0",
   "monorepoOnly": true,
   "unrelatedEcommerceEditsExcluded": true,
@@ -39,8 +39,8 @@
   "nextFormReusesBranding": true,
   "portalApkMatchesSignedArtifact": true,
   "physicalIphoneInstallationVerified": true,
-  "physicalIphoneLaunchVerified": false,
-  "physicalMenuAndProfileUserAccepted": false,
+  "physicalIphoneLaunchVerified": true,
+  "physicalMenuAndProfileUserAccepted": true,
   "registrationScreenUserConfirmed": true,
   "actualCrashAndApnsDeliveryVerified": false,
   "unattendedMacSigningAccepted": false,
