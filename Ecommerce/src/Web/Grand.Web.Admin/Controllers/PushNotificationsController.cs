@@ -52,7 +52,7 @@ public class PushNotificationsController(
             var targetStore = await storeService.GetStoreById(workContext.CurrentStore.Id);
             if (string.IsNullOrWhiteSpace(model.ClickUrl)) model.ClickUrl = targetStore.Url;
             if (!Uri.TryCreate(model.ClickUrl, UriKind.Absolute, out var link) || (link.Scheme != "https" && !(notificationOptions.Provider == "LocalSink" && link.Scheme == "http")) || !string.IsNullOrEmpty(link.UserInfo) ||
-                !Uri.TryCreate(targetStore.Url, UriKind.Absolute, out var origin) || !origin.Authority.Equals(link.Authority, StringComparison.OrdinalIgnoreCase))
+                !Uri.TryCreate(targetStore.Url, UriKind.Absolute, out var activeOrigin) || !activeOrigin.Authority.Equals(link.Authority, StringComparison.OrdinalIgnoreCase))
             {
                 Error("Bildirim bağlantısı işletmenizin aktif mağaza alan adında olmalıdır.");
                 return RedirectToAction("Send");
