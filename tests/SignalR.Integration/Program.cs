@@ -1,3 +1,6 @@
+using Grand.Data;
+using Grand.Data.Mongo;
+using MongoDB.Driver;
 using System.Diagnostics;
 using System.Net.WebSockets;
 using System.Reflection;
@@ -54,20 +57,34 @@ if (mode == "--server")
     await app.WaitForShutdownAsync();
     return;
 }
-if (mode == "--publish")
+if (mode is "--publish" or "--publish-persisted")
 {
     var builder = Host.CreateApplicationBuilder(Array.Empty<string>());
     builder.Configuration.AddConfiguration(config);
     builder.Logging.ClearProviders();
-    var notifications = new NotificationFixture { Notification = new FamizyoOrderNotification { StoreId = args[2], OrderId = args[3], Id = "notice-" + args[3] } };
-    builder.Services.AddSingleton<IOrderNotificationService>(notifications);
+    NotificationFixture? notifications = null;
+    IOrderNotificationService orderService;
+    if (mode == "--publish-persisted")
+    {
+        if (config["Fixture:Purpose"] != "isolated-native-order-projection-v1")
+            throw new InvalidOperationException("Explicit persisted-order fixture configuration is required.");
+        var mongo = MongoClientSettings.FromConnectionString(config["Fixture:OrderConnection"]);
+        mongo.ServerSelectionTimeout = mongo.ConnectTimeout = mongo.SocketTimeout = TimeSpan.FromSeconds(5);
+        var database = new MongoClient(mongo).GetDatabase(config["Fixture:OrderDatabase"]);
+        var context = Stub.For<IWorkContext>((method, _) => method.Name == "get_CurrentStore"
+            ? new Store { Id = args[2] } : throw new NotSupportedException());
+        orderService = new OrderNotificationService(new MongoRepository<FamizyoOrderNotification>(database, new FixtureAudit()), config, context);
+    }
+    else orderService = notifications = new NotificationFixture { Notification = new FamizyoOrderNotification { StoreId = args[2], OrderId = args[3], Id = "notice-" + args[3] } };
+    builder.Services.AddSingleton<IOrderNotificationService>(orderService);
     builder.Services.AddSingleton<IStoreService>(Stub.For<IStoreService>((method, _) => method.Name == "GetAllStores"
         ? Task.FromResult<IList<Store>>([new Store { Id = args[2] }]) : throw new NotSupportedException()));
     builder.Services.AddPlatformSignalR(builder.Configuration);
     builder.Services.AddTransient<ResendUnseenNotificationsTask>();
     using var host = builder.Build();
     await host.Services.GetRequiredService<ResendUnseenNotificationsTask>().Execute();
-    if (notifications.SendCount != 1) throw new InvalidOperationException("The actual resend task did not record its single attempt.");
+    var attempts = notifications?.SendCount ?? (await orderService.GetNotificationByOrderIdAsync(args[3]))?.SendCount;
+    if (attempts != 1) throw new InvalidOperationException("The actual resend task did not record its single attempt.");
     return;
 }
 if (mode != "--verify") throw new ArgumentException("Unknown fixture mode.");
@@ -244,4 +261,10 @@ public sealed class SocketProbe : IAsyncDisposable
     public async Task<bool> HasMessage()
     { using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(300)); try { await messages.Reader.ReadAsync(deadline.Token); return true; } catch (OperationCanceledException) { return false; } }
     public async ValueTask DisposeAsync() { stop.Cancel(); socket.Abort(); try { await reader; } catch { } socket.Dispose(); stop.Dispose(); }
+}
+
+public sealed class FixtureAudit : IAuditInfoProvider
+{
+    public string GetCurrentUser() => "isolated-native-order-fixture";
+    public DateTime GetCurrentDateTime() => DateTime.UtcNow;
 }

@@ -57,7 +57,7 @@ RUN . /etc/environment && if [ "$BUILD_TYPE" != "Frontend" ]; then \
 
 RUN . /etc/environment && ls -la /src/Ecommerce/src/$PROJECT_FOLDER/$PROJECT_NAME/Plugins/ || true
 # Publish Web project
-RUN . /etc/environment && dotnet publish /src/Ecommerce/src/$PROJECT_FOLDER/$PROJECT_NAME/$PROJECT_NAME.csproj -c Release -o /app/build/release -p:SourceRevisionId=$GIT_COMMIT -p:GitBranch=$GIT_BRANCH
+RUN . /etc/environment && dotnet publish /src/Ecommerce/src/$PROJECT_FOLDER/$PROJECT_NAME/$PROJECT_NAME.csproj -c Release -o /app/build/release -p:SourceRevisionId=$GIT_COMMIT -p:GitBranch=$GIT_BRANCH -p:BuildType=$BUILD_TYPE
 
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime

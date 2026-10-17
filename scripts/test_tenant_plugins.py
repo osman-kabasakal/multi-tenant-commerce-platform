@@ -27,14 +27,20 @@ class PluginBuildTests(unittest.TestCase):
         expected={'Frontend':'Web/Grand.Web.MultiTenant','Backend':'Web/Grand.Web.OnlyAdmin',
                   'Installer':'Installer/Grand.Installer.Cli','Background':'Cli/Grand.BackgroundJobExecuter',
                   'Uploader':'Installer/Grand.Data.Uploader'}
-        project=build.ROOT/'Ecommerce/src/Plugins/Tax.FixedRate/Tax.FixedRate.csproj'
         for target,host in expected.items():
-            output=subprocess.check_output(['dotnet','msbuild',str(project),'-nologo','-p:Configuration=Release',
-                '-p:BuildType='+target,'-getProperty:BaseDir,OutDir'],cwd=build.ROOT,text=True)
-            values=json.loads(output)['Properties']
-            base=(project.parent/values['BaseDir'].replace('\\','/')).resolve()
             destination=(build.ROOT/'Ecommerce/src'/host/'Plugins').resolve()
-            self.assertEqual(destination,base,target)
-            self.assertEqual(destination/'Tax.FixedRate',(project.parent/values['OutDir'].replace('\\','/')).resolve(),target)
+            for configuration in ('Debug','Release'):
+                for project in build.projects(target):
+                    with self.subTest(target=target,configuration=configuration,plugin=project.stem):
+                        output=subprocess.check_output(['dotnet','msbuild',str(project),'-nologo',
+                            '-p:Configuration='+configuration,'-p:BuildType='+target,
+                            '-getProperty:BaseDir,OutDir,TargetPath,TargetFileName'],cwd=build.ROOT,text=True)
+                        values=json.loads(output)['Properties']
+                        base=(project.parent/values['BaseDir'].replace('\\','/')).resolve()
+                        folder='ExternalAuth.Keycloak' if project.stem=='Authentication.Keycloak' else project.stem
+                        self.assertEqual(destination,base)
+                        self.assertEqual(destination/folder,(project.parent/values['OutDir'].replace('\\','/')).resolve())
+                        self.assertEqual(destination/folder/values['TargetFileName'],
+                            (project.parent/values['TargetPath'].replace('\\','/')).resolve())
 
 if __name__=='__main__': unittest.main()

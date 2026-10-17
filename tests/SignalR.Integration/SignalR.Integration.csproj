@@ -5,6 +5,7 @@
     <Compile Include="../../Ecommerce/src/AdminPlugins/Famizyo.Notification/Hubs/NotificationHub.cs" Link="Production/NotificationHub.cs" />
     <Compile Include="../../Ecommerce/src/AdminPlugins/Famizyo.Notification/Tasks/ResendUnseenNotificationsTask.cs" Link="Production/ResendUnseenNotificationsTask.cs" />
     <Compile Include="../../Ecommerce/src/AdminPlugins/Famizyo.Notification/Models/FamizyoOrderNotification.cs" Link="Production/FamizyoOrderNotification.cs" />
+    <Compile Include="../../Ecommerce/src/AdminPlugins/Famizyo.Notification/Services/OrderNotificationService.cs" Link="Production/OrderNotificationService.cs" />
     <Compile Include="../../Ecommerce/src/AdminPlugins/Famizyo.Notification/Services/IOrderNotificationService.cs" Link="Production/IOrderNotificationService.cs" />
     <Compile Include="../../Ecommerce/src/AdminPlugins/Famizyo.Notification/NotificationDefaults.cs" Link="Production/NotificationDefaults.cs" />
   </ItemGroup>

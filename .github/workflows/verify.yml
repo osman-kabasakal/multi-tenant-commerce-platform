@@ -90,6 +90,8 @@ jobs:
         run: python3 scripts/smoke_tenant_tasks.py
       - name: Verify distributed notifications with real Redis and WebSockets
         run: python3 scripts/smoke_signalr.py
+      - name: Verify durable order notifications, tenant isolation and process recovery
+        run: python3 scripts/smoke_order_notifications.py
       - name: Verify durable readiness mail and the independent SMTP worker
         run: python3 scripts/smoke_readiness_email.py
       - name: Bootstrap local services and onboarding worker

@@ -222,6 +222,8 @@ Portable kurulumun üçüncü satırındaki görevler tenant başına sırayla �
 
 Bu akış test dağıtımıdır. Google Play veya App Store mağaza yayını, incelemesi ve mağaza kaydı otomatik tamamlanmış sayılmaz. Uygulamanın sonraki sürümlerini yayımlamak, ilk kurulum kuyruğunu silip yeniden çalıştırarak yapılmaz.
 
+Sürekli tenant işleri için [ayrı görev servisini](TENANT_BACKGROUND_TASKS.md) yapılandırıp etkinleştirin. Yeni siparişin yönetim paneline bildirimi, mağazanın kalıcı sipariş kaydından mevcut bir dakikalık görevle tamamlanır ve [ortak Redis SignalR kanalından](DISTRIBUTED_NOTIFICATIONS.md) yayınlanır. Görev kapalıysa bağlı panel için sürekli yayın beklemeyin. Yönetici oturumunun doğru mağaza ve `Orders` izniyle açılması gerekir.
+
 ### 13. Bildirim ve Crashlytics kabulünü tamamlayın
 
 1. Uygulamada bildirim izni verin; o işletmenin yönetimindeki bildirim ekranından test gönderin.

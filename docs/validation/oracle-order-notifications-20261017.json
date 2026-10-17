@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "utc": "2026-10-17T04:44:31.965662+00:00",
+  "baseRuntimeRevision": "b7567d2f2fa17b3508e3ef3563866016383a5816",
+  "realMongo": true,
+  "isolatedTenants": 2,
+  "checks": 15,
+  "passed": true,
+  "independentRecoveryProcess": true,
+  "productionTenantWrites": false,
+  "externalDelivery": 0,
+  "sourceFiles": {
+    "Ecommerce/src/AdminPlugins/Famizyo.Notification/Services/OrderNotificationService.cs": "86a8b7cc46b4b4b1483b4144e1fa42cda1c9bf8c087d6cd0092b8318fd3241ce",
+    "tests/Order.Notifications.Integration/Program.cs": "68e1b4bbef93e1b5b27c8dc7720e51af092a99b1fb43aad811cebccab9b89a81"
+  },
+  "scope": "Actual notification service over two isolated Mongo databases and a new recovery process. Persisted order fixtures are not an HTTP checkout acceptance."
+}

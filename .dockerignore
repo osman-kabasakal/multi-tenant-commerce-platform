@@ -10,6 +10,15 @@
 **/.local
 **/bin
 **/obj
+
+# Plugin binaries are generated separately for each BuildType inside the image.
+# Keep source projects in src/Plugins and src/AdminPlugins in the context.
+Ecommerce/src/Web/Grand.Web/Plugins/
+Ecommerce/src/Web/Grand.Web.MultiTenant/Plugins/
+Ecommerce/src/Web/Grand.Web.OnlyAdmin/Plugins/
+Ecommerce/src/Installer/Grand.Installer.Cli/Plugins/
+Ecommerce/src/Installer/Grand.Data.Uploader/Plugins/
+Ecommerce/src/Cli/Grand.BackgroundJobExecuter/Plugins/
 **/node_modules
 **/.dart_tool
 **/.git

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings></PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../Ecommerce/src/Business/Grand.Business.Core/Grand.Business.Core.csproj" />
+    <Compile Include="../../Ecommerce/src/AdminPlugins/Famizyo.Notification/Services/OrderNotificationService.cs" Link="Production/OrderNotificationService.cs" />
+    <Compile Include="../../Ecommerce/src/AdminPlugins/Famizyo.Notification/Services/IOrderNotificationService.cs" Link="Production/IOrderNotificationService.cs" />
+    <Compile Include="../../Ecommerce/src/AdminPlugins/Famizyo.Notification/Models/FamizyoOrderNotification.cs" Link="Production/FamizyoOrderNotification.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "utc": "2026-10-17T04:53:00Z",
+  "baseRuntimeRevision": "b7567d2f2fa17b3508e3ef3563866016383a5816",
+  "newCleanBackendPackage": true,
+  "allStandardAndAdminPluginsPublished": true,
+  "actualNativeAdminPasswordLogin": true,
+  "actualProductList": true,
+  "actualCookieWebSocketHub": true,
+  "independentActualResendTaskPublication": true,
+  "actualPersistedMongoOrderSource": true,
+  "actualOrderNotificationService": true,
+  "transientNewOrderEventRequired": false,
+  "persistedSendReceiptVerified": true,
+  "privateFixtureOrderRemoved": true,
+  "realRedisCrossProcessReceipt": true,
+  "tlsVerifiedWithExplicitFixtureCa": true,
+  "publicDnsOrTlsChanged": false,
+  "humanTenantWrites": false,
+  "syntheticTenantFixtureOnly": true,
+  "mobilePushDisabledInFixture": true,
+  "externalNotifications": 0,
+  "newCloudResources": 0,
+  "backendPackageSha256": "9050751eb58aaf362cf5e17d878597a2a21125efc02c7d79808087aee5ef17a8",
+  "publisherContext": "Controlled store-service/work-context fixture with the actual Mongo repository, OrderNotificationService and ResendUnseenNotificationsTask. HTTP authentication, tenant routing, native admin and hub were real.",
+  "scope": "A controlled persisted order in the dedicated synthetic tenant was projected and published after the authenticated native hub connected. This is not an HTTP checkout or continuous TenantManager scheduler rollout acceptance.",
+  "sourceFiles": {
+    "Ecommerce/src/AdminPlugins/Famizyo.Notification/Services/OrderNotificationService.cs": "86a8b7cc46b4b4b1483b4144e1fa42cda1c9bf8c087d6cd0092b8318fd3241ce",
+    "Ecommerce/src/AdminPlugins/Famizyo.Notification/Tasks/ResendUnseenNotificationsTask.cs": "569b3937d7c126db4d50b138367104d1f3d12c1b4385c434ba52a1403ef5605a",
+    "tests/SignalR.Integration/Program.cs": "6ed07c8950827a41565722b14037bb12797eb56e42333ff6e008e165eab26707"
+  },
+  "cleanupVerified": {
+    "testUsers": 0,
+    "testOrders": 0,
+    "testNotifications": 0,
+    "normalComposeServices": 10,
+    "normalTaskWorkerEnabled": false,
+    "nativeStopDeadlineUnchanged": "2026-10-17T05:09:05Z",
+    "nativeStopPolicyVerifiedViaOciApi": true
+  }
+}

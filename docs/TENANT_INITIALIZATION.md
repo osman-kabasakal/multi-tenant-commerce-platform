@@ -6,7 +6,7 @@ Bu akış yeni monoreponun Portable kurulum profilinde kullanılır. Eski instal
 
 `Plugins` altındaki **19 projenin tamamı her hedefte** derlenir. `Frontend` dışında `AdminPlugins` altındaki **5 projenin tamamı da** derlenir. Proje adı ile eklenti sistem adı aynı olmayabilir: örneğin `Authentication.Keycloak` çıktısı `ExternalAuth.Keycloak` klasörüne gider.
 
-Her eklentiye `dotnet build` / MSBuild çağrısında **BuildType açıkça gönderilir**. `BaseDir` ayrıca ezilmez; [Grand.Common.props](../Ecommerce/src/Build/Grand.Common.props) içindeki mevcut eşleme geçerlidir.
+Her eklentiye `dotnet build` / MSBuild çağrısında **BuildType açıkça gönderilir**. `BaseDir` ayrıca ezilmez; [Grand.Common.props](../Ecommerce/src/Build/Grand.Common.props) içindeki mevcut eşleme geçerlidir. Aynı `BuildType`, `dotnet publish` aşamasına da taşınır. Her eklentinin `OutDir` ve gerçek DLL yolu bu hedefin altındadır; bir hedefin çıktısı başka hedefin klasöründen alınmaz. Geliştirme Docker tarifi `Debug` kullanır; eklenti projelerinin çıktı koşulları `Debug` ve `Release` için tanımlıdır.
 
 | BuildType | BaseDir’in işaret ettiği hedef | Eklenti sayısı |
 | --- | --- | --- |
@@ -31,6 +31,8 @@ python3 scripts/build_ecommerce_plugins.py --build-type Installer
 python3 scripts/build_ecommerce_plugins.py --build-type Background
 ```
 
+Docker bağlamına yerelde oluşmuş uygulama `Plugins` klasörleri alınmaz; kaynak `src/Plugins` ve `src/AdminPlugins` projeleri içeride derlenir. Böylece daha önce başka hedef için üretilmiş ya da eski konumda kalmış DLL’ler imaja karışmaz.
+
 Yayın sırasında `-p:PublishTenantPlugins=true` aynı derlemeyi yayın öncesinde çalıştırır. Çıktılar ilgili projenin `Plugins` klasöründen yayın paketine alınır. NuGet bağımlılıkları da kopyalanır; örneğin mobil eklentinin Twilio ve sabit teslimat eklentisinin geometri bağımlılıkları pakette bulunmalıdır.
 
 ```sh
@@ -38,7 +40,7 @@ dotnet publish Ecommerce/src/Installer/Grand.Installer.Cli/Grand.Installer.Cli.c
 dotnet /tmp/commerce-installer/Grand.Installer.Cli.dll --verify-plugins /tmp/commerce-installer Installer
 ```
 
-Kaynak envanteri [ManagedTenantPlugins.props](../Ecommerce/src/Build/ManagedTenantPlugins.props) dosyasında tutulur. `python3 scripts/test_tenant_plugins.py` bu envanteri gerçek proje klasörleriyle karşılaştırır ve beş BuildType için gerçek MSBuild `BaseDir`/`OutDir` değerlerini doğrular. Yeni eklenti eklenirse envanter de güncellenmelidir.
+Kaynak envanteri [ManagedTenantPlugins.props](../Ecommerce/src/Build/ManagedTenantPlugins.props) dosyasında tutulur. `python3 scripts/test_tenant_plugins.py` bu envanteri gerçek proje klasörleriyle karşılaştırır ve beş BuildType için seçilen tüm eklentilerin `Debug` ve `Release` yapılandırmalarında gerçek MSBuild `BaseDir`, `OutDir` ve DLL çıktı yollarını doğrular (230 proje/hedef/yapılandırma birleşimi). Trendyol çıktısı kendi `Famizyo.TrendyolIntegration` klasörüne gider; bildirim eklentisinin klasörüne yazılmaz. Yeni eklenti eklenirse envanter de güncellenmelidir.
 
 ## Eklentilerin görevleri
 
