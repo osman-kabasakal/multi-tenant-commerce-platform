@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net8.0</TargetFramework><Nullable>enable</Nullable><ImplicitUsings>enable</ImplicitUsings><IsTestProject>true</IsTestProject><IsPackable>false</IsPackable></PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../Ecommerce/src/Web/Grand.Web.Common/Grand.Web.Common.csproj" Private="true" AdditionalProperties="BuildType=Backend" />
     <ProjectReference Include="../../Ecommerce/src/AdminPlugins/Famizyo.Simpra/Famizyo.Simpra.csproj" AdditionalProperties="BuildType=Backend" />
     <Compile Include="../../Ecommerce/src/Web/Grand.Web.Admin/Infrastructure/StorePushLinks.cs" Link="Production/StorePushLinks.cs" />
     <ProjectReference Include="../../Shared/Platform.Notifications/Platform.Notifications.csproj" />

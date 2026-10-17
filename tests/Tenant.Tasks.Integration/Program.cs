@@ -135,6 +135,7 @@ try
     Check(child.Environment["GOOGLE_APPLICATION_CREDENTIALS"] == "/private/limited-sender.json" && !child.Environment.ContainsKey("GOOGLE_PROVISIONER_FIXTURE") &&
         child.Environment["PlatformConfiguration__ConfigPath"] == "/private/child.json" && child.ArgumentList.Count == 1 && child.ArgumentList[0] == "/private/installer.dll",
         "the actual child launcher forwards only the explicit sender identity and keeps credentials out of command arguments");
+    Check(child.Environment["MultitenantTask__Enabled"] == "true", "the dedicated schedule child enables conditional task registrations independently of web host settings");
     var disabled = TenantScheduleWorker.ChildStartInfo(new TenantScheduleOptions { InstallerPath = "/private/installer.dll", WorkingDirectory = "/private/work",
         CommerceConfigPath = "/private/child.json", StoreBaseUrl = "https://shops.example.test" }, "a".PadLeft(32, 'a'), "fixture-shop", "/private/metadata.json", "synthetic-tenant-db");
     Check(!disabled.Environment.ContainsKey("GOOGLE_APPLICATION_CREDENTIALS"), "a task child without a sender cannot inherit its parent's broad Google credential");

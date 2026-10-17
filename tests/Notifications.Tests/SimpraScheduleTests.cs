@@ -1,3 +1,8 @@
+using Famizyo.Simpra.Infrastructure;
+using Grand.Business.Core.Interfaces.System.ScheduleTasks;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Famizyo.Simpra.Tasks;
 using Famizyo.Simpra.Settings;
 using Famizyo.Simpra.Services;
@@ -11,6 +16,20 @@ namespace Platform.Notifications.Tests;
 [TestClass]
 public sealed class SimpraScheduleTests
 {
+    [DataTestMethod]
+    [DataRow(false, 0)]
+    [DataRow(true, 2)]
+    public void DedicatedTaskFlagRegistersSimpraTasksWithoutStartingItsHostedProcessor(bool enabled, int count)
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> {
+            ["Provisioning:ManagedRuntime"] = "true", ["MultitenantTask:Enabled"] = enabled.ToString()
+        }).Build();
+        var services = new ServiceCollection();
+        new SimpraStartup().ConfigureServices(services, config);
+        Assert.AreEqual(count, services.Count(x => x.ServiceType == typeof(IScheduleTask)));
+        Assert.IsFalse(services.Any(x => x.ServiceType == typeof(IHostedService)));
+    }
+
     [TestMethod]
     public async Task AnUnconfiguredTenantCanExecuteBothTasksWithoutConstructingItsOptionalIntegration()
     {

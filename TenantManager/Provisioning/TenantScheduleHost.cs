@@ -109,6 +109,7 @@ public sealed class TenantScheduleWorker(TenantScheduleOptions options, IService
         start.Environment["Provisioning__ManagedInstallerProfile"] = "Portable";
         start.Environment["Provisioning__TenantOutput"] = path;
         start.Environment["Provisioning__RunScheduledTasks"] = "true";
+        start.Environment["MultitenantTask__Enabled"] = "true"; // Register task-only plugins in this dedicated child; web hosts remain disabled.
         start.Environment["Provisioning__StoreUrl"] = new UriBuilder(options.StoreBaseUrl) { Host = slug + "." + new Uri(options.StoreBaseUrl).Host }.Uri.GetLeftPart(UriPartial.Authority);
         start.Environment["TenantMessage__TenantId"] = tenant;
         start.Environment["TenantMessage__StoreSubDomain"] = slug;
