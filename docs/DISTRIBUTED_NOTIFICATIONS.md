@@ -76,3 +76,6 @@ Ayrı bir [tam yönetim kabulü](validation/oracle-signalr-native-admin-20261017
 
 
 Sonraki [kalıcı sipariş yönetim kabulünde](validation/oracle-order-native-admin-20261017.json) bu depolama girdisi de gerçek Mongo/`OrderNotificationService` ile değiştirildi: bize ait tenant’a kontrollü bir Order belgesi kaydedildi; ayrı gerçek resend görevi bildirimi oluşturdu, native çerezli hub’a Redis üzerinden ulaştırdı ve kalıcı gönderim sayacı doğrulandı. Yayımlayıcının mağaza bağlamı kontrollüydü; HTTP yönetici kimliği ve tenant yönlendirmesi gerçekti. Tam sepet/ödeme isteği veya sürekli TenantManager hostu bu testte çalıştırılmadı. Test siparişi, bildirim kaydı, sınırlı Mongo kullanıcısı ve geçici servisler kaldırıldı. Normal üretim imajı ve görev servisi ayarı değiştirilmedi.
+
+
+Sonraki [sürekli tenant hostu kabulü](validation/oracle-periodic-orders-20261017.json), gerçek mağaza/iş bağlamını da kullandı. İki kontrollü kalıcı sipariş elle görev başlatmadan, normal bir dakikalık aralıkta tamamlandı; aradaki host yeniden başlatması aralığı korudu. Yayımlanan Installer eklentileri salt okunurdu ve tenant klasöründeki eski DLL’den farklıydı. Bu senaryoda tarayıcı istemcisi veya HTTP checkout çalıştırılmadı; native çerezli WebSocket teslimi yukarıdaki ayrı kabulde doğrulandı. Normal üretim task-worker ayarı değiştirilmedi.

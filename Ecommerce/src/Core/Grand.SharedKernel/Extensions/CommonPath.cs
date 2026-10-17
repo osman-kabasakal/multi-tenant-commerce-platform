@@ -25,7 +25,9 @@ public static class CommonPath
     ///     Maps a theme path to a physical disk path.
     /// </summary>
     /// <returns>The physical path.</returns>
-    public static string PluginsPath => Path.Combine(BaseDirectory, "Plugins");
+    public static string PluginSourceDirectory { get; set; }
+
+    public static string PluginsPath => PluginSourceDirectory ?? Path.Combine(BaseDirectory, "Plugins");
 
     /// <summary>
     ///     Maps a image path.
@@ -57,7 +59,7 @@ public static class CommonPath
     ///     Maps a installled plugins path to a physical disk path.
     /// </summary>
     /// <returns>The physical path.</returns>
-    public static string PluginsCopyPath => Path.Combine(BaseDirectory, PluginsPath, "bin");
+    public static string PluginsCopyPath => Path.Combine(BaseDirectory, "Plugins", "bin");
 
     /// <summary>
     ///     Maps a temp upload path to a physical disk path.

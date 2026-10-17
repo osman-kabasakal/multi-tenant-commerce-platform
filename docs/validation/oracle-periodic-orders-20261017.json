@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "utc": "2026-10-17T05:02:08.886156+00:00",
+  "baseRuntimeRevision": "b7567d2f2fa17b3508e3ef3563866016383a5816",
+  "separateContinuousTenantManagerHost": true,
+  "realPublishedInstallerWith24Plugins": true,
+  "currentReleasePluginSelectedOverOldTenantCopy": true,
+  "actualStoreServiceAndWorkContext": true,
+  "actualMongoOrderProjectionAndRedisResend": true,
+  "firstOrderAutomaticallyProcessed": true,
+  "secondOrderProcessedAfterNormalMinuteInterval": true,
+  "restartPreservedIntervalAndCounter": true,
+  "readOnlyPublishedPlugins": true,
+  "queueAndSharedSecretsReadOnly": true,
+  "humanTenantWrites": false,
+  "externalMessages": 0,
+  "normalProductionTaskWorkerEnabled": false,
+  "packageSha256": "0adc7e580c5971df7dc16d00cd4b930864db571329571791d2ec0471c7dbbf19",
+  "sourceAssemblySha256": "bed03537526e5630043424529e085fbe3d87397ec389dde5a78ec3dbbae2563c",
+  "sourceBaseCommit": "034eca603733b8efaa52a62c83828c6d482508fc",
+  "sourceFiles": {
+    "Ecommerce/src/Core/Grand.SharedKernel/Extensions/CommonPath.cs": "87850bd7167728de9331b4b66b662b622c818161df66531982d8ff9c83e5841a",
+    "Ecommerce/src/Installer/Grand.Installer.Cli/Program.cs": "fc5151afd4b2b545cf94b2e58417d530289938620b3137646dfba9d05d7d3e84",
+    "TenantManager/Provisioning/TenantScheduleHost.cs": "7e2dafdc83091f6b5d5c6c678cd9d3234bab12260588448c87b978edc94a4da1"
+  },
+  "scope": "The real continuous TenantManager host selected only the dedicated already-provisioned synthetic tenant. Real Installer/plugin/DI/store services reconciled two controlled persisted orders on the normal minute interval; the host restarted between them. No HTTP checkout or native browser client was exercised here; these have separate scoped evidence. Only this synthetic tenant task settings were temporarily changed and restored.",
+  "cleanupVerified": {
+    "testOrders": 0,
+    "testNotifications": 0,
+    "tasks": 13,
+    "normalComposeServices": 10,
+    "normalTaskWorkerEnabled": false
+  }
+}

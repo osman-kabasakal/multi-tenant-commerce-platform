@@ -149,6 +149,15 @@ builder.Services.AddTransient<IClaudeAIService, ClaudeAIService>();
 builder.Services.AddTransient<IPageTypeDetector, PageTypeDetector>();
 
 
+// Scheduled tasks use this release's code while retaining the tenant's writable content root.
+if (managedPortable && builder.Configuration.GetValue<bool>("Provisioning:RunScheduledTasks"))
+{
+    var plugins = Path.Combine(AppContext.BaseDirectory, "Plugins");
+    if (!Directory.Exists(plugins)) throw new DirectoryNotFoundException("The published Installer plugin directory is required.");
+    CommonPath.PluginSourceDirectory = plugins;
+    builder.Configuration["Extensions:PluginShadowCopy"] = "false";
+}
+
 //add services
 StartupBase.ConfigureServices(builder.Services, builder.Configuration);
 builder.Services.AddRedisCache(builder.Configuration);
