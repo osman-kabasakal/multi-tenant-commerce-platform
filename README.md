@@ -6,7 +6,7 @@ Keycloak, .NET, Angular ve Flutter ile çok kiracılı bir e-ticaret platformu. 
 
 İki örnek mağazaya ek olarak SaaS üzerinden yeni yerel deneme işletmeleri oluşturulabilir. Her işletme ayrı MongoDB veritabanı, sınırlı veritabanı kullanıcısı ve Keycloak istemcisi kullanır. Gizli bilgiler kurulum sırasında üretilir. Azure, Google Cloud, Firebase veya ödeme hesabı olmadan web demosu çalıştırılabilir.
 
-> Bu repo private inceleme sürümüdür. Linux Compose, gerçek tarayıcı kaydı/e-posta doğrulaması, tenant mağazaları ve soğuk yedekten dönüş doğrulandı. Ayrıca gerçek HTTPS SaaS kaydının Google/Firebase, sıralı installer, imzalı Android App Distribution yükleme/indirme ve yeniden başlatma akışı geçti. İmzalı iOS, cihazdaki crash/bildirim, sürekli background görevleri, ödeme ve kalan yayın kabul işleri bekliyor. GitHub Actions hesap kotası nedeniyle güncel uzak CI çalışmıyor. [Son Android kabul kaydı](docs/validation/oracle-saas-android-20261017.json), [doğrulama geçmişi](docs/VALIDATION.md) ve [kalan işler](docs/PROVISIONING.md#remaining-work-and-acceptance-evidence).
+> Bu repo private inceleme sürümüdür. Linux Compose, gerçek tarayıcı kaydı/e-posta doğrulaması, tenant mağazaları ve soğuk yedekten dönüş doğrulandı. Ayrıca gerçek HTTPS SaaS kaydının Google/Firebase, sıralı installer, imzalı Android App Distribution yükleme/indirme ve yeniden başlatma akışı geçti. İmzalı iOS, cihazdaki crash/bildirim, SignalR/cache arka plan kanalları, ödeme ve kalan yayın kabul işleri bekliyor. GitHub Actions hesap kotası nedeniyle güncel uzak CI çalışmıyor. [Son Android kabul kaydı](docs/validation/oracle-saas-android-20261017.json), [doğrulama geçmişi](docs/VALIDATION.md) ve [kalan işler](docs/PROVISIONING.md#remaining-work-and-acceptance-evidence).
 
 ## Hızlı başlangıç
 
@@ -86,7 +86,7 @@ Mağaza yöneticisi bu profilde GrandNode parola doğrulamasını kullanır. Saa
 
 ## Yeni yerel işletme
 
-Yerel demo ve gerçek sunucu için tek sıralı rehber: [Yeni işletme ekleme: ilk kurulumdan mobil teslimine](docs/YENI_ISLETME_EKLEME.md). Portable üretimde eklenti derleme yolları, sıralı tenant kurulum görevleri ve korunan eski ayarlar: [Tenant kurulumu ve BuildType](docs/TENANT_INITIALIZATION.md).
+Yerel demo ve gerçek sunucu için tek sıralı rehber: [Yeni işletme ekleme: ilk kurulumdan mobil teslimine](docs/YENI_ISLETME_EKLEME.md). Portable üretimde eklenti derleme yolları, sıralı tenant kurulum görevleri ve korunan eski ayarlar: [Tenant kurulumu ve BuildType](docs/TENANT_INITIALIZATION.md). Tekrar eden işler için [ayrı tenant görev servisi](docs/TENANT_BACKGROUND_TASKS.md) açıkça etkinleştirilebilir.
 
 1. `http://localhost:18081/local-onboarding.html` adresini açın; `demo-owner` hesabıyla giriş yapın. Parola `.local/credentials.json` içindeki `saas_user` değeridir.
 2. Benzersiz bir işletme adı ve en az 12 karakterlik mağaza yönetimi parolası girin. Bu akış gerçek ödeme almaz; mevcut plandan sıfır tutarlı deneme aboneliği oluşturur.

@@ -9,9 +9,10 @@ case "$role" in
   saas) cd /app/saas; set -- dotnet SaasManager.Web.dll "$@" ;;
   worker) cd /app/worker; set -- dotnet TenantManager.dll --provisioning-worker "$@" ;;
   mail-worker) cd /app/worker; set -- dotnet TenantManager.dll --readiness-email-worker "$@" ;;
+  task-worker) cd /app/worker; set -- dotnet TenantManager.dll --tenant-schedule-worker "$@" ;;
   cloud) cd /app/cloud; set -- dotnet Platform.Cloud.dll "$@" ;;
   bootstrap) cd /app/bootstrap; set -- dotnet Platform.Bootstrap.dll "$@" ;;
-  help) printf '%s\n' 'Roles: commerce admin gateway saas worker mail-worker bootstrap cloud'; exit 0 ;;
+  help) printf '%s\n' 'Roles: commerce admin gateway saas worker mail-worker task-worker bootstrap cloud'; exit 0 ;;
   *) printf '%s\n' 'Unknown platform role.' >&2; exit 64 ;;
 esac
 exec "$@"

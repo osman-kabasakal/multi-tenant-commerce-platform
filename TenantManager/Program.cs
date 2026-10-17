@@ -792,6 +792,13 @@ public class Program
 
     public static async Task Main(string[] args)
     {
+        if (args.Count(x => x is "--readiness-email-worker" or "--provisioning-worker" or "--tenant-schedule-worker") > 1)
+            throw new ArgumentException("Choose one worker mode.");
+        if (args.Contains("--tenant-schedule-worker"))
+        {
+            await TenantManager.Provisioning.TenantScheduleHost.RunAsync(args.Where(x => x != "--tenant-schedule-worker").ToArray());
+            return;
+        }
         if(args.Contains("--readiness-email-worker"))
         {
             if(args.Contains("--provisioning-worker"))throw new ArgumentException("Choose one worker mode.");

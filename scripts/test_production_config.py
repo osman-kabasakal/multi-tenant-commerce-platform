@@ -11,6 +11,7 @@ import tempfile
 import unittest
 
 import production_config as config
+import production
 import production_android
 import production_backup as snapshot
 
@@ -61,6 +62,54 @@ class ProductionConfigTests(unittest.TestCase):
         custom_state = self.root / 'custom-identity-port-state'
         config.prepare(custom, custom_state, 'commerce-platform:fixture')
         self.assertNotIn('extra_hosts', json.loads((custom_state / 'compose.json').read_text())['services']['worker'])
+
+    def test_schedule_is_separate_opt_in_and_has_only_read_authority_for_shared_state(self):
+        state = self.root / 'scheduled-state'
+        original = config.prepare(self.plan, state, 'commerce-platform:fixture')
+        self.assertNotIn('task-worker', json.loads((state / 'compose.json').read_text())['services'])
+        plan = copy.deepcopy(self.plan)
+        plan['Providers']['TenantTasks'] = {'Enabled': True, 'PollSeconds': 15, 'TenantIds': ['a' * 32]}
+        enabled = config.prepare(plan, state, 'commerce-platform:fixture')
+        self.assertEqual(original['Credentials'], enabled['Credentials'])
+        self.assertEqual(original['MasterKey'], enabled['MasterKey'])
+        service = json.loads((state / 'compose.json').read_text())['services']['task-worker']
+        self.assertEqual(service['command'], ['task-worker'])
+        self.assertEqual(service['image'], 'commerce-platform:fixture')
+        mounts = {item['target']: item for item in service['volumes']}
+        self.assertTrue(mounts['/var/lib/commerce/tenants']['read_only'])
+        self.assertNotIn('/var/lib/commerce/mobile', mounts)
+        self.assertNotIn('GOOGLE_APPLICATION_CREDENTIALS', service['environment'])
+        for role in ('task-worker', 'task-installer'):
+            child = json.loads((state / 'config' / (role + '.json')).read_text())
+            self.assertTrue(child['PlatformSecurity']['ReadOnly'])
+            self.assertFalse(child['PlatformSecurity']['InitializeSchema'])
+            self.assertIn('Username=platform_reader;', child['PlatformSecurity']['ConnectionString'])
+            self.assertNotIn('MongoAdminConnection', json.dumps(child))
+            self.assertNotIn('KeycloakAdminClientSecret', json.dumps(child))
+        child = json.loads((state / 'config/task-installer.json').read_text())
+        self.assertNotIn('StoreEmail', child['Provisioning'])
+        self.assertEqual(child['Extensions'], config.plugin_configuration('Installer'))
+        for invalid in ({'Enabled': 'true'}, {'Enabled': True, 'PollSeconds': 0}, {'Enabled': True, 'TenantIds': ['../foreign']}):
+            plan['Providers']['TenantTasks'] = invalid
+            with self.assertRaises(ValueError): config.validate(plan)
+
+    def test_disabling_tasks_stops_only_the_previously_owned_task_host(self):
+        state = self.root / 'stopped-schedule-state'
+        record = config.prepare(self.plan, state, 'commerce-platform:fixture')
+        deployment = production.Deployment(state)
+        identity = 'a' * 64
+        with patch('production.subprocess.check_output', return_value=identity) as lookup, patch('production.subprocess.run') as stop:
+            deployment.stop_task_worker()
+            query = lookup.call_args.args[0]
+            self.assertIn('label=commerce.installation=' + record['InstallationId'], query)
+            self.assertIn('label=com.docker.compose.project=' + deployment.definition['name'], query)
+            self.assertIn('label=com.docker.compose.service=task-worker', query)
+            self.assertEqual(stop.call_args.args[0], ['docker', 'stop', '--time', '30', identity])
+        with patch('production.subprocess.check_output', return_value=''), patch('production.subprocess.run') as stop:
+            deployment.stop_task_worker(); stop.assert_not_called()
+        with patch('production.subprocess.check_output', return_value='foreign-identifier'), patch('production.subprocess.run') as stop:
+            with self.assertRaises(ValueError): deployment.stop_task_worker()
+            stop.assert_not_called()
 
     def android_plan(self):
         plan = copy.deepcopy(self.plan)

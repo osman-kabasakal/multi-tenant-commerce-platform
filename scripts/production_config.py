@@ -57,6 +57,14 @@ def validate(plan):
     if identity.get('RegistrationAllowed') and (not smtp.get('host') or not smtp.get('from') or not smtp.get('port', '').isdigit() or not 1 <= int(smtp['port']) <= 65535):
         raise ValueError('Configure an SMTP host, sender and port before enabling public identity registration.')
     providers = plan['Providers']
+    schedule = providers.get('TenantTasks', {'Enabled': False})
+    if not isinstance(schedule, dict) or set(schedule) - {'Enabled', 'PollSeconds', 'TimeoutMinutes', 'TenantIds'} or type(schedule.get('Enabled')) is not bool:
+        raise ValueError('Select tenant scheduled tasks with an explicit Enabled boolean.')
+    for field, minimum, maximum, default in (('PollSeconds', 5, 3600, 30), ('TimeoutMinutes', 1, 120, 20)):
+        if type(schedule.get(field, default)) is not int or not minimum <= schedule.get(field, default) <= maximum:
+            raise ValueError('Use bounded tenant schedule intervals and timeouts.')
+    if not isinstance(schedule.get('TenantIds', []), list) or any(not isinstance(value, str) or not re.fullmatch('[a-f0-9]{32}', value) or value == '0' * 32 for value in schedule.get('TenantIds', [])):
+        raise ValueError('Use canonical tenant ids for an optional schedule allowlist.')
     domains = providers['Domains']
     if domains.get('Provider') == 'Wildcard':
         if domains.get('WildcardConfigured') is not True: raise ValueError('Confirm wildcard DNS only after configuring the four public domain targets.')
@@ -331,7 +339,16 @@ def render(p, state, record, image):
                      Provisioning={'DeploymentId': ident, 'InitializeSchema': False},
                      TenantOnboarding={'Trial': {'Enabled': True, 'PlanId': p['TrialPlan']['Id']}},
                      Bootstrap={'DeploymentId': ident, 'AllowSchemaChanges': True, 'TrialPlan': p['TrialPlan']})
-    for role, value in {'commerce': commerce, 'admin': administration, 'installer': installer, 'gateway': gateway, 'saas': saas, 'worker': worker, 'bootstrap': bootstrap}.items():
+    task_installer = copy.deepcopy(installer)
+    task_installer['PlatformSecurity'] = security('reader', True)
+    task_installer['Provisioning'].pop('StoreEmail', None)  # Each tenant resolves its existing SMTP secret at execution time.
+    task_worker = copy.deepcopy(base)
+    task_worker.update(PlatformSecurity=security('reader', True), Provisioning={'InitializeSchema': False, 'Schedule': dict(
+        p['Providers'].get('TenantTasks', {'Enabled': False}), DeploymentId=ident,
+        InstallerPath='/app/installer/Grand.Installer.Cli.dll', CommerceConfigPath='/run/secrets/task-installer.json',
+        WorkingDirectory='/var/lib/commerce/onboarding', TenantDirectory='/var/lib/commerce/tenants', StoreBaseUrl=store)})
+    for role, value in {'commerce': commerce, 'admin': administration, 'installer': installer, 'gateway': gateway, 'saas': saas, 'worker': worker,
+                        'task-worker': task_worker, 'task-installer': task_installer, 'bootstrap': bootstrap}.items():
         write_json(state / 'config' / (role + '.json'), value)
     realm = {'realm': 'commerce', 'enabled': True, 'sslRequired': 'external', 'registrationAllowed': False,
         'attributes': {'platform-installation-id': record['InstallationId']},
@@ -396,6 +413,7 @@ def compose(p, state, record, image, ip, identity):
         read_only=True, tmpfs=['/data:rw,nosuid,size=16m', '/config:rw,nosuid,size=16m', '/tmp:rw,nosuid,size=16m'],
         security_opt=['no-new-privileges:true'])
     numbers = {'gateway': 11, 'commerce': 12, 'admin': 13, 'saas': 14, 'worker': 15, 'bootstrap': 16}
+    if p['Providers'].get('TenantTasks', {}).get('Enabled'): numbers['task-worker'] = 17
     for role, number in numbers.items():
         mounts = [bind('config/' + role + '.json', '/run/secrets/config.json'), bind('secrets/platform-master-key', '/run/secrets/platform-master-key')]
         if p['Tls'].get('RootCertificateFile'): mounts.append(bind('secrets/root-ca.pem', '/run/secrets/root-ca.pem'))
@@ -414,6 +432,9 @@ def compose(p, state, record, image, ip, identity):
             for directory, target in (('media-images', 'images'), ('media-files', 'files')):
                 mounts.append(bind(directory, '/app/' + role + '/wwwroot/assets/' + target + '/uploaded', False))
         if role == 'worker': mounts.append(bind('config/installer.json', '/run/secrets/installer.json'))
+        if role == 'task-worker':
+            mounts.extend([bind('config/task-installer.json', '/run/secrets/task-installer.json'),
+                           bind('onboarding', '/var/lib/commerce/onboarding', False), bind('tenants', '/var/lib/commerce/tenants')])
         mobile_worker = role == 'worker' and p['Providers'].get('Mobile', {}).get('Provider') in ('AndroidAppDistribution', 'AndroidIosAppDistribution')
         if mobile_worker:
             for directory in ('mobile-work', 'mobile-artifacts', 'mobile-cache'):

@@ -61,7 +61,7 @@ Derleme kapsamı yukarıdaki ortak kurala bağlıdır. Aşağıdaki tablo, içer
 | AdminPlugins/Famizyo.Integration.Adisyo | Yönetimde Adisyo ayarları; ürün ve sipariş senkronizasyon görevleri |
 | AdminPlugins/Famizyo.TrendyolIntegration | Yönetimde Trendyol ayarları; menü senkronizasyon görevi |
 
-Bir eklentinin derlenmesi, harici hesabının yapılandırıldığı veya zamanlanmış işlerinin çalıştığı anlamına gelmez. Portable web/installer süreçleri Simpra ve bildirim eklentilerinin eski global dinleyicilerini başlatmaz. Tenant başına sürekli çalışan senkronizasyon/zamanlanmış işler için ayrıca tenant bağlamı ve iş sahipliğiyle çalışan background host gerekir; yeni kurulumun üç sıralı adımı bu sürekli işlerin yerine geçmez.
+Bir eklentinin derlenmesi, harici hesabının yapılandırıldığı veya zamanlanmış işlerinin çalıştığı anlamına gelmez. Portable web/installer süreçleri Simpra ve bildirim eklentilerinin eski global dinleyicilerini başlatmaz. Tenant başına sürekli görevler için ayrı [Portable görev hostu](TENANT_BACKGROUND_TASKS.md) bulunur; açıkça etkinleştirilir ve tenant kilitleriyle sırayla çalışır. Üç sıralı kurulum adımı bu sürekli işlerin yerine geçmez. Entegrasyonların dış teslim ve SignalR/cache kanalları ayrıca doğrulanır.
 
 ## Yeni işletmede sıralama
 

@@ -28,6 +28,7 @@
     "ReadinessEmail": {"Provider": "Disabled"},
     "Notifications": {"Provider": "Disabled"},
     "Payments": {"Provider": "Disabled"},
-    "Mobile": {"Provider": "Disabled"}
+    "Mobile": {"Provider": "Disabled"},
+    "TenantTasks": {"Enabled": false, "PollSeconds": 30, "TimeoutMinutes": 20, "TenantIds": []}
   }
 }

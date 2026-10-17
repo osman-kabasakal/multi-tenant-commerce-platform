@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -53,6 +54,16 @@ class Deployment:
                         raise ValueError('Refusing to adopt Docker data/network without this installation ownership record.')
                 elif 'no such' not in found.stderr.lower() and 'not found' not in found.stderr.lower():
                     raise RuntimeError('Docker resource inspection failed; no resource was adopted.')
+
+    def stop_task_worker(self):
+        # Disabled optional services disappear from Compose; stop only this installation's old task host.
+        ids = subprocess.check_output(['docker', 'ps', '-aq', '--no-trunc',
+            '--filter', 'label=commerce.installation=' + self.record['InstallationId'],
+            '--filter', 'label=com.docker.compose.project=' + self.definition['name'],
+            '--filter', 'label=com.docker.compose.service=task-worker'], text=True).split()
+        if any(not re.fullmatch('[a-f0-9]{64}', value) for value in ids):
+            raise ValueError('Unexpected owned task container identity.')
+        if ids: subprocess.run(['docker', 'stop', '--time', '30', *ids], check=True, stdout=subprocess.DEVNULL)
 
     def wait(self, label, predicate, seconds=180):
         deadline = time.monotonic() + seconds
@@ -105,6 +116,8 @@ GRANT USAGE ON SCHEMA platform_security TO platform_saas,platform_worker,platfor
 GRANT SELECT ON platform_security.secrets,platform_security.tenants,platform_security.aliases TO platform_reader;
 GRANT SELECT,INSERT,UPDATE ON platform_security.secrets,platform_security.tenants,platform_security.aliases TO platform_saas,platform_worker;
 GRANT USAGE ON SCHEMA platform_provisioning,platform_bootstrap TO platform_saas,platform_worker;
+GRANT USAGE ON SCHEMA platform_provisioning TO platform_reader;
+GRANT SELECT ON platform_provisioning.jobs TO platform_reader;
 GRANT SELECT,INSERT,UPDATE ON platform_provisioning.jobs TO platform_saas,platform_worker;
 GRANT USAGE ON SEQUENCE platform_provisioning.jobs_id_seq TO platform_saas,platform_worker;
 GRANT SELECT ON platform_bootstrap.queue_state TO platform_saas,platform_worker;
@@ -186,7 +199,9 @@ user(a,'tenant_provisioner',s.worker,[{role:'readWriteAnyDatabase',db:'admin'},{
         print('PASS: Owned Keycloak identity registration/email settings applied without replacing clients, users or credentials.', flush=True)
 
     def verify_hosts(self):
-        for role in ('saas', 'commerce', 'admin', 'gateway', 'worker'):
+        roles = ['saas', 'commerce', 'admin', 'gateway', 'worker']
+        if 'task-worker' in self.definition['services']: roles.append('task-worker')
+        for role in roles:
             def ready(role=role):
                 status = self.run('ps', '--format', 'json', role, capture=True).stdout.strip()
                 entries = json.loads(status) if status.startswith('[') else [json.loads(line) for line in status.splitlines() if line]
@@ -210,6 +225,7 @@ user(a,'tenant_provisioner',s.worker,[{role:'readWriteAnyDatabase',db:'admin'},{
     def up(self, no_build=False):
         if platform.system() != 'Linux' or os.getuid() == 0: raise ValueError('Run Production startup as a non-root Linux deployment operator with Docker access.')
         self.owned_resources()
+        if not self.plan['Providers'].get('TenantTasks', {}).get('Enabled'): self.stop_task_worker()
         image = self.definition['services']['saas']['image']
         expected = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
         found = subprocess.run(['docker', 'image', 'inspect', image], capture_output=True, text=True)
@@ -243,7 +259,9 @@ user(a,'tenant_provisioner',s.worker,[{role:'readWriteAnyDatabase',db:'admin'},{
         self.run('up', '-d', 'keycloak')
         self.wait('scoped Keycloak client authentication', self.verify_identity, 240)
         self.reconcile_identity()
-        self.run('up', '-d', '--force-recreate', 'commerce', 'admin', 'saas', 'gateway', 'edge', 'worker')
+        applications = ['commerce', 'admin', 'saas', 'gateway', 'edge', 'worker']
+        if 'task-worker' in self.definition['services']: applications.append('task-worker')
+        self.run('up', '-d', '--force-recreate', *applications)
         self.verify_hosts()
         print('Deployment ready. Private state and operator credentials: ' + str(self.state), flush=True)
 
@@ -275,7 +293,9 @@ def main():
             deployment.run('config', '--quiet'); print('Private Production configuration prepared; no infrastructure was started.', flush=True)
         elif args.action == 'up': deployment.up(args.no_build)
         elif args.action == 'verify': deployment.verify_identity(); deployment.verify_hosts()
-        elif args.action == 'stop': deployment.run('stop'); print('Only this Compose installation stopped; databases, keys and files retained.', flush=True)
+        elif args.action == 'stop':
+            deployment.stop_task_worker(); deployment.run('stop')
+            print('Only this Compose installation stopped; databases, keys and files retained.', flush=True)
 
 
 if __name__ == '__main__':

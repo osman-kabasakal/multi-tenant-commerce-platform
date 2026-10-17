@@ -215,6 +215,15 @@ using (var scope = serviceProvider.CreateScope())
     //
     // return; 
     
+    if (managedPortable && builder.Configuration.GetValue<bool>("Provisioning:RunScheduledTasks"))
+    {
+        // IScheduleTask has no cancellation API. Exit the isolated child on lease loss, without
+        // releasing the lease while a plugin callback could still execute in another thread.
+        try { await ManagedScheduledTasks.RunAsync(scope, builder.Services, builder.Configuration, tenantStatusMessage); }
+        catch { Console.Error.WriteLine("Tenant schedule batch stopped safely."); Environment.Exit(75); }
+        return;
+    }
+
     var managedTask = builder.Configuration["Provisioning:ManagedInstallerTask"];
     if (managedPortable && !string.IsNullOrEmpty(managedTask))
     {

@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "dateUtc": "2026-10-17",
+  "scope": "Portable sequential tenant scheduler; isolated Mongo fixture and actual GrandNode core tasks in the dedicated synthetic SaaS tenant",
+  "mongoLeaseChecks": 13,
+  "realMongo": true,
+  "leaseRenewalAndStaleWorkerRejection": true,
+  "administratorEditsPreserved": true,
+  "isolatedFixtureRemoved": true,
+  "actualTasks": [
+    "QueuedMessagesSendScheduleTask",
+    "ClearCacheScheduleTask"
+  ],
+  "separateHost": true,
+  "privateSmtpAcceptedMessages": 1,
+  "externalMessages": 0,
+  "restartPreservedIntervalsAndPreventedRedelivery": true,
+  "syntheticTenantSettingsRestored": true,
+  "humanTenantWrites": false,
+  "baseRuntimeRevision": "b7567d2f2fa17b3508e3ef3563866016383a5816",
+  "runtimePackaging": "New Release assemblies mounted into the existing owned Linux runtime for this scoped acceptance; no full replacement production image claim",
+  "assemblySha256": {
+    "Grand.Installer.Cli.dll": "5689313bbaf28e45ad699e411d1009289f2a9c20b87e3e6bf1c24eb25e11fafd",
+    "TenantManager.dll": "5d6be743c82696853b0ff4ba28a1ef6e19d03e7697e75d388170df94ef2c5fb2"
+  },
+  "productionRolloutEnabled": false,
+  "githubActionsExecuted": false,
+  "remaining": [
+    "Legacy SignalR delivery between child and web hosts",
+    "Portable consumption of legacy cache invalidation events",
+    "Configured external integration delivery",
+    "Signed iOS and real device startup/crash/FCM/APNs acceptance",
+    "Current full-image clean release CI"
+  ],
+  "compiledFromCleanSourceSnapshot": true,
+  "productionConfigurationTests": 17,
+  "allFiveBuildTypePathsVerified": true,
+  "sharedQueueWritePermissionDenied": true
+}
