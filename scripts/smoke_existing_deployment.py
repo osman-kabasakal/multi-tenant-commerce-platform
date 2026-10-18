@@ -207,8 +207,13 @@ def main():
         return row.get(name, row.get(name[:1].lower() + name[1:]))
 
     currencies = rows('/Admin/Currency/List', '/Admin/Currency/ListGrid')
-    check(any(field(row, 'CurrencyCode') == 'TRY' and field(row, 'IsPrimaryStoreCurrency') and field(row, 'IsPrimaryExchangeRateCurrency') for row in currencies),
-          'TRY remains both the primary store and exchange currency')
+    expected_store_currency = fixture.get('expectedPrimaryStoreCurrency', 'TRY')
+    expected_exchange_currency = fixture.get('expectedPrimaryExchangeRateCurrency', 'TRY')
+    assert all(re.fullmatch('[A-Z]{3}', value) for value in (expected_store_currency, expected_exchange_currency))
+    check(any(field(row, 'CurrencyCode') == expected_store_currency and field(row, 'IsPrimaryStoreCurrency') for row in currencies),
+          'The configured primary store currency remains ' + expected_store_currency)
+    check(any(field(row, 'CurrencyCode') == expected_exchange_currency and field(row, 'IsPrimaryExchangeRateCurrency') for row in currencies),
+          'The configured primary exchange currency remains ' + expected_exchange_currency)
     providers = rows('/Admin/Tax/Providers', '/Admin/Tax/Providers')
     check({'Tax.FixedRate', 'Tax.CountryStateZip'} <= {field(row, 'SystemName') for row in providers}, 'Both tenant tax providers remain available')
     rates = rows('/Admin/TaxFixedRate/Configure', '/Admin/TaxFixedRate/Configure')
