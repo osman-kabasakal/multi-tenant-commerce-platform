@@ -30,7 +30,8 @@ public static class WorkerHost
         {
             if (builder.Configuration["Provisioning:Profile"]!="Portable") throw new InvalidOperationException("Reconciliation requires the Portable profile.");
             using var scope=host.Services.CreateScope();
-            await ManagedTenantReconciliation.RunAsync(tenant,scope.ServiceProvider,CancellationToken.None);
+            await ManagedTenantReconciliation.RunAsync(tenant,scope.ServiceProvider,CancellationToken.None,
+                repairBase:builder.Configuration.GetValue<bool>("Provisioning:RepairBaseInstallation"));
             return;
         }
         await host.RunAsync();

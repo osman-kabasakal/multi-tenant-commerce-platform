@@ -14,12 +14,15 @@ public sealed class StoreInstallerStep(OnboardingInfrastructureOptions options, 
         return await RunAsync(request, completed, null, ct);
     }
 
+    public Task<ProvisioningStepResult> RepairBaseAsync(TenantProvisioningRequest request, IReadOnlyDictionary<string,ProvisioningStepResult> completed, CancellationToken ct)
+        => RunAsync(request, completed, "tenant-base-repair", ct);
+
     internal async Task<ProvisioningStepResult> RunAsync(TenantProvisioningRequest request, IReadOnlyDictionary<string,ProvisioningStepResult> completed, string? task, CancellationToken ct)
     {
         request.Validate();
         var metadata=Path.Combine(options.TenantDirectory,request.Slug+".json");
         var output=task == null ? metadata : Path.Combine(options.TenantDirectory, request.Slug+"."+task+(task=="tenant-domain" && request.Domain!=null?"."+request.Domain.Id.ToString("N"):"")+".json");
-        if (task != null && (options.IsLocal || !(ManagedTenantStep.Tasks.Contains(task) || task=="tenant-domain" && request.Domain!=null) || !File.Exists(metadata)))
+        if (task != null && (options.IsLocal || !(ManagedTenantStep.Tasks.Contains(task) || task=="tenant-domain" && request.Domain!=null || task=="tenant-base-repair") || !File.Exists(metadata)))
             throw new InvalidOperationException("Managed tasks require the completed portable store installation.");
         if (task != null)
         {
@@ -115,6 +118,8 @@ public sealed class StoreInstallerStep(OnboardingInfrastructureOptions options, 
         if (!options.IsLocal && (result.RootElement.TryGetProperty("connectionString",out _) ||
             !result.RootElement.TryGetProperty("profile",out var profile) || profile.GetString()!="Portable"))
             throw new InvalidOperationException("Portable installer output must contain only owned public metadata.");
+        if (!options.IsLocal && task == null && (!result.RootElement.TryGetProperty("baseInstallationVerified", out var baseReady) || baseReady.ValueKind != JsonValueKind.True))
+            throw new InvalidOperationException("The portable base installation has no verified completion marker. Reconcile the owned partial installation first.");
         var storeId=result.RootElement.GetProperty("storeId").GetString()!;
         if (task != null)
         {

@@ -163,23 +163,20 @@ public partial class InstallationService
                 Published = true
             }
         };
-        pages.ForEach(x => _pageRepository.Insert(x));
-
-        var lpages = from p in _pageRepository.Table
-            select p;
-        //search engine names
-        foreach (var page in lpages)
+        foreach (var template in pages)
         {
-            var seName = page.SystemName.ToLowerInvariant();
-            await _entityUrlRepository.InsertAsync(new EntityUrl {
-                EntityId = page.Id,
-                EntityName = "Page",
-                LanguageId = "",
-                IsActive = true,
-                Slug = seName
-            });
-            page.SeName = seName;
-            await _pageRepository.UpdateAsync(page);
+            var page = _pageRepository.Table.FirstOrDefault(x => x.SystemName == template.SystemName)
+                ?? _pageRepository.Insert(template);
+            var seName = string.IsNullOrEmpty(page.SeName) ? page.SystemName.ToLowerInvariant() : page.SeName;
+            if (!_entityUrlRepository.Table.Any(x => x.EntityId == page.Id && x.EntityName == "Page" && x.LanguageId == ""))
+                await _entityUrlRepository.InsertAsync(new EntityUrl {
+                    EntityId = page.Id, EntityName = "Page", LanguageId = "", IsActive = true, Slug = seName
+                });
+            if (string.IsNullOrEmpty(page.SeName))
+            {
+                page.SeName = seName;
+                await _pageRepository.UpdateAsync(page);
+            }
         }
     }
 }

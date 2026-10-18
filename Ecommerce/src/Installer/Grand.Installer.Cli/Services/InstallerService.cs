@@ -173,14 +173,17 @@ public class InstallerService
         {
             //reset cache
             DataSettingsManager.ResetCache();
-            await cacheBase.Clear();
+            try { await cacheBase.Clear(); }
+            catch (Exception cleanupError) { _logger.LogWarning("Installer cache cleanup failed ({ErrorType}).", cleanupError.GetType().Name); }
 
-            System.IO.File.Delete(CommonPath.SettingsPath);
+            // A managed partial database must be reconciled, not seeded again over existing identities.
+            if (!_serviceProvider.GetRequiredService<IConfiguration>().GetValue<bool>("Provisioning:ManagedInstaller"))
+                System.IO.File.Delete(CommonPath.SettingsPath);
             
             _logger.LogError(exception, exception.InnerException?.Message);
 
             throw new Exception(string.Format(locService.GetResource(model.SelectedLanguage, "SetupFailed"),
-                exception.Message + " " + exception.InnerException?.Message));
+                exception.Message + " " + exception.InnerException?.Message), exception);
         }
 
         return;

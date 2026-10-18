@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Platform.Provisioning;
+using Platform.Security;
 using Platform.Provisioning.Adapters;
 
 namespace TenantManager.Provisioning;
@@ -8,7 +9,7 @@ namespace TenantManager.Provisioning;
 // Stop all provisioning workers before invoking it for an existing completed tenant.
 public static class ManagedTenantReconciliation
 {
-    public static async Task RunAsync(string tenant,IServiceProvider services,CancellationToken ct)
+    public static async Task RunAsync(string tenant,IServiceProvider services,CancellationToken ct,bool repairBase=false)
     {
         if (!Guid.TryParseExact(tenant,"N",out var id) || id==Guid.Empty || id.ToString("N")!=tenant)
             throw new ArgumentException("Choose a canonical owned tenant id.");
@@ -22,6 +23,12 @@ public static class ManagedTenantReconciliation
         var file=new FileStreamOptions {Mode=FileMode.OpenOrCreate,Access=FileAccess.ReadWrite,Share=FileShare.None};
         if(!OperatingSystem.IsWindows())file.UnixCreateMode=UnixFileMode.UserRead|UnixFileMode.UserWrite;
         using var maintenance=new FileStream(lockPath,file);
+        if (repairBase)
+        {
+            await new StoreInstallerStep(options, services.GetRequiredService<ITenantSecrets>())
+                .RepairBaseAsync(job.Request, completed, ct);
+            Console.WriteLine("Completed owned maintenance phase: tenant-base-repair");
+        }
         foreach(var step in services.GetServices<IProvisioningStep>().OfType<ManagedTenantStep>())
         {
             completed[step.Name]=await step.ExecuteAsync(job.Request,completed,ct);

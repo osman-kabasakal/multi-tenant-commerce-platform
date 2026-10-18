@@ -323,13 +323,17 @@ public class TranslationService : ITranslationService
 
                 _ = Enum.TryParse(area, out TranslationResourceArea areaEnum);
 
-                yield return new InsertOneModel<TranslationResource>(new TranslationResource() {
-                    LanguageId = language1.Id,
-                    Name = name.ToLowerInvariant(),
-                    Value = value,
-                    Area = areaEnum,
-                    CreatedBy = "System"
-                });
+                var normalizedName = name.ToLowerInvariant();
+                // An interrupted import can resume without duplicating resources or replacing edits.
+                yield return new UpdateOneModel<TranslationResource>(
+                    Builders<TranslationResource>.Filter.Eq(x => x.LanguageId, language1.Id) &
+                    Builders<TranslationResource>.Filter.Eq(x => x.Name, normalizedName),
+                    Builders<TranslationResource>.Update
+                        .SetOnInsert(x => x.LanguageId, language1.Id)
+                        .SetOnInsert(x => x.Name, normalizedName)
+                        .SetOnInsert(x => x.Value, value)
+                        .SetOnInsert(x => x.Area, areaEnum)
+                        .SetOnInsert(x => x.CreatedBy, "System")) { IsUpsert = true };
             }
         }
 

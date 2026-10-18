@@ -241,6 +241,12 @@ using (var scope = serviceProvider.CreateScope())
 
 // Zamanlayıcıyı başlat
     stopwatch.Start();
+    if (managedPortable && (!Guid.TryParseExact(tenantStatusMessage.TenantId, "N", out var installationTenant) || installationTenant == Guid.Empty))
+        throw new InvalidOperationException("The base installer requires a canonical owned tenant.");
+    // Store.Id is created during installation. Its earlier cache work uses the owned tenant key.
+    using (var bootstrapContext = managedPortable ? new InstallerTenantContext(
+        scope.ServiceProvider.GetRequiredService<Grand.Infrastructure.MultiTenant.ITenantIdentityAccessor>(), tenantStatusMessage.TenantId!) : null)
+    {
     await installerService.Install(new InstallModel {
         UserFields = null,
         SelectedLanguage = "tr-TR",
@@ -270,15 +276,20 @@ using (var scope = serviceProvider.CreateScope())
             : $"{tenantStatusMessage.StoreSubDomain}.{builder.Configuration["Web:Host"]}"
     });
 
+    }
+
     stopwatch.Stop();
 
 // Sonuçları görüntüle
     logger.LogInformation($"Migration İşlem süresi: {stopwatch.Elapsed.TotalMinutes} milisaniye");
     var storeService = scope.ServiceProvider.GetService<IStoreService>();
-    var store = (await storeService.GetAllStores()).FirstOrDefault()
+    var store = (managedPortable
+        ? scope.ServiceProvider.GetRequiredService<IRepository<Store>>().Table.SingleOrDefault()
+        : (await storeService.GetAllStores()).FirstOrDefault())
         ?? throw new InvalidOperationException("The installed tenant store is missing.");
     using var tenantContext = new InstallerTenantContext(
         scope.ServiceProvider.GetRequiredService<Grand.Infrastructure.MultiTenant.ITenantIdentityAccessor>(), store.Id);
+    if (managedPortable) ManagedBaseInstallation.RequireComplete(scope, tenantStatusMessage.OwnerEmail!);
     var tenantSecrets = scope.ServiceProvider.GetRequiredService<ITenantSecrets>();
     await tenantSecrets.ProvisionAsync(tenantStatusMessage.TenantId ?? tenantStatusMessage.StoreSubDomain!, tenantStatusMessage.StoreSubDomain!);
     tenantStatusMessage.TenantId = await tenantSecrets.ResolveAsync(tenantStatusMessage.StoreSubDomain!);
@@ -309,7 +320,7 @@ using (var scope = serviceProvider.CreateScope())
             var fileOptions=new FileStreamOptions {Mode=FileMode.CreateNew,Access=FileAccess.Write,Share=FileShare.None};
             if (!System.OperatingSystem.IsWindows()) fileOptions.UnixCreateMode=UnixFileMode.UserRead|UnixFileMode.UserWrite;
             await using(var stream=new FileStream(temporaryPath,fileOptions))
-                await JsonSerializer.SerializeAsync(stream,new {profile="Portable",tenantId=tenantStatusMessage.TenantId,slug=tenantStatusMessage.StoreSubDomain,storeId=store.Id});
+                await JsonSerializer.SerializeAsync(stream,new {profile="Portable",tenantId=tenantStatusMessage.TenantId,slug=tenantStatusMessage.StoreSubDomain,storeId=store.Id,baseInstallationVerified=true});
             File.Move(temporaryPath,outputPath,false);
         }
         finally { if(File.Exists(temporaryPath))File.Delete(temporaryPath); }

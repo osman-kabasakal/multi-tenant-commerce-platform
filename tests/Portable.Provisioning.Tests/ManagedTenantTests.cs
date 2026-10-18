@@ -63,4 +63,21 @@ public sealed class ManagedTenantTests
         await Assert.ThrowsExceptionAsync<InvalidOperationException>(()=>new PortableTenantPublicationStep(options,new MemorySecrets(),http).ExecuteAsync(request,done,default));
         Assert.AreEqual(0,calls);Assert.IsFalse(File.Exists(Path.Combine(options.RouteDirectory,request.Slug+".json")));
     }
+    [TestMethod]
+    public async Task SavedSettingsAndStoreMetadataDoNotProveBaseInstallationCompleted()
+    {
+        using var f=new Fixture();var request=Fixture.Request();var options=f.Options();
+        await File.WriteAllTextAsync(Path.Combine(options.TenantDirectory,request.Slug+".json"),JsonSerializer.Serialize(new{profile="Portable",tenantId=request.TenantId,slug=request.Slug,storeId="store-owned"}));
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(()=>new StoreInstallerStep(options,new MemorySecrets()).ExecuteAsync(request,Fixture.Completed(request),default));
+    }
+
+    [TestMethod]
+    public async Task VerifiedBaseInstallationMetadataCanReplayWithoutLaunchingAnInstaller()
+    {
+        using var f=new Fixture();var request=Fixture.Request();var options=f.Options();var secrets=new MemorySecrets();
+        await File.WriteAllTextAsync(Path.Combine(options.TenantDirectory,request.Slug+".json"),JsonSerializer.Serialize(new{profile="Portable",tenantId=request.TenantId,slug=request.Slug,storeId="store-owned",baseInstallationVerified=true}));
+        var result=await new StoreInstallerStep(options,secrets).ExecuteAsync(request,Fixture.Completed(request),default);
+        Assert.AreEqual("store-owned",result.Resources["storeId"]);
+    }
+
 }

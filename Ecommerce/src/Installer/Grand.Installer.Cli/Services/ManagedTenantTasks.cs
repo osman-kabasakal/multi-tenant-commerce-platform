@@ -28,7 +28,7 @@ namespace Grand.Installer.Cli.Services;
 
 public static class ManagedTenantTasks
 {
-    public static readonly string[] Names = [..ManagedTenantInitialization.Tasks, "tenant-domain"];
+    public static readonly string[] Names = [..ManagedTenantInitialization.Tasks, "tenant-domain", "tenant-base-repair"];
     public static readonly string[] AddressFields = ["lat", "long", "bno", "dno", "kno", "adres_tarifi"];
 
     private static int VerifyOriginalSettings(IServiceScope scope)
@@ -106,6 +106,10 @@ public static class ManagedTenantTasks
                 await PluginExtensions.MarkPluginAsInstalled(plugin.SystemName);
                 await installed.InsertOneAsync(new BsonDocument { ["SystemName"] = plugin.SystemName, ["Version"] = plugin.Version });
             }
+        }
+        else if (task == "tenant-base-repair")
+        {
+            await ManagedBaseInstallationRepair.RunAsync(scope, config, message);
         }
         else if (task == "tenant-migrations")
         {

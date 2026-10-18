@@ -13,7 +13,9 @@ public partial class InstallationService
                 DisplayOrder = 1
             }
         };
-        pageLayouts.ForEach(x => _pageLayoutRepository.Insert(x));
+        foreach (var layout in pageLayouts)
+            if (!_pageLayoutRepository.Table.Any(existing => existing.ViewPath == layout.ViewPath))
+                _pageLayoutRepository.Insert(layout);
         return Task.CompletedTask;
     }
 }
