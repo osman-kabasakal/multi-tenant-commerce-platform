@@ -1,4 +1,5 @@
 using Grand.Data;
+using Grand.Business.Core.Interfaces.Common.Security;
 using Grand.Domain.Catalog;
 using Grand.Domain.Customers;
 using Grand.Domain.Pages;
@@ -22,6 +23,9 @@ public static class ManagedBaseInstallation
         var services = scope.ServiceProvider;
         var owner = services.GetRequiredService<IRepository<Customer>>().Table
             .FirstOrDefault(customer => customer.Email == ownerEmail.ToLowerInvariant());
+        var permissionNames = services.GetRequiredService<IRepository<Permission>>().Table
+            .Select(permission => permission.SystemName).ToList().ToHashSet(StringComparer.Ordinal);
+        var requiredPermissions = services.GetRequiredService<IPermissionProvider>().GetPermissions().ToList();
         return IsComplete(
             services.GetRequiredService<IRepository<ScheduleTask>>().Table.Select(task => task.Type).ToList(),
             services.GetRequiredService<IRepository<ProductLayout>>().Table.Any() &&
@@ -29,7 +33,7 @@ public static class ManagedBaseInstallation
             services.GetRequiredService<IRepository<BrandLayout>>().Table.Any() &&
             services.GetRequiredService<IRepository<CollectionLayout>>().Table.Any() &&
             services.GetRequiredService<IRepository<PageLayout>>().Table.Any(),
-            services.GetRequiredService<IRepository<PermissionAction>>().Table.Any(),
+            requiredPermissions.Count > 0 && requiredPermissions.All(permission => permissionNames.Contains(permission.SystemName)),
             owner?.PasswordFormatId == PasswordFormat.Hashed);
     }
 
