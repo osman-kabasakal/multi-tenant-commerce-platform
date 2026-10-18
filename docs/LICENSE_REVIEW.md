@@ -32,7 +32,7 @@ Geri yüklenen varlıkların `NOASSERTION` kaydı yalnız proje sahibinin mevcut
 ## Open items
 
 1. Güncel snapshot üzerinde kaynak, envanter ve secret kontrollerini kaydetmek; önceki farklı görsel sürümünün doğrulamasını bugünkü içerikle karıştırmamak.
-2. Public başlangıcı güncel kaynak snapshot'ından temiz geçmişle oluşturmak; private ancestry'deki kaldırılmış kısıtlı fontları veya özel girdileri taşımamak.
+2. Geliştirme geçmişini koruyup yalnız [belirlenmiş kısıtlı font yollarını ve blob içeriklerini](licenses/history-removals.json) bütün geçmişten temizlemek; commit metadatası/parent sırası ve diğer bütün tarihsel dosyaları karşılaştırmak. Geçmişsiz yeni başlangıç zorunlu değildir.
 3. Binary/container dağıtımı için resolved bağımlılık bildirimleri ve SBOM'u bakım yol haritasında takip etmek.
 
 Kaynak incelemesi bütün transitive bağımlılıkların hukuki onayı değildir. Somut bir hak ihlali bildirimi geldiğinde ilgili dosya ve kaynağı değerlendirilir; tüm görseller topluca değiştirilmez.

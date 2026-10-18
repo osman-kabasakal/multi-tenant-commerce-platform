@@ -30,7 +30,7 @@ Kaynakta bulunmasıyla canlı kabulü karıştırılan eski maddeler buradan ç�
 | Temiz kaynak ve lisans kanıtları | Envanter güncel, gizli dosya/secret taraması temiz, hak blokajı yok | [Yayın kontrolü](PUBLIC_RELEASE.md) |
 | Temiz Linux doğrulaması | Aday snapshot'ta demo `up`/`smoke`, gerekli backend/portal ve mobil kontrolleri | Linux kaynak aşaması: 137 geçti / 1 platform testi atlandı; tam demo/Android imaj işleri bu aşamada tekrarlanmadı |
 | Mobil regresyon | Tema/ikon geri alma sonrası test ve bulutsuz derleme; önceki cihaz kabulü kendi tarihine aittir | [Güncel geri alma kaydı](validation/asset-restoration-20261018.json) |
-| Temiz public geçmiş | Kaldırılmış satın alınan kod/varlıkları içermeyen yeni başlangıç; private ancestry açılmaz | Yayın öncesi zorunlu |
+| Geçmişi koruyan public yayın | Yalnız somut kısıt listesindeki fontlar çıkarılır; commit sayısı, metadata ve diğer tarihsel dosyalar korunur; tek `main` dalı | [Doğrulanan yayın akışı](PUBLIC_RELEASE.md); geçmişi sıfırlamak gerekmez |
 
 Bu kapı tamamlanmadan “tamamı açık kaynak”, “herkes tam mobil sürümü derleyebilir” veya “public yayına hazır” denmez. README ve ADR belgeleri hazırlanmış olması hak onayı değildir.
 

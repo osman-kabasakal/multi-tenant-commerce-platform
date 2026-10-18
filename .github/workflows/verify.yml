@@ -14,10 +14,18 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Verify asset and license inventory
         run: python3 scripts/asset_inventory.py --check --require-reviewed
       - name: Verify asset provenance invalidation rules
         run: python3 -m unittest discover -s scripts -p test_release_source.py -v
+      - name: Verify restricted files never return through historical commits
+        run: |
+          python3 scripts/prepare_public_history.py --check
+          python3 -m venv "$RUNNER_TEMP/history-tools"
+          "$RUNNER_TEMP/history-tools/bin/python" -m pip install git-filter-repo==2.47.0
+          GIT_FILTER_REPO="$RUNNER_TEMP/history-tools/bin/git-filter-repo" python3 -m unittest discover -s scripts -p test_public_history.py -v
       - name: Reject private and generated files
         run: |
           python3 scripts/check_public_source.py
@@ -36,11 +44,12 @@ jobs:
           printf '%s  %s\n' '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb' '/tmp/gitleaks.tar.gz' | sha256sum -c -
           mkdir /tmp/gitleaks-bin
           tar -xzf /tmp/gitleaks.tar.gz -C /tmp/gitleaks-bin gitleaks
-      - name: Scan only the publishable snapshot
+      - name: Scan the published snapshot and all development history
         run: |
           mkdir /tmp/public-source
           git archive HEAD | tar -x -C /tmp/public-source
           /tmp/gitleaks-bin/gitleaks dir /tmp/public-source --config .gitleaks.toml --redact --no-banner
+          /tmp/gitleaks-bin/gitleaks git --log-opts=--all --config .gitleaks.toml --redact --no-banner
   local-demo:
     runs-on: ubuntu-24.04
     timeout-minutes: 35

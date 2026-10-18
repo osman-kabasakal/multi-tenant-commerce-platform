@@ -25,6 +25,6 @@ Bu dosya geçici olarak bütün monorepo için yayın izni verildiği şeklinde 
 
 GPL kapsamındaki kod dağıtılırken kaynak, lisans ve ilgili bildirim yükümlülükleri korunmalıdır. Üçüncü taraf notice/font lisansları paketle birlikte tutulmalıdır. Uygulama binary'si, Docker imajı, mobil paket veya değiştirilmiş kaynak dağıtımı için resolved bağımlılıklar ayrıca incelenmelidir. Bütün bağımlılıkların tek bir GPL etiketiyle yeniden lisanslandığı varsayılmaz.
 
-Eski private Git commitleri bugün kaldırılmış kısıtlı fontları içerebilir; güncel envanter yalnız güncel dosyaları kapsar. Mevcut repoyu public yapmak o commitleri de açar. Public aday, hak incelemesi tamamlanan güncel dosyalardan **ayrı ve temiz geçmişle** oluşturulmalıdır. [Yayın adımları](docs/PUBLIC_RELEASE.md).
+Güncel envanter yalnız güncel dosyaları kapsar; eski commitlerde kalan kısıtlı fontlar ayrıca temizlenir. **Geliştirme geçmişini silmek zorunlu değildir.** Public adayda commit sırası, yazar, tarih ve mesaj korunur; yalnız [somut temizlik listesindeki](docs/licenses/history-removals.json) dosya/nesneler çıkarılır. Git hashleri değişir. Bu hedefli işlem diğer varlıkların hak durumunu değiştirmez. [Geçmişi koruyan yayın adımları](docs/PUBLIC_RELEASE.md).
 
 [Third-party notices](THIRD_PARTY_NOTICES.md) · [Yerel değişiklik bildirimi](NOTICE.md) · [Yayın durumu](docs/LICENSE_REVIEW.md).

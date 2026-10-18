@@ -6,7 +6,7 @@ Bu proje, GrandNode tabanlı ticaret motoruna çok kiracılı bir işletim katma
 
 Projenin amacı artık **tekrarlanabilir bir mühendislik örneği ve portföy çalışması** sunmaktır. Çıkış noktası, küçük işletmelerin sunucu ve veritabanı maliyetini paylaşabilmesiydi. Bu repo, tek geliştiriciyle yürütülen ticari denemeden kalan kararları, çalışan otomasyonu ve sınırlarını görünür kılar; ücretli hizmet veya satışa hazır SaaS vaadi taşımaz.
 
-> **Yayın hazırlığı:** Yazara ait bağımsız kodlar GPL-3.0-only olarak lisanslanmıştır. Flutter ekranları ve Riverpod/API katmanları yazara aittir; satın alınmış UI kiti renk/tema referansıdır. Mevcut tema, resim ve ikonlar korunur; yalnız somut kısıt bulunan dosyalar değiştirilir. Güncel adayın kontrolleri tarihli kayıtlarda belirtilir; GitHub görünürlüğü hâlen private durumdadır. İlk public sürüm temiz geçmişle hazırlanmalıdır. Güncel dosya temizliği, eski Git commitlerindeki kopyaları kaldırmaz. [Lisans kapsamı](LICENSING.md) · [Hak incelemesi](docs/LICENSE_REVIEW.md) · [Yayın kapısı](docs/PUBLIC_RELEASE.md) · [Bu hazırlığın doğrulaması](docs/validation/open-source-preparation-20261018.json).
+> **Açık kaynak sürüm:** Yazara ait bağımsız kodlar GPL-3.0-only olarak lisanslanmıştır. Flutter ekranları ve Riverpod/API katmanları yazara aittir; satın alınmış UI kiti renk/tema referansıdır. Mevcut tema, resim ve ikonlar korunur; yalnız somut kısıt bulunan dosyalar değiştirilir. Geliştirme geçmişi korunur; yeniden dağıtımı kısıtlı IRANSans fontları bütün geçmişten çıkarılır. Tek yayın dalı `main` olur. [Lisans kapsamı](LICENSING.md) · [Hak incelemesi](docs/LICENSE_REVIEW.md) · [Geçmişi koruyan yayın akışı](docs/PUBLIC_RELEASE.md) · [Canlı kurulum doğrulaması](docs/validation/oracle-clean-install-20261018.json).
 
 ## İçindekiler
 
@@ -178,10 +178,10 @@ SaaS veritabanında **Entity Framework kullanılır**. Kuyruk ve secret katmanı
 - Paket indirmeleri için internet ve web demosuna en az 10 GB boş alan. Mobil SDK/cache/derlemeleri çok daha fazla alan ister.
 - Boş portlar: `18080`, `18081`, `18082`, `18083`, `18090`, `27028`, `15439`, `16389`.
 
-Hazırlık sürümü hâlen private olan `codex/local-demo` dalındadır; bu komut erişim yetkisi gerektirir. Public sürüm oluşturulduğunda klonlama bilgisi o sürümün gerçek dal/etiketine göre güncellenmelidir.
+Public kaynak tek `main` dalından klonlanır. Yerel demo bulut hesabı veya canlı sunucunun çalışmasını gerektirmez.
 
 ```sh
-git clone --branch codex/local-demo --single-branch https://github.com/osman-kabasakal/multi-tenant-commerce-platform.git
+git clone --branch main --single-branch https://github.com/osman-kabasakal/multi-tenant-commerce-platform.git
 cd multi-tenant-commerce-platform
 python3 scripts/demo.py check
 python3 scripts/demo.py up
