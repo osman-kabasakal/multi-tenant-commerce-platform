@@ -258,3 +258,219 @@ Canlı yönetim düzeltmesi `5618475` imajıyla yayımlandı. Ayrı test işletm
 ## Testi tekrar çalıştırma ve altyapıyı kaldırma
 
 OCI API ve SSH anahtarlarının farkı, bu çalışma ortamındaki özel yol rehberi, mevcut tenant kabul aracı, saatlik stop kuralı ve yedek sonrası Terraform Destroy sırası [Oracle test ve kaldırma rehberinde](ORACLE_TEST_VE_KALDIRMA.md) açıklanır. Stack’i silmeden önce yönetilen kaynakları ve korunan boot diskini kaldırın.
+
+
+## Operatörün Keycloak konsoluna özel tarayıcı bağlantısı
+
+Public identity hostu kullanıcıların `commerce` realm girişini sunar. Yönetim konsolu ve `master` realm public yönlendirmede 404 döner. Konsolu açmak için aşağıdaki özel bağlantı kullanılır. Komutlar sunucuyu, DNS'i veya normal Chrome profilinin proxy ayarını değiştirmez.
+
+```mermaid
+flowchart LR
+    Browser["Ayrı Chrome profili"] --> Proxy["Bilgisayardaki CONNECT proxy<br/>127.0.0.1:18882"]
+    Proxy --> Tunnel["Bilgisayardaki SSH tüneli<br/>127.0.0.1:18444"]
+    Tunnel --> Private["VM içindeki edge Docker IP'si<br/>18446 özel HTTPS dinleyicisi"]
+    Private --> Keycloak["Keycloak:8080"]
+```
+
+### Komuttaki değerler ne anlama geliyor
+
+| Değer | Anlamı | Nereden bulunur? |
+| --- | --- | --- |
+| `VM_PUBLIC_IP` | Ubuntu sanal makinesinin internete açık IPv4 adresi. SSH bu adrese bağlanır. | Oracle Console → Compute → Instances → ilgili VM → Networking / bağlı VNIC → **Public IP address**. Ayrıca operatör bilgisayarındaki Oracle state dizininin `outputs.json` dosyasında `public_ip.value`. |
+| `EDGE_PRIVATE_IP` | **VM içindeki Docker ağında edge konteynerinin IP adresi.** Oracle VNIC private IP'sinden farklıdır. SSH sunucusu buraya bağlantı açar. | VM'deki kurulum dizininde `state/compose.json` → `services.edge.networks.platform.ipv4_address`. Aşağıda okuma komutu var. |
+| `/absolute/private/deploy-key` | Operatörün kendi bilgisayarındaki SSH private key dosyasının tam yolu. | Oracle kurulumu sırasında ürettiğiniz/sağladığınız, Terraform'a verilen SSH public key ile eşleşen `deploy-key`. **OCI API anahtarı `api-key.pem` değildir.** |
+| `/absolute/private/known_hosts` | Operatör bilgisayarındaki doğrulanmış sunucu SSH kimliği dosyasının tam yolu. | Dağıtımda `--known-hosts` ile kullandığınız dosya. Host key doğrulama adımı [yukarıda](#ikinci-aşama-ubuntu-ilk-açılışı-ve-ssh-güveni) açıklanır. |
+| `ubuntu` | VM'ye giriş yapan işletim sistemi kullanıcısı. | Bu projedeki Canonical Ubuntu imajının kullanıcısıdır. `opc`, Oracle Linux imajlarına aittir. |
+| `18444` | Kendi bilgisayarınızda yalnız `127.0.0.1` üzerinde açılan SSH portu. | Komutta seçilir; bu rehberin proxy aracı aynı porta bağlanır. |
+| `18446` | VM'nin Docker ağı içindeki geçici HTTPS dinleyicisinin portu. | Aşağıdaki geçici Caddy kurulumu açar. Oracle'a public port kuralı eklenmez. |
+| `18882` | Kendi bilgisayarınızdaki HTTP CONNECT proxy portu. | Depodaki `keycloak_admin_proxy.py` aracının varsayılan portudur; Chrome bu proxy'yi kullanır. |
+| `IDENTITY_HOST` / `identityHost` | Keycloak'un gerçek DNS adı; örneğin `identity.example.com`. | VM'deki `inputs/deployment.json` dosyasının `IdentityHost` alanı veya kendi dağıtım girdiniz. |
+| `REMOTE_ROOT` | VM'deki uygulama kurulum dizini. | Receiver'ın bildirdiği `/home/ubuntu/commerce-DEPLOYMENT_ID` dizini. `DEPLOYMENT_ID`, `operator.json` içindeki `deployment_id` değeridir. |
+
+Aşağıdaki `203.0.113.10` ve `identity.example.com` değerleri dokümantasyon örnekleridir; kendi kurulumunuzda değerleri dosyalardan okuyun. Docker IP örneği `172.30.80.10` da kendi Compose çıktınızla eşleşmelidir. VM yeniden oluşturulduğunda public IP değişebilir. Bu çalışmaya ait gerçek özel dosya yolları Git dışındaki `TEST_ERISIM.md` rehberindedir; genel örneklerdeki `/absolute/private/…` yolları kendiliğinden var olmaz.
+
+Kendi bilgisayarınızda, repo kökünde IP'yi okuyabilirsiniz. State dizinini kendi konumunuza göre değiştirin:
+
+```sh
+# Mac / Linux
+python3 -c 'import json; print(json.load(open(".local/oracle/state/outputs.json"))["public_ip"]["value"])'
+```
+
+```powershell
+# Windows PowerShell
+(Get-Content '.local\oracle\state\outputs.json' -Raw | ConvertFrom-Json).public_ip.value
+```
+
+Normal SSH oturumuyla **VM'ye bağlandıktan sonra**, kendi deployment dizininizi yazarak aşağıdakileri çalıştırın. Çıktılar parola veya private key içermez:
+
+```sh
+cd /home/ubuntu/commerce-DEPLOYMENT_ID
+python3 -c 'import json; print("EDGE_PRIVATE_IP=" + json.load(open("state/compose.json"))["services"]["edge"]["networks"]["platform"]["ipv4_address"])'
+python3 -c 'import json; print("IDENTITY_HOST=" + json.load(open("inputs/deployment.json"))["IdentityHost"])'
+```
+
+### Ön koşul: VM'deki özel HTTPS dinleyicisi
+
+SSH tüneli tek başına yönetim konsolunu açmaz. Hedefte `18446` dinleyicisi çalışmalıdır. Ana edge'in `443` portuna yönlendirmek public 404 kuralını değiştirmez. 18 Ekim denemesinde bu dinleyici ayrıca oluşturuldu; aşağıdaki tarif aynı yolu yeniden kurar.
+
+**Bu blok VM'de**, kurulumun `ubuntu` kullanıcısıyla çalıştırılır. `REMOTE_ROOT` değerini değiştirin. Mevcut edge konteynerini kurulum etiketiyle doğrular, onun ağ ad alanında ayrı bir Caddy başlatır ve mevcut TLS dosyalarını salt okunur bağlar. Aynı isimde bir konteyner varsa komut durur; onu incelemeden silmez.
+
+```sh
+REMOTE_ROOT=/home/ubuntu/commerce-DEPLOYMENT_ID
+cd "$REMOTE_ROOT"
+umask 077
+PROJECT=$(python3 -c 'import json; print(json.load(open("state/compose.json"))["name"])')
+INSTALLATION_ID=$(python3 -c 'import json; print(json.load(open("state/installation.json"))["InstallationId"])')
+IDENTITY_HOST=$(python3 -c 'import json; print(json.load(open("inputs/deployment.json"))["IdentityHost"])')
+EDGE_CONTAINER=$(docker compose --project-name "$PROJECT" --file state/compose.json ps -q edge)
+test -n "$EDGE_CONTAINER" || { echo 'Edge çalışmıyor'; exit 1; }
+test "$(docker inspect --format '{{ index .Config.Labels "commerce.installation" }}' "$EDGE_CONTAINER")" = "$INSTALLATION_ID" || exit 1
+OPERATOR_CONTAINER="${PROJECT}-keycloak-admin"
+mkdir -p operator-access/keycloak-admin
+cat > operator-access/keycloak-admin/Caddyfile <<EOF
+{
+    admin off
+    auto_https disable_redirects
+}
+https://${IDENTITY_HOST}:18446 {
+    tls /run/tls/fullchain.pem /run/tls/privkey.pem
+    reverse_proxy keycloak:8080 {
+        header_up -Forwarded
+        header_up Host ${IDENTITY_HOST}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto https
+        header_up X-Forwarded-Port 443
+    }
+}
+EOF
+docker run --detach --pull never --name "$OPERATOR_CONTAINER" \
+  --user "$(id -u):$(id -g)" --network "container:$EDGE_CONTAINER" \
+  --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
+  --security-opt no-new-privileges:true \
+  --tmpfs /data:rw,nosuid,nodev,noexec --tmpfs /config:rw,nosuid,nodev,noexec \
+  --label "commerce.installation=$INSTALLATION_ID" \
+  --label commerce.operator-access=keycloak-admin \
+  --mount "type=bind,src=$REMOTE_ROOT/operator-access/keycloak-admin/Caddyfile,dst=/etc/caddy/Caddyfile,readonly" \
+  --mount "type=bind,src=$REMOTE_ROOT/inputs/fullchain.pem,dst=/run/tls/fullchain.pem,readonly" \
+  --mount "type=bind,src=$REMOTE_ROOT/inputs/privkey.pem,dst=/run/tls/privkey.pem,readonly" \
+  caddy:2.10-alpine caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+docker logs "$OPERATOR_CONTAINER" --tail 10
+```
+
+`--publish` kullanılmaz: `18446` yalnız mevcut Docker ağı içinde dinler. Keycloak'un sabit public hostname ayarı korunur. Sonraki yerel komutlar bu dinleyiciye ulaşır.
+
+### Mac: SSH, proxy ve ayrı Chrome profili
+
+Kendi Mac'inizde repo kökünü açın. Python 3 ve OpenSSH bulunmalıdır. **Birinci terminalde** yolları ve IP'leri kendi değerlerinizle değiştirin; terminali açık bırakın:
+
+```sh
+DEPLOY_KEY=/absolute/private/deploy-key
+KNOWN_HOSTS=/absolute/private/known_hosts
+VM_PUBLIC_IP=203.0.113.10
+EDGE_PRIVATE_IP=172.30.80.10
+
+ssh -F /dev/null -N -i "$DEPLOY_KEY" \
+  -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+  -o "UserKnownHostsFile=\"$KNOWN_HOSTS\"" \
+  -o ExitOnForwardFailure=yes \
+  -L "127.0.0.1:18444:${EDGE_PRIVATE_IP}:18446" "ubuntu@$VM_PUBLIC_IP"
+```
+
+`-F /dev/null`, kişisel SSH config dosyasını bu bağlantı için devre dışı bırakır. `-N`, uzak shell açmadan tüneli açık tutar. `-i` anahtarı seçer; `IdentitiesOnly` başka kimliklerin denenmesini sınırlar. `StrictHostKeyChecking` ve `UserKnownHostsFile` sunucu kimliğini doğrular. `ExitOnForwardFailure`, yerel port açılamazsa bağlantıyı sonlandırır; uzak `18446` servisinin çalıştığını ayrıca aşağıdaki HTTPS kontrolü doğrular. `-L` içindeki ilk adres/port Mac'e, hedef adres/port ise **SSH sunucusundan erişilen** Docker servisine aittir.
+
+**İkinci terminalde**, yine repo kökünde proxy'yi başlatın ve açık bırakın:
+
+```sh
+python3 scripts/keycloak_admin_proxy.py --host identity.example.com
+```
+
+`--host` değerini kendi `IDENTITY_HOST` değerinizle değiştirin. Araç yalnız bu hostun `443` hedefine CONNECT kabul eder, sadece `127.0.0.1:18882` üzerinde dinler ve sadece `127.0.0.1:18444` tüneline bağlanır. TLS içeriğini çözmez. Başka internet sitelerini bu profilde açmak proxy tarafından reddedilir.
+
+**Üçüncü terminalde** HTTPS kontrolü ve Chrome başlatma:
+
+```sh
+IDENTITY_HOST=identity.example.com
+curl --proxy http://127.0.0.1:18882 --output /dev/null --write-out '%{http_code}\n' \
+  "https://$IDENTITY_HOST/admin/master/console/"
+
+umask 077
+CHROME_PROFILE="$PWD/.local/keycloak-admin-chrome"
+mkdir -p "$CHROME_PROFILE"
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --user-data-dir="$CHROME_PROFILE" \
+  --proxy-server="http://127.0.0.1:18882" \
+  "https://$IDENTITY_HOST/admin/master/console/"
+```
+
+HTTPS kontrolünde `200` beklenir. Ayrı `--user-data-dir`, zaten açık olan normal Chrome sürecinin proxy parametresini yok saymasını önler. `.local` altındaki bu profil yönetici oturum çerezleri içerir ve Git'e eklenmez.
+
+### Windows: PowerShell ile SSH, proxy ve Chrome
+
+Bu komutlar Windows PowerShell içindir; WSL shell sözdizimi değildir. Windows OpenSSH Client, Python 3 ve Chrome kurulu olmalıdır. Özel anahtar ve doğrulanmış `known_hosts` dosyası Windows bilgisayarınızda da bulunmalı, dosya yolları bu bilgisayara ait olmalıdır. Repo kökünden çalıştırın.
+
+**Birinci PowerShell penceresi:** değerleri değiştirin ve tüneli açık bırakın. Windows'ta boş SSH config kaynağı `NUL` kullanılır; Mac'teki `/dev/null` yolu kullanılmaz.
+
+```powershell
+$deployKey = 'C:\private\commerce\deploy-key'
+$knownHosts = 'C:\private\commerce\known_hosts'
+$vmPublicIp = '203.0.113.10'
+$edgePrivateIp = '172.30.80.10'
+$sshArguments = @(
+    '-F', 'NUL', '-N', '-i', $deployKey,
+    '-o', 'IdentitiesOnly=yes',
+    '-o', 'StrictHostKeyChecking=yes',
+    '-o', "UserKnownHostsFile=$knownHosts",
+    '-o', 'ExitOnForwardFailure=yes',
+    '-L', "127.0.0.1:18444:${edgePrivateIp}:18446",
+    "ubuntu@$vmPublicIp"
+)
+& ssh @sshArguments
+```
+
+**İkinci PowerShell penceresi**, repo kökünde:
+
+```powershell
+py -3 scripts/keycloak_admin_proxy.py --host identity.example.com
+```
+
+Python kurulumunuzda `py` bulunmuyorsa Python 3'e karşılık gelen `python` komutunu kullanın. **Üçüncü PowerShell penceresinde** kontrol edin ve ayrı profilli Chrome açın:
+
+```powershell
+$identityHost = 'identity.example.com'
+curl.exe --proxy http://127.0.0.1:18882 --output NUL --write-out '%{http_code}\n' "https://$identityHost/admin/master/console/"
+
+$chrome = Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'
+if (-not (Test-Path $chrome)) {
+    $chrome = Join-Path $env:LOCALAPPDATA 'Google\Chrome\Application\chrome.exe'
+}
+if (-not (Test-Path $chrome)) { throw 'Chrome yolunu kendi kurulumunuza göre ayarlayın.' }
+$profileDirectory = Join-Path (Get-Location).Path '.local\keycloak-admin-chrome'
+& $chrome "--user-data-dir=$profileDirectory" '--proxy-server=http://127.0.0.1:18882' "https://$identityHost/admin/master/console/"
+```
+
+Tarayıcıda gerçek identity alan adı kalır; sertifika doğrulaması açık tutulur. DNS/hosts değişikliği yapılmaz. TLS, tarayıcıdan özel Caddy dinleyicisine kadar sürer; Caddy ile Keycloak arasındaki son bağlantı mevcut Docker ağında HTTP'dir. Windows komutları PowerShell sözdizimine göre hazırlanmıştır; bu denemedeki gerçek tarayıcı/SSH kabulü Mac'te yapılmıştır.
+
+### Giriş, sorun giderme ve kapatma
+
+Bu kurulumda `master` realm yöneticisi `platform-admin` hesabıdır. Parolanın asıl kaydı VM'deki `state/installation.json` dosyasının `Credentials.keycloak_admin` alanıdır; e-posta ile yönetici hesabı açılmaz. Bootstrap hesabı konsolda `temporary admin` olarak görünebilir. İşletme kullanıcıları ve istemcileri `commerce` realm'indedir; girişten sonra bu realm'i seçin.
+
+| Belirti | Kontrol |
+| --- | --- |
+| Normal Chrome'da yönetim adresi 404 | Beklenen public davranış. Özel profili ve proxy parametresini kullanın. |
+| `ERR_PROXY_CONNECTION_FAILED` | Yerel Python proxy çalışıyor mu, `18882` boş mu? |
+| Proxy üzerinden `502` | SSH tüneli çalışıyor mu, `18444` doğru mu? |
+| SSH'ta `channel … open failed: connect failed` | `EDGE_PRIVATE_IP`, VM'deki `18446` dinleyicisi ve geçici Caddy logları. |
+| Sertifika hatası | Doğru identity hostname ve o hosta ait geçerli TLS dosyaları. Doğrulamayı kapatmayın. |
+| Anahtar veya host kimliği hatası | SSH `deploy-key` ve doğrulanmış `known_hosts` yolları. VM yeniden oluşturulmuşsa host key'i Oracle'dan yeniden doğrulayın. |
+
+Edge konteyneri yeniden oluşturulursa ağ ad alanı da değişir. Geçici Caddy'nin etiketini doğrulayıp onu kaldırın ve yeni edge ile önceki kurulum bloğunu yeniden çalıştırın. Birinci ve ikinci yerel terminalde `Ctrl+C`, SSH tünelini ve proxy'yi kapatır; ayrı Chrome pencerelerini de kapatın. Ana edge/Keycloak servislerini durdurmayın.
+
+**VM'de**, bu rehberle açtığınız geçici konteyneri kaldırmak için:
+
+```sh
+test "$(docker inspect --format '{{ index .Config.Labels "commerce.installation" }}' "$OPERATOR_CONTAINER")" = "$INSTALLATION_ID" || exit 1
+test "$(docker inspect --format '{{ index .Config.Labels "commerce.operator-access" }}' "$OPERATOR_CONTAINER")" = keycloak-admin || exit 1
+docker rm --force "$OPERATOR_CONTAINER"
+```
+
+18 Ekim operatör denemesindeki geçici konteynerin adı/etiketi farklıdır; onu genel isimle tahmin ederek silmeyin. O çalışmanın süreç ve konteyner bilgileri özel erişim rehberinde tutulur. Yerel proxy'nin socket kontrolleri `python3 -m unittest discover -s scripts -p 'test_keycloak_admin_proxy.py'` ile çalıştırılır.

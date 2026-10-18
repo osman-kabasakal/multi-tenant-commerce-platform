@@ -95,6 +95,8 @@ ssh -F /dev/null -i "$oracle_credentials/deploy-key" \
   -o ForwardAgent=no "ubuntu@$oracle_ip"
 ```
 
+`Please login as the user "ubuntu" rather than the user "opc"` hatası alırsanız SSH istemcinizde kullanıcıyı `ubuntu` yapın. Bu kurulum Ubuntu imajı kullanır. OCI API kimliği veya `api-key.pem` dosyası SSH giriş anahtarı değildir; SSH için `deploy-key` kullanılır.
+
 IP veya host key değişirse doğrulamayı kapatmayın; [Console üzerinden host key doğrulamasını](ORACLE_DEPLOYMENT.md#4-sunucu-kimliğini-bir-kez-doğrulayın) tekrar yapın. SSH zaman aşımında VM’nin RUNNING durumunu ve operatörün güncel IPv4 adresinin izinli `/32` ile eşleştiğini kontrol edin.
 
 Aşağıdaki komutlar artık **Oracle sunucusunun terminalinde** çalışır. `DEPLOYMENT_ID` yerine `outputs.json` içindeki kimliği yazın:
