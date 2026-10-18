@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "date": "2026-10-18",
+  "status": "passed-scoped-live-acceptance",
+  "scope": "Application-state reset and tenant-installation validation on the existing minimal Oracle VM",
+  "newVmOrTerraformApplyTested": false,
+  "existingVmShape": {
+    "ocpus": 1,
+    "memoryGiB": 8
+  },
+  "bootstrap": {
+    "threeDatabaseVolumesReset": true,
+    "newInstallationId": true,
+    "newEncryptionMasterKey": true,
+    "newDatabaseCredentials": true,
+    "oldColdSnapshotVerifiedOffVm": true,
+    "originalRollbackImageIdsRetained": 7,
+    "snapshotEncryptedByTool": false
+  },
+  "initialDeploymentSourceCommit": "9dbd94ae49c1ff5adf0db598f378dd76ba0dfdfd",
+  "finalApplicationSourceCommit": "644cba41c4edcd40af9e7da6a75aa7af69fc66e0",
+  "repairSourceCommits": [
+    "bd5c4861d45c4fc64869a20fd6fe71e747bfe4e3",
+    "65df9d3e8cad1d42ab9880ae9cfb7012c2ed6aa7",
+    "32cced2035214edca50a4c23beea3e7b9e55a59d",
+    "644cba41c4edcd40af9e7da6a75aa7af69fc66e0"
+  ],
+  "repairedTenants": {
+    "count": 2,
+    "consistentCanonicalMongoBackupsVerifiedOffVm": true,
+    "originalStoreAndCustomerIdsRetained": true,
+    "historicalProvisioningRequestAndCheckpointsUnchanged": true,
+    "originalFirebaseAndSigningBindingsRetained": true,
+    "liveAcceptanceChecksPerTenant": [
+      26,
+      26
+    ],
+    "storefrontOwnerLoginAndProfileSeparatelyVerified": true,
+    "administratorLoginVerified": true,
+    "installedPluginsPerTenant": [
+      23,
+      23
+    ],
+    "validProductPageAssetsPerTenant": [
+      35,
+      35
+    ],
+    "taxRatesPercent": [
+      1,
+      10,
+      20
+    ],
+    "requiredMobileAddressAttributes": 6,
+    "tasksPerTenant": 14,
+    "enabledTasksPerTenant": 10,
+    "enabledTasksWithSuccessPerTenant": 10,
+    "disabledTasksPerTenant": 4,
+    "foreignOwnerStatusRetryAndRegistrationRejected": true,
+    "bothReadyTrialOwnersCanRequestBuild": true,
+    "acceptanceApplicationSourceCommit": "644cba41c4edcd40af9e7da6a75aa7af69fc66e0",
+    "storefrontOwnerLoginAndProfileIncludedInAcceptance": true,
+    "approvedCurrencyExpectations": [
+      {
+        "primaryStore": "TRY",
+        "primaryExchangeRate": "EUR",
+        "explicitOwnerApproval": true
+      },
+      {
+        "primaryStore": "TRY",
+        "primaryExchangeRate": "TRY"
+      }
+    ]
+  },
+  "initialNativeDelivery": {
+    "tenants": 2,
+    "signedAndroidReleasesCompleted": 2,
+    "signedIosReleasesCompleted": 2,
+    "realGoogleFirebaseProjectsUsed": true
+  },
+  "limitations": {
+    "freshMailboxEmailDeliveryTested": false,
+    "freshPhysicalDeviceAcceptanceTested": false,
+    "freshPushDeliveryTested": false,
+    "paymentOrCheckoutTested": false,
+    "terraformDestroyPerformed": false,
+    "githubPublicationChanged": false,
+    "marketplaceOrPosSynchronizationWithLiveCredentialsTested": false,
+    "customDomainMigrationRetestedInThisRun": false
+  },
+  "oracleStopAtUtc": "2026-10-18T16:42:48+00:00",
+  "validationToolSourceCommit": "b600d6b389227f8c89d403780c752325ed76968e",
+  "completedAtUtc": "2026-10-18T15:41:33.764639+00:00",
+  "finalDeployment": {
+    "fullCommittedServerAndAndroidImagesBuilt": true,
+    "applicationUser": "1001:1001",
+    "allConfiguredServicesRunning": true,
+    "actualAndroidOfflineToolchainPassed": true,
+    "androidToolchainNetworkMode": "none",
+    "sameMinimalVmRetained": true,
+    "stopScheduleExtendedDuringFinalDeployment": false,
+    "githubActionsRun": false
+  },
+  "freshTenantAfterFix": {
+    "count": 1,
+    "actualPublicHttpsOidcAndCsrfEnrollment": true,
+    "syntheticOwnerEmailPreverified": true,
+    "normalDurableProvisioningStepsCompleted": 13,
+    "liveAcceptanceChecks": 26,
+    "manualBaseRepairApplied": false,
+    "verifiedBaseMetadata": true,
+    "ordinaryQueueAttemptCount": 2,
+    "initialStoreFailureRecoveredByNormalRetry": true,
+    "initialRetryRootCauseDiagnosed": false,
+    "defaultPrimaryStoreCurrency": "TRY",
+    "defaultPrimaryExchangeRateCurrency": "TRY",
+    "installedPlugins": 23,
+    "productPageValidAssets": 38,
+    "tasks": 13,
+    "enabledTasks": 9,
+    "successfulEnabledTasks": 0,
+    "taskWorkerAllowlistedForThisTenant": false,
+    "trialOwnerCanRequestBuild": true,
+    "clientCacheTaskAddedOnFirstScheduledBatch": true
+  },
+  "finalNativeDelivery": {
+    "tenants": 3,
+    "signedAndroidReleasesCompleted": 3,
+    "signedIosReleasesCompleted": 3,
+    "realAppDistributionUsed": true,
+    "androidArtifacts": [
+      {
+        "bytes": 33858210,
+        "sourceHash": "7a39431da6707b835ed7856d48b009e3af00361eac4a65fc62e0455346c22a39"
+      },
+      {
+        "bytes": 33858210,
+        "sourceHash": "7a39431da6707b835ed7856d48b009e3af00361eac4a65fc62e0455346c22a39"
+      },
+      {
+        "bytes": 33858210,
+        "sourceHash": "7a39431da6707b835ed7856d48b009e3af00361eac4a65fc62e0455346c22a39"
+      }
+    ],
+    "retainedIosArtifacts": [
+      {
+        "bytes": 19347788,
+        "sha256MatchesQueueReceipt": true
+      },
+      {
+        "bytes": 19347936,
+        "sha256MatchesQueueReceipt": true
+      },
+      {
+        "bytes": 19347845,
+        "sha256MatchesQueueReceipt": true
+      }
+    ],
+    "iosSourceAndCertificateMatchFrozenPlans": true,
+    "iosSymbolsUploaded": true,
+    "iosMacWorkerBinaryApplicationSourceCommit": "9dbd94ae49c1ff5adf0db598f378dd76ba0dfdfd",
+    "mobileSourceInputsUnchangedAcrossApplicationFix": true,
+    "separateProviderDownloadRerunForNewThirdTenant": false
+  },
+  "localValidation": {
+    "focusedBaseAndTenantContextTests": 6,
+    "managedTenantAdapterTests": 12,
+    "mermaidDiagramsParsed": 12,
+    "assetInventoryCheckPassed": true,
+    "protectedIndependentUserEditsPreserved": true,
+    "allRepositoryTestsRun": false
+  }
+}

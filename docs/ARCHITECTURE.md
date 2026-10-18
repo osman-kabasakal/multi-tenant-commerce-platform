@@ -136,6 +136,8 @@ stateDiagram-v2
 
 Bu diyagram davranışın sadeleştirilmiş modelidir, enum adları değildir. Lease kaybeden worker yeni sonucu sahipmiş gibi yazamaz. Checkpoint dış API çağrısını transaction'a dönüştürmez; sağlayıcı adımları tekrar çağrılabilirlik ve mevcut kaynağı tanıma kurallarıyla çalışmalıdır. [Worker kaynağı](../Shared/Platform.Provisioning/ProvisioningWorker.cs), [kuyruk](../Shared/Platform.Provisioning/PostgresProvisioningQueue.cs), [onboarding](PROVISIONING.md).
 
+Temel GrandNode kurulumu ayrıca doğrulanır: ana görevler, beş düzen türü, temel izinler ve hash'lenmiş sahip parolası tamamlanmadan Portable metadata başarı işareti almaz. `Settings.json` dosyasının bulunması tek başına tamamlanma kanıtı değildir. Eski kısmi kurulumlar, kimlikleri ve iş geçmişini koruyan açık bir operatör bakımıyla tamamlanır; işletme ayarları yeni bir süreçte yeniden uygulanır. [Kontrol ve onarım akışı](GRANDNODE_INSTALLATION_REPAIR.md).
+
 ## 5. BuildType ve eklenti ayrımı
 
 GrandNode'un ticaret modülleri birden fazla host tarafından kullanılır. `Plugins` altındaki bütün eklentiler bütün build türlerinde bulunur; `Frontend` dışındaki türlerde `AdminPlugins` projeleri de derlenir. Build türü `BaseDir` ve dolayısıyla eklenti çıktı dizinini değiştirir. “Proje derlendi” sonucu, ilgili hostun doğru eklenti klasörüne sahip olduğunu tek başına kanıtlamaz.

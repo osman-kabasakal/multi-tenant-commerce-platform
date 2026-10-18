@@ -55,7 +55,7 @@ GrandNode'un katalog, sepet, sipariş ve eklenti motoru bu projenin sıfırdan y
 | Ödeme/entegrasyon | Iyzico ve çeşitli eski entegrasyon kaynakları mevcut | Gerçek tahsilat/iade, POS, pazaryeri, kurye, e-fatura ve stok senkronizasyonu kabulü yok |
 | Mobil tema/varlıklar | Mevcut tema, ikonlar ve örnek görseller korunur; görsel yenileme geri alındı | Koruma kararı lisans grant'i değildir; [kayıt](docs/licenses/ASSET_RETENTION.md) |
 
-Tarihli kayıtlar ve kullanılan commitler: [Doğrulama geçmişi](docs/VALIDATION.md). Bu hazırlıkta uzak GitHub Actions koşturulmadı; önceki uzak denemede hesap kotası engeli vardı. Yerel Linux kaynak aşamasının sonucu [hazırlık kaydındadır](docs/validation/open-source-preparation-20261018.json); sonraki görsel geri almanın kontrolleri [ayrı kayıttadır](docs/validation/asset-restoration-20261018.json); eski yeşil sonuçlar güncel kaynağın tam CI sonucu olarak sunulmaz.
+Tarihli kayıtlar ve kullanılan commitler: [Doğrulama geçmişi](docs/VALIDATION.md). Bu hazırlıkta uzak GitHub Actions koşturulmadı; önceki uzak denemede hesap kotası engeli vardı. Yerel Linux kaynak aşamasının sonucu [hazırlık kaydındadır](docs/validation/open-source-preparation-20261018.json); sonraki görsel geri almanın kontrolleri [ayrı kayıttadır](docs/validation/asset-restoration-20261018.json); eski yeşil sonuçlar güncel kaynağın tam CI sonucu olarak sunulmaz. Mevcut Oracle VM üzerinde boş veriyle başlayan kurulum, eksik temel kurulum onarımı ve düzeltilmiş sürümden yeni tenant tesliminin sonucu [son canlı kayıtta](docs/validation/oracle-clean-install-20261018.json) ayrılır.
 
 ## Kavramsal model
 
@@ -239,11 +239,11 @@ Veri birimlerini koruyup `.local` içindeki anahtar/parolaları silmek, eski ver
 
 **Linux:** [Production rehberi](docs/LINUX_PRODUCTION.md), gerçek domain/TLS ve özel ayar dosyasıyla Compose kurulumunu anlatır. SDK'lar build imajlarında kullanılır. Varsayılan yerel HTTP/start-dev profili internete taşınmaz.
 
-**Oracle:** [Dağıtım rehberi](docs/ORACLE_DEPLOYMENT.md), kendi hesabınızda Terraform/Resource Manager ve yerelden çalışan dağıtım aracı kullanır. GitHub Actions zorunlu değildir. Altyapı hazırlama, SSH ile özel kaynak aktarımı, Docker imajları, güncelleme ve yedekleme [ayrıntılı işletim açıklamasındadır](docs/ORACLE_SSH_DOCKER_DEPLOYMENT.md). Kimlik dosyaları, durdurma ve bütün test altyapısını silme sırası [test ve kaldırma rehberindedir](docs/ORACLE_TEST_VE_KALDIRMA.md). Bulut kaynakları ücret doğurabilir; test makinesinin otomatik durması disk/kayıtlı kaynakları silmez.
+**Oracle:** [Dağıtım rehberi](docs/ORACLE_DEPLOYMENT.md), kendi hesabınızda Terraform/Resource Manager ve yerelden çalışan dağıtım aracı kullanır. GitHub Actions zorunlu değildir. Altyapı hazırlama, SSH ile özel kaynak aktarımı, Docker imajları, güncelleme ve yedekleme [ayrıntılı işletim açıklamasındadır](docs/ORACLE_SSH_DOCKER_DEPLOYMENT.md). Kimlik dosyaları, durdurma ve bütün test altyapısını silme sırası [test ve kaldırma rehberindedir](docs/ORACLE_TEST_VE_KALDIRMA.md). Mevcut VM üzerinde uygulama verilerini boşaltıp yeniden test etme sınırı [temiz kurulum rehberinde](docs/TEST_SERVER_RESET.md) açıklanır. Bulut kaynakları ücret doğurabilir; test makinesinin otomatik durması disk/kayıtlı kaynakları silmez.
 
 **Mobil:** [Mobil rehber](docs/MOBILE.md), [markalama](docs/MOBILE_BRANDING.md), [bildirim](docs/MOBILE_NOTIFICATIONS.md). Android Linux üzerinde; iOS yalnız Mac/Xcode ve Apple imzalama girdileriyle üretilir. Mevcut imzalı cihaz kabulleri, önceki özel test sürümüne aittir. Görsel/tema değişiklikleri sonrası yeniden cihaz kabulü gerekir. App Distribution teslimi, App Store/Google Play yayını anlamına gelmez.
 
-Google/Firebase, Cloudflare, SMTP, FCM/APNs ve imzalama açıkça yapılandırılır. Geniş yetkili proje oluşturucu hesabı mobil uygulamaya veya bildirim göndericisine verilmez. [Google kurulumu](docs/GOOGLE_FIREBASE.md) · [Tenant kurulumu ve BuildType](docs/TENANT_INITIALIZATION.md).
+Google/Firebase, Cloudflare, SMTP, FCM/APNs ve imzalama açıkça yapılandırılır. Geniş yetkili proje oluşturucu hesabı mobil uygulamaya veya bildirim göndericisine verilmez. [Google kurulumu](docs/GOOGLE_FIREBASE.md) · [Tenant kurulumu ve BuildType](docs/TENANT_INITIALIZATION.md) · [Yarım GrandNode kurulumunu tamamlama](docs/GRANDNODE_INSTALLATION_REPAIR.md).
 
 ## Güvenlik ve veri sınırları
 
