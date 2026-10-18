@@ -329,6 +329,7 @@ public class TranslationService : ITranslationService
                     Builders<TranslationResource>.Filter.Eq(x => x.LanguageId, language1.Id) &
                     Builders<TranslationResource>.Filter.Eq(x => x.Name, normalizedName),
                     Builders<TranslationResource>.Update
+                        .SetOnInsert(x => x.Id, new TranslationResource().Id)
                         .SetOnInsert(x => x.LanguageId, language1.Id)
                         .SetOnInsert(x => x.Name, normalizedName)
                         .SetOnInsert(x => x.Value, value)
