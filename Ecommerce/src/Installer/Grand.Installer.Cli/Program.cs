@@ -286,6 +286,9 @@ using (var scope = serviceProvider.CreateScope())
     await tenantSecrets.SetAsync(tenantStatusMessage.StoreSubDomain!, TenantSecretNames.DatabaseConnection, tenantStatusMessage.MongoConnectionString!);
 
     store.Name = tenantStatusMessage.StoreName;
+    // A previous attempt may have saved the store before a cache/event failure.
+    foreach (var field in store.UserFields.Where(field => field.Key == "EncryptionKey" && field.StoreId == store.Id).ToArray())
+        store.UserFields.Remove(field);
     store.UserFields.Add(new UserField {
         Key = "EncryptionKey",
         Value = tenantStatusMessage.StoreSubDomain,

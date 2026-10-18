@@ -80,6 +80,8 @@ public static class ManagedTenantTasks
         if (store.Id != metadata.RootElement.GetProperty("storeId").GetString() ||
             await scope.ServiceProvider.GetRequiredService<ITenantSecrets>().ResolveAsync(store.Id) != message.TenantId)
             throw new InvalidOperationException("Managed task store ownership changed.");
+        using var tenantContext = new InstallerTenantContext(
+            scope.ServiceProvider.GetRequiredService<Grand.Infrastructure.MultiTenant.ITenantIdentityAccessor>(), store.Id);
         var database = new MongoClient(mongo).GetDatabase(mongo.DatabaseName);
         var plugins = (PluginManager.ReferencedPlugins ?? []).Where(x => x.Installed).OrderBy(x => x.SystemName, StringComparer.Ordinal).ToArray();
         var expected=(config["Extensions:InstalledPlugins"] ?? "").Split(',',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
