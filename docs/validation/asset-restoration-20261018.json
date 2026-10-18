@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-18",
+  "purpose": "Restore preparation-time visual changes at maintainer request; no public push or deployment",
+  "supersedesAssetStateIn": "open-source-preparation-20261018.json",
+  "scope": {
+    "repository": "multi-tenant-commerce-platform",
+    "imageAndIconPathsRestored": 3105,
+    "iconAndUnconfirmedFontPathsRestored": 13,
+    "mobileImplementationPathsRestored": 16,
+    "otherRestoredFiles": "LineIcons export/manifest and Simple Line CSS, original order sound and both province fixtures",
+    "allRestoredPathsComparedBySha256": 3143,
+    "remainingImageDifferencesToPreparationBaseline": 0,
+    "restoredAssetLicense": "NOASSERTION when file-specific evidence is unconfirmed; retention is not license clearance",
+    "artworkRegenerationScriptsRemoved": true
+  },
+  "retainedCorrections": {
+    "IRANSansWeb": {
+      "removedFontFiles": 48,
+      "replacement": "OFL Vazirmatn; RTL CSS"
+    },
+    "IOSSecuritySuite": "BSD-2-Clause 1.9.11 pin retained instead of restricted 2.1.0 EULA",
+    "notices": "Root GPL and missing third-party license/attribution texts retained"
+  },
+  "checks": {
+    "macSourceReleaseTests": {
+      "passed": 7,
+      "failed": 0
+    },
+    "linuxSourceReleaseTests": {
+      "passed": 7,
+      "failed": 0,
+      "runner": "Disposable, network-disabled Linux container as uid 65534; removed on exit"
+    },
+    "flutterTests": {
+      "passed": 61,
+      "skipped": 1,
+      "failed": 0
+    },
+    "flutterDebugBundle": {
+      "result": "passed",
+      "restoredLineAwesomeFontIncluded": true,
+      "signedApkOrIpa": false
+    },
+    "assetInventory": {
+      "paths": 3707,
+      "uniqueSha256": 1269,
+      "licensingInputs": 202,
+      "licenseEvidence": 586,
+      "explicitRetentionWithoutLicenseAssertion": 3121,
+      "unrecorded": 0
+    },
+    "finalSourceExport": "The export tool requires the filename guard, current inventory and a real Gitleaks scan to pass; final tree and outcome are recorded in its local receipt",
+    "documentation": {
+      "mermaidDiagramsParsed": 9,
+      "localLinkTargetsChecked": 341,
+      "missingLocalTargets": 0
+    }
+  },
+  "notRun": [
+    "Full server demo or backend/Android image CI",
+    "Signed APK/IPA or new physical-device acceptance",
+    "Cloud resources, live DNS, push or payments"
+  ],
+  "preservation": {
+    "originalRepositoriesModified": false,
+    "unrelatedWorkingEditsIncluded": false,
+    "privateAncestryIncluded": false,
+    "commitOrPush": false,
+    "githubVisibilityChanged": false
+  }
+}

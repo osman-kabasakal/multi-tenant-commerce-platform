@@ -1,4 +1,10 @@
 /**
+ * Portions adapted from Cloudflare Images documentation, by Cloudflare and contributors.
+ * Source: https://developers.cloudflare.com/images/optimization/transformations/transform-via-workers/
+ * Documentation sample: CC-BY-4.0; attribution/terms in ../NOTICE.md.
+ * Local adaptations include typed query parsing and the commerce.test example configuration.
+ */
+/**
  * Welcome to Cloudflare Workers! This is your first worker.
  *
  * - Run `npm run dev` in your terminal to start a development server

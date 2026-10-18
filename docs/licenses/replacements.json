@@ -1,0 +1,5 @@
+{
+  "version": 2,
+  "description": "All image/icon replacements from open-source preparation were reverted on 2026-10-18 at maintainer request. Existing assets are retained without asserting a new license; see ASSET_RETENTION.md. No image replacement generator remains.",
+  "assets": []
+}

@@ -850,3 +850,35 @@ Canlı sürüm `0c34b47b7c508edade75bb6be76cd64df692bec0`. Tam sunucu yayını `
 Tamamlanan mobil işlerin iki mantıksal PostgreSQL dump'ı, özel ayar/görseller ve APK servisler durdurulmadan alındı; Oracle dışı kopyanın ve tüm iç dosyaların hashleri doğrulandı. Bu ek yedek önceki tam snapshot'ın yerine geçmez veya veritabanları arası atomik snapshot değildir. Mac arşiv/IPA/sembol/profil girdilerinin **763 dosyası** ayrıca doğrulandı; Distribution özel anahtarı dışa aktarılmadı. Kendi geçici Mac çalışanı ve tüneli kapatıldı. Aynı 1 OCPU/8 GB Oracle VM ve mevcut durdurma kuralı korundu; GitHub Actions kota nedeniyle çalıştırılmadı. Android fiziksel test, dış universal-link yönlendirmesi, gerçek crash ve gözetimsiz imzalama kalan kabul konularıdır. Temiz yayımlanabilir kaynakta dosya koruması 13.293 yolu geçti; lisans envanteri 174 girdiye güncellendi ve yaklaşık 72 MB kaynakta Gitleaks bulgu üretmedi. Envanter yeniden dağıtım izni değildir.
 
 [Bildirim ve task kullanım rehberi](MOBILE_NOTIFICATIONS.md), [makinece okunabilir kabul kaydı](validation/mobile-notifications-live-20261018.json).
+
+
+## Açık kaynak ve portföy hazırlığı — 18 Ekim 2026
+
+> Bu bölüm geri alınan görsel/tema sürümünün tarihli test kaydıdır. Sonraki kullanıcı kararı ve güncel doğrulama [görsel geri alma kaydında](validation/asset-restoration-20261018.json) tutulur. Buradaki görsel sayıları, yeniden üretim ve bütün varlıkların kanıtlı olduğu sonucu güncel kaynak için geçerli değildir.
+
+Yazara ait bağımsız kaynaklar için GPL-3.0-only kapsamı yazıldı; GrandNode, SaaS Clean Architecture başlangıç şablonu ve diğer üçüncü taraf bildirimleri ayrıldı. Yazarın son netleştirmesi esas alınmıştır: Flutter ekran/Riverpod/API kodu kendisine aittir; satın alınmış Foodu kitinden kullanılan kısım renk/tema referansıdır. Kitin kendisi yayın girdisi değildir. Belirtilen tema bağımsız Material uygulamasıyla yenilendi.
+
+**3.699 varlık yolu / 1.092 benzersiz SHA-256** için dosya bazlı kanıt tutuldu; kanıtsız varlık kalmadı. Bu, bütün transitive bağımlılıkların binary/SBOM incelemesi değildir. 55 IRANSans/Yekan dosyası ve belirsiz LineAwesome fontu kaldırıldı; kanonik font/ikonlar ve eksik sürüm bildirimleri tamamlandı. 991 özgün demo raster görseli yeniden üretildi; kaynakta okunamayan sekiz fallback PNG de eski 800×800 boyutuyla düzeltildi. 3.457 raster ve 183 SVG biçim kontrolü hatasız geçti. Yedi temsilî font gerçek Chrome'da yüklendi. İl fixture'larının tüm 82×5 hücre değeri/tipi eski dosyayla eşleşti; gerçek NPOI 2.7.2 her iki dosyadan 81 tekil ili okudu. Sipariş sesi özgün MP3 ile değiştirildi.
+
+**61 Flutter testi geçti / 1 atlandı**; bütün uygulamanın debug bundle derlemesi tamamlandı. Açık/koyu Material tema, dar ekranda büyük yazıyla form etkileşimini geçti. Tam CocoaPods grafiği IOSSecuritySuite **1.9.11 BSD-2-Clause** ile çözüldü; native wrapper ve bağımlılığı gerçek Xcode iphoneos/ARM64 hedefinde **imzasız derlendi**. Bu bir tam IPA veya yeni cihaz kabulü değildir. Global Flutter kullanıcı tercihi değiştirilmedi.
+
+Temiz staged tree'den private ancestry ve bağımsız kullanıcı düzenlemeleri taşınmadan aday çıkarıldı. Gerçek Gitleaks **8.30.1** yaklaşık 74,6 MB adayda bulgu üretmedi. Kaynak/lisans kapısı geçti. Aynı adayın geçici, non-root Linux konteynerinde **138 kaynak CI testi: 137 geçti / macOS'a özgü 1 test atlandı**. Gruplar: provenance/export 6, kaynak 1, gateway 5, Android hazırlık 27, iOS hazırlık 59, Production yapılandırma 40. Mac'te aynı Python grupları 138/138 geçti. Yeni export testi; private geçmiş dosyasının, Git dışı credentialın ve unstaged kullanıcı değişikliğinin adaya girmediğini ve var olan çıktı klasörünün ezilmediğini doğruladı.
+
+README, mimari/teknoloji rehberi, yol haritası ve 12 geriye dönük ADR hazırlandı. Dokuz Mermaid diyagramı gerçek ayrıştırıcıyla geçti; yerel belge bağlantılarında eksik hedef yok. Test edilen tree'den sonraki farklar belge/notice, isteğe bağlı görsel örneğindeki atıf yorumu ve Linux komutunda zaten uygulanmış CI bayrağıdır; uygulama/test mantığı ve varlık içeriği değişmedi. Final belge snapshot'ı yayın aracıyla ayrıca taranır.
+
+**Bu aşamada tam Linux demo up/smoke, backend/portal ve Android SDK imaj CI işleri yeniden çalıştırılmadı.** Önceki canlı imzalı Android/iOS, markalama ve APNs kabulleri kendi tarihli kaynaklarına aittir; yeni tema/görseller için cihaz kabulü sayılmaz. Canlı sunucu/DNS/Google/Apple kaynakları değiştirilmedi. Geçici Linux test konteynerleri otomatik kaldırıldı. Eski projeler ve başlangıçta değiştirilmiş iki bağımsız dosya korunmuştur. Commit/push veya GitHub public görünürlük işlemi yapılmadı.
+
+[Makinece okunabilir kontrol kaydı](validation/open-source-preparation-20261018.json) · [Lisans kapsamı](../LICENSING.md) · [Temiz yayın adımları](PUBLIC_RELEASE.md).
+
+
+## Mevcut görsellerin geri alınması — 18 Ekim 2026
+
+Proje sahibinin kararıyla hazırlıkta değiştirilen **3.105 resim/ikon yolu** eski içeriğiyle geri yüklendi; görsel dosyalarında hazırlık öncesine göre fark kalmadı. LineAwesome, Glyphicons ve Simple Line dahil **13 ikon/belirsiz font yolu**, ilgili CSS/LineIcons çağrıları, Flutter teması ve çağıran **16 uygulama kaynak dosyası** da geri alındı. Sipariş sesi ve iki il dosyası eski içerikleriyle korunur. **3.143 geri yüklenen dosya** SHA-256 ile karşılaştırıldı. Görsel yeniden üreticiler/spec'ler kaldırıldı; yeniden çalıştırılarak bu geri alma bozulamaz.
+
+IRANSansWeb'in **48 font dosyası** için OFL Vazirmatn düzeltmesi ve IOSSecuritySuite'in BSD **1.9.11** sabitlemesi korundu. B_Yekan/Yekan-modified ve LineAwesome kesin yasak olarak sınıflandırılmadı; geri yüklendi. Lisans kanıtı olmayan mevcut dosyalar `retained:license-unconfirmed` / `NOASSERTION` olarak kaydedilir. Önceki bölümün “bütün varlıkların hakkı kanıtlandı” sonucu güncel içerik için geçerli değildir.
+
+Güncel kontroller: Mac'te **7**, yetkisiz ve ağa kapalı Linux konteynerinde **7** kaynak/yayın testi geçti. **61 Flutter testi geçti, 1 atlandı**; mevcut açık/koyu tema ile ölçekli form testleri de geçti. Uygulamanın bulutsuz **debug bundle derlemesi tamamlandı**, geri yüklenen LineAwesome fontu pakete dahil edildi. Bu işlem yeni imzalı APK/IPA veya fiziksel cihaz kabulü değildir. Güncel envanter **3.707 varlık yolu / 1.269 tekil özet / 202 lisans girdisi** içerir: 586 dosyada lisans kanıtı, 3.121 dosyada lisans iddiası olmayan açık koruma kararı vardır. **9 Mermaid diyagramı** ve **341 yerel belge hedefi** geçti. Final kaynak export ve secret taramasının tree/sonucu yayın aracının yerel receipt dosyasında tutulur.
+
+Orijinal projeler, kullanıcıya ait iki bağımsız düzenleme ve Git HEAD korunmuştur. Commit, push, GitHub görünürlük değişikliği veya canlı kaynak işlemi yapılmadı.
+
+[Makinece okunabilir geri alma kaydı](validation/asset-restoration-20261018.json) · [Mevcut varlıkları koruma kararı](licenses/ASSET_RETENTION.md).

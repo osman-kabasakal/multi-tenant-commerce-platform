@@ -15,7 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Verify asset and license inventory
-        run: python3 scripts/asset_inventory.py --check
+        run: python3 scripts/asset_inventory.py --check --require-reviewed
+      - name: Verify asset provenance invalidation rules
+        run: python3 -m unittest discover -s scripts -p test_release_source.py -v
       - name: Reject private and generated files
         run: |
           python3 scripts/check_public_source.py

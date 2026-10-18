@@ -16,7 +16,8 @@ A new Flutter project.
   s.source_files = 'Classes/**/*'
   s.dependency 'Flutter'
 
-  s.dependency 'IOSSecuritySuite'
+  # Last BSD-2-Clause release; 2.x uses a different, restricted EULA.
+  s.dependency 'IOSSecuritySuite', '= 1.9.11'
 
   s.platform = :ios, '12.0'
 

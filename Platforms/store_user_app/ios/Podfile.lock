@@ -127,7 +127,7 @@ PODS:
   - Flutter (1.0.0)
   - flutter_jailbreak_detection (0.0.1):
     - Flutter
-    - IOSSecuritySuite
+    - IOSSecuritySuite (= 1.9.11)
   - flutter_local_notifications (0.0.1):
     - Flutter
   - flutter_native_splash (2.4.3):
@@ -192,7 +192,7 @@ PODS:
     - GoogleUtilities/Privacy
   - integration_test (0.0.1):
     - Flutter
-  - IOSSecuritySuite (2.1.0)
+  - IOSSecuritySuite (1.9.11)
   - nanopb (3.30910.0):
     - nanopb/decode (= 3.30910.0)
     - nanopb/encode (= 3.30910.0)
@@ -352,7 +352,7 @@ SPEC CHECKSUMS:
   FirebaseRemoteConfigInterop: 1c6135e8a094cc6368949f5faeeca7ee8948b8aa
   FirebaseSessions: 9b3b30947b97a15370e0902ee7a90f50ef60ead6
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  flutter_jailbreak_detection: cb431f76d031c28466ce585568b9ca06ebddf711
+  flutter_jailbreak_detection: dfea197bcb8ff4b6ee152ad14933d5cdfde1440b
   flutter_local_notifications: a5a732f069baa862e728d839dd2ebb904737effb
   flutter_native_splash: c32d145d68aeda5502d5f543ee38c192065986cf
   flutter_secure_storage: 1ed9476fba7e7a782b22888f956cce43e2c62f13
@@ -363,7 +363,7 @@ SPEC CHECKSUMS:
   GoogleDataTransport: aae35b7ea0c09004c3797d53c8c41f66f219d6a7
   GoogleUtilities: 26a3abef001b6533cf678d3eb38fd3f614b7872d
   integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
-  IOSSecuritySuite: 45e8531b05ffa72b5661cbdb5b5b5648a8de1a84
+  IOSSecuritySuite: b51056d5411aee567153ca86ce7f6edfdc5d2654
   nanopb: fad817b59e0457d11a5dfbde799381cd727c1275
   nb_utils: 2b3240ebc4ad96c1b3e13e3cc9d8060f7e95b226
   open_file_ios: 5ff7526df64e4394b4fe207636b67a95e83078bb
@@ -379,6 +379,6 @@ SPEC CHECKSUMS:
   url_launcher_ios: 694010445543906933d732453a59da0a173ae33d
   webview_flutter_wkwebview: 1821ceac936eba6f7984d89a9f3bcb4dea99ebb2
 
-PODFILE CHECKSUM: f26e4c4077c75d56b73467561068f41e74eb6826
+PODFILE CHECKSUM: 8419279f9e337b70aa0cf87094a5a1ab568511a5
 
 COCOAPODS: 1.16.2

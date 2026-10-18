@@ -1,0 +1,3 @@
+Droid Arabic Kufi 1.00: Digitized data copyright (c) 2010, Google Corporation. Apache License 2.0 (embedded font name records).
+Open Sans 1.10: Apache License 2.0 (embedded font name records).
+Full license: ../Apache-2.0.txt

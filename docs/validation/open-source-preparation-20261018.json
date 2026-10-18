@@ -1,0 +1,88 @@
+{
+  "date": "2026-10-18",
+  "purpose": "Open-source/portfolio source preparation; no public push or live deployment",
+  "testedSourceTree": "05bc7ab5e7feb6e3a8df81de66a1e9890af3cdbf",
+  "followUpDelta": "Documentation and retained template/sample notices, an attribution-only optional image-worker comment, and the CI flag already exercised in Linux. Application/test logic and asset contents are unchanged from the tested tree.",
+  "license": {
+    "authorChoice": "GPL-3.0-only",
+    "independentFlutterOwnershipConfirmed": true,
+    "purchasedUiKitIncluded": false,
+    "assetPaths": 3699,
+    "uniqueAssetSha256": 1092,
+    "unreviewedAssets": 0,
+    "methods": "Per-file provenance; upstream hashes/RGBA, embedded font grants, bundled component notices or original regeneration. Not a full transitive binary SBOM."
+  },
+  "checks": {
+    "linuxSourceCi": {
+      "total": 138,
+      "passed": 137,
+      "skipped": 1,
+      "failed": 0,
+      "runner": "Disposable Linux container, non-root sourceverify account, clean candidate copied from read-only input",
+      "groups": {
+        "provenanceAndExport": 6,
+        "sourceFilenames": 1,
+        "demoGateway": 5,
+        "androidPreparation": 27,
+        "iosPreparation": 59,
+        "productionConfiguration": 40
+      },
+      "gitleaks": "Separate real 8.30.1 Mac scan; no findings"
+    },
+    "macSourceTests": {
+      "passed": 138,
+      "failed": 0
+    },
+    "flutter": {
+      "passed": 61,
+      "skipped": 1,
+      "failed": 0,
+      "debugBundle": "Compiled whole app with cloud-free defines; no signed APK/IPA acceptance implied"
+    },
+    "nativeIos": {
+      "cocoaPods": "Full locked graph resolved with IOSSecuritySuite 1.9.11; no global Flutter preference changed",
+      "target": "flutter_jailbreak_detection and dependency",
+      "sdk": "iphoneos arm64",
+      "codeSigningAllowed": false,
+      "result": "BUILD SUCCEEDED",
+      "scope": "Native wrapper probe, not full signed application/device acceptance"
+    },
+    "geography": {
+      "files": 2,
+      "provincesPerFile": 81,
+      "sameOldImportCellValues": true,
+      "reader": "Real NPOI 2.7.2"
+    },
+    "graphics": {
+      "rasterParsed": 3457,
+      "svgParsed": 183,
+      "errors": 0,
+      "originalRasterReproduction": 991,
+      "fontFacesLoadedInChrome": 7
+    },
+    "documentation": {
+      "mermaidParsed": 9,
+      "localLinkValidation": "No missing local targets; rerun after final prose"
+    },
+    "gitleaks": {
+      "version": "8.30.1",
+      "findings": 0,
+      "scanScope": "History-free clean candidate; final documentation snapshot rescanned by release tool"
+    }
+  },
+  "notRun": [
+    "Full new Linux demo up/smoke, backend/portal image CI groups and Android SDK image CI group",
+    "New signed Android/iOS release and physical-device acceptance after theme/assets change",
+    "Cloud provisioning, DNS, live push or real payment operations",
+    "Optional Cloudflare image worker unit/deployment acceptance"
+  ],
+  "preservation": {
+    "originalRepositoriesModified": false,
+    "unrelatedWorkingEditsIncluded": false,
+    "privateAncestryIncluded": false,
+    "newPublicCommitOrPush": false,
+    "githubVisibilityChanged": false
+  },
+  "status": "Historical test record for the pre-rollback candidate; not current asset clearance",
+  "supersededBy": "asset-restoration-20261018.json"
+}

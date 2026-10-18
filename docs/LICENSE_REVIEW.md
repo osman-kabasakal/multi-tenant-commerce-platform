@@ -1,47 +1,51 @@
-# License and asset review — 2026-10-14
+# Lisans ve varlık incelemesi — 18 Ekim 2026
 
-Status: **private review version; public release is not cleared**. Repository visibility does not grant rights to the contents. No blanket license has been assigned to custom work whose ownership has not been confirmed. Existing third-party grants remain intact.
+Yazara ait bağımsız kodlar GPL-3.0-only; GrandNode ve üçüncü taraf bildirimleri korunur. Proje sahibinin son kararıyla görsel yenileme geri alındı. Yalnızca somut kısıtı belirlenen dosyalar değiştirilir; kaynak belirsizliği tek başına görsel değiştirme nedeni değildir.
 
-## Verified evidence and completed corrections
+## Yazarlık ve kapsam
 
-| Component | Evidence | Result |
+Yazar SaasManager/TenantManager ve Flutter ekran/bileşen/Riverpod/API kodunun kendisine ait olduğunu bildirdi. Foodu kitinden kullanılan kısmı renk/tema referansı olarak netleştirdi. Bu beyan esas alınır; Flutter teması ve mevcut ekran kodu korunur. Satın alınmış kitin orijinal ZIP'i/kaynak paketi dağıtıma eklenmez.
+
+Yerel device-integrity modülü yazarın uygulamasıdır; RootBeer ve IOSSecuritySuite kendi lisanslarını korur. Benzer adlı BSD referans projenin bildirimi referans atfıdır; birebir upstream fork olduğu iddia edilmez.
+
+## Güncel değişiklikler
+
+| Kapsam | Durum | Kayıt |
 | --- | --- | --- |
-| GrandNode-derived commerce | `Ecommerce/LICENSE`; [upstream license](https://github.com/grandnode/grandnode2/blob/main/LICENSE) | GPLv3 retained. The modifications are described in `NOTICE.md`. Do not relabel this component MIT. |
-| Fine Uploader and Roxy Fileman | Their `LICENSE` / `LICENSE.txt` under `Grand.SharedUIResources/wwwroot/administration` | The bundled copies carry GPLv3; retained regardless of newer upstream licensing. |
-| Kendo Core | `kendo.ui.core.min.js` copyright/license header | Apache-2.0 header retained, version 2021.3.914; full license supplied in `docs/licenses/Apache-2.0.txt`. |
-| Kendo Grid | `kendo.grid.js` lines 1–10 | The file identifies itself as **2014.1.318**, with GPLv3 or commercial terms. The enclosing 2021.3.914 folder is not the grid version. No commercial entitlement is assumed. |
-| Administration theme | `administration/License.txt` | MIT attribution to Aigars Silkalns, Colorlib and Morteza Karimi retained. This does not establish rights to every separately bundled asset. |
-| Local nb_utils fork | `Platforms/modules/nb_utils/LICENSE` | MIT attribution to Bhoomin Naik retained; embedded assets need their own provenance. |
-| Urbanist fonts | Embedded font name records: Urbanist 1.303, project authors, OFL 1.1; [upstream notice](https://github.com/google/fonts/blob/main/ofl/urbanist/OFL.txt) | Restored missing `assets/fonts/urbanist/OFL.txt` beside the five fonts. |
-| Poppins fonts | Embedded font name records: Poppins 4.004, project authors, OFL 1.1; [upstream notice](https://github.com/google/fonts/blob/main/ofl/poppins/OFL.txt) | Restored missing `Theme.Modern/Content/css/fonts/OFL.txt` beside the six fonts. This file applies to Poppins, not Simple-Line-Icons. |
-| Runtime documents | Two order PDFs in a web export directory | Removed before private publication, including from the published Git ancestry. The source guard and ignore rules now reject generated exports and uploaded files (except empty-directory placeholders). |
+| Bağımsız kaynaklar ve GrandNode | Kök GPL metni eklendi; mevcut GPLv3 ve bileşen başlıkları korundu | [LICENSING](../LICENSING.md), [NOTICE](../NOTICE.md) |
+| Mevcut resim/ikonlar | Famizyo, ürün fotoğrafları, mobil/default Flutter ikonları, bayraklar ve diğer görseller hazırlık öncesi içerikleriyle geri yüklendi | [Koruma kararı](licenses/ASSET_RETENTION.md) |
+| İkon fontları ve tema | LineAwesome/LineIcons, Glyphicons, Simple Line font/CSS ve Flutter teması geri yüklendi | Değişiklik yerine mevcut bildirimler korunur |
+| IRANSansWeb | Font metadata'sındaki mülkiyet kaydı ve lisans koşulları nedeniyle açık kaynak girdisinden çıkarıldı; OFL Vazirmatn kullanılır | [Somut dayanak](licenses/ASSET_RETENTION.md#korunan-somut-düzeltmeler), [OFL](licenses/upstream/Vazirmatn-OFL.txt) |
+| B_Yekan / Yekan-modified | Kesin kısıt kaydı olmadan çıkarılmaları geri alındı | `NOASSERTION`; açık lisans iddia edilmez |
+| IOSSecuritySuite | Kısıtlı 2.1.0 EULA yerine BSD-2-Clause 1.9.11 sabitlemesi korundu | [Sürüm lisansı](licenses/upstream/IOSSecuritySuite-1.9.11-BSD-2-Clause.txt) |
+| Diğer font/paket bildirimleri | Urbanist, Poppins, Source Sans, Font Awesome, Droid Kufi/Open Sans ve bileşen notice metinleri korundu | [Üçüncü taraf tablosu](../THIRD_PARTY_NOTICES.md) |
+| SaaS şablonu / Cloudflare örneği | Eksik MIT / CC-BY-4.0 atıfları eklendi | [Şablon metni](licenses/upstream/CleanArchitecture-9.0.5-MIT.txt), [Cloudflare NOTICE](../cloudflare_image_resizing_worker/famizyo-image-resizing-worker/NOTICE.md) |
+| Sipariş sesi / il dosyaları | Kesin kısıt saptanmadan yapılan yeniden üretimler geri alındı | Mevcut dosyalar korunur |
+| Gizli girdiler | Credential, imza materyali ve özel runtime verileri Git dışında tutulur | Dosya koruması ve temiz snapshot taraması |
+
+## Kanıtı nasıl okumalı?
+
+`provenance.json` dosya özeti, kaynak, bildirim ve yöntemi tutar. `exact-sha256` veya `decoded-RGBA-equivalence` kayıtları kendi doğrulama kapsamındadır. `bundled-component-license` bileşenin dağıtılan lisansına dayanır; ayrı bir fotoğraf sahibinden alınmış izin belgesi değildir.
+
+Geri yüklenen varlıkların `NOASSERTION` kaydı yalnız proje sahibinin mevcut dosyayı koruma kararını belgeler. Bunlar `evidenced` sayılmaz; “bütün görsellerin açık lisansı kanıtlandı” sonucu çıkarılmaz. Değişen dosyanın hash'i eski kayıtla kabul edilmez. [Koruma politikasının ayrıntıları](licenses/ASSET_RETENTION.md).
 
 ## Open items
 
-| Item | Exact scope / evidence | Needed before public release |
-| --- | --- | --- |
-| Custom code ownership and licensing | SaaS manager, tenant worker, mobile app, integrations and custom changes | Owner confirms authorship, employer/client agreements and any purchased template provenance; chooses terms compatible with the relevant dependencies. A private upload is not that confirmation. |
-| Local device-integrity plugin | `Platforms/modules/flutter_jailbreak_detection/LICENSE` still says TODO | Establish provenance and license, or replace the module. A similarly named package on pub.dev is not proof that this implementation has that package's license. |
-| iOS security dependency | `Platforms/store_user_app/ios/Podfile.lock` resolves **IOSSecuritySuite 2.1.0**; [version-specific EULA](https://github.com/securing/IOSSecuritySuite/blob/2.1.0/LICENSE) | The EULA distinguishes free use from paid/commercial distribution. Review the intended use and entitlement or replace the dependency. iOS is outside the verified demo. Skipping runtime initialization does not remove a linked native dependency. |
-| Android root detection | Plugin references RootBeer **0.1.1**; [upstream Apache-2.0 license](https://github.com/scottyab/rootbeer/blob/master/LICENSE) | Preserve package notices in any distributed Android build. This license does not license the local wrapper. |
-| Simple Line Icons | Existing `administration/simple-line-icons/License.txt` contains GraphicBurger use/redistribution conditions | Establish which release the bundled font comes from and whether redistribution as source is allowed, or replace it with a clearly licensed set. Do not assume MIT from its name. |
-| LineAwesome font in nb_utils | Embedded name is `LineAwesomeIcons`, copyright references fluttericon.com/fontello.com | Establish exact generated-font inputs and license. The current Icons8 project license alone does not establish provenance of this derived file. |
-| Kendo and other icon fonts | `KendoUIGlyphs`, `WebComponentsIcons`, `kendoui`, Glyphicons, Summernote | Review font-specific notices and match exact versions; JavaScript licensing alone is not evidence for font rights. |
-| Restored administration build-directory assets | The source UI directory exception restores 94 inventoried image/font paths, including IRANSansWeb, Yekan, Droid Kufi, Open Sans, Source Sans Pro and Font Awesome copies | Match each bundled font/version to its redistribution evidence before public release. Restoring omitted files for the private runtime is not a license approval. |
-| Product photos, logos, illustrations, SVGs and sound | Every retained file is listed with a hash in `docs/licenses/assets.csv`, including duplicated GrandNode samples, Theme.Modern, mobile assets, social/provider/payment marks, notification audio, and local module examples | Supply original source/permission or replace unresolved assets. An upstream code license or a filename does not prove photo/trademark rights. Demo catalog data is synthetic, but legacy sample files still exist in source. |
-| Geographic workbook | Two copies of `App_Data/turkey_states.xlsx` | Confirm dataset provenance and redistribution terms. |
-| Resolved dependency notices | NuGet, npm, Dart, CocoaPods, Gradle and service images | Review version-specific and transitive licenses before a public source/binary release. The manifest inventory is not a complete SBOM or legal clearance. Redis/MongoDB/Keycloak/PostgreSQL images are downloaded by Compose; they are not vendored here. |
+1. Güncel snapshot üzerinde kaynak, envanter ve secret kontrollerini kaydetmek; önceki farklı görsel sürümünün doğrulamasını bugünkü içerikle karıştırmamak.
+2. Public başlangıcı güncel kaynak snapshot'ından temiz geçmişle oluşturmak; private ancestry'deki kaldırılmış kısıtlı fontları veya özel girdileri taşımamak.
+3. Binary/container dağıtımı için resolved bağımlılık bildirimleri ve SBOM'u bakım yol haritasında takip etmek.
 
-## Reproducing the inventory
+Kaynak incelemesi bütün transitive bağımlılıkların hukuki onayı değildir. Somut bir hak ihlali bildirimi geldiğinde ilgili dosya ve kaynağı değerlendirilir; tüm görseller topluca değiştirilmez.
 
-After staging additions/deletions, run:
+## Yeniden kontrol
 
 ```sh
-python3 scripts/asset_inventory.py
-python3 scripts/asset_inventory.py --check
+python3 scripts/asset_inventory.py --index
+# Yenilenen CSV'leri stage edin.
+python3 scripts/asset_inventory.py --index --check --require-reviewed
 python3 scripts/check_public_source.py
 ```
 
-`assets.csv` records every tracked image, font, media file, workbook, archive and Lottie asset with SHA-256 and review status. Duplicate files remain separate rows to avoid losing a redistribution location. `inputs.csv` records dependency manifests, locks and retained license/notice files with hashes. CI detects inventory drift; it does **not** turn unresolved rights into approvals.
+`--require-reviewed`, lisans kanıtını veya açık mevcut-dosya koruma kararını arar. Koruma kararı bir lisans grant'i olarak sunulmaz. [Temiz yayın adımları](PUBLIC_RELEASE.md).
 
-No original project was modified. No original Git history, real service credential, signing file, runtime customer export or generated `.local` file is intended for publication. Previously used production credentials still require rotation by their owner; removing copies cannot revoke them.
+SaaS şablon kaydı: [9.0.5 NuGet paketi](https://www.nuget.org/packages/Clean.Architecture.Solution.Template/9.0.5) metadata'sı MIT, yazar JasonTaylorDev der. Paket SHA-256: `42a56a122a3ee5b6d75332b6fb59757b98258f2887e1d778a088296279a4b737`. Tam bildirim publisher'ın [upstream LICENSE](https://github.com/jasontaylordev/CleanArchitecture/blob/main/LICENSE) dosyasından korunmuştur; bulunmayan bir Git tag'i doğrulanmış gibi gösterilmez.
