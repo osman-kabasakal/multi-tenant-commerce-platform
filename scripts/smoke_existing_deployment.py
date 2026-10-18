@@ -130,6 +130,20 @@ def main():
     status, _, body, _ = request(anonymous, store + '/')
     check(status == 200 and len(body) > 100, 'Existing tenant storefront responds over trusted HTTPS')
 
+    shopper = browser()
+    status, _, body, _ = request(shopper, store + '/login')
+    assert status == 200
+    page = Page(); page.feed(body.decode())
+    form = next(form for form in page.forms if 'Email' in form['fields'] and 'Password' in form['fields'])
+    assert form['fields'].get('__RequestVerificationToken')
+    target = urllib.parse.urljoin(store, form['action'])
+    assert urllib.parse.urlsplit(target).netloc == urllib.parse.urlsplit(store).netloc
+    status, _, _, final = request(shopper, target, dict(form['fields'], Email=fixture['email'], Password=fixture['tenantPassword'], RememberMe='false'))
+    check(status == 200 and '/login' not in urllib.parse.urlsplit(final).path.lower(), 'The tenant owner password authenticates on the storefront')
+    status, _, body, final = request(shopper, store + '/account/info')
+    check(status == 200 and urllib.parse.urlsplit(final).path.rstrip('/').lower() == '/account/info' and fixture['email'].encode() in body,
+          'The storefront account profile belongs to the authenticated tenant owner')
+
     owner = browser()
     status, _, body, _ = request(owner, portal + '/api/Auth/login?returnUrl=/register')
     form = LoginForm(); form.feed(body.decode())
