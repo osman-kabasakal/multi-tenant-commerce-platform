@@ -275,7 +275,10 @@ using (var scope = serviceProvider.CreateScope())
 // Sonuçları görüntüle
     logger.LogInformation($"Migration İşlem süresi: {stopwatch.Elapsed.TotalMinutes} milisaniye");
     var storeService = scope.ServiceProvider.GetService<IStoreService>();
-    var store = (await storeService.GetAllStores()).FirstOrDefault();
+    var store = (await storeService.GetAllStores()).FirstOrDefault()
+        ?? throw new InvalidOperationException("The installed tenant store is missing.");
+    using var tenantContext = new InstallerTenantContext(
+        scope.ServiceProvider.GetRequiredService<Grand.Infrastructure.MultiTenant.ITenantIdentityAccessor>(), store.Id);
     var tenantSecrets = scope.ServiceProvider.GetRequiredService<ITenantSecrets>();
     await tenantSecrets.ProvisionAsync(tenantStatusMessage.TenantId ?? tenantStatusMessage.StoreSubDomain!, tenantStatusMessage.StoreSubDomain!);
     tenantStatusMessage.TenantId = await tenantSecrets.ResolveAsync(tenantStatusMessage.StoreSubDomain!);
