@@ -42,6 +42,7 @@ if(args.Length>1 && args[1]=="resume-worker")
     services.AddSingleton(childStore);services.AddSingleton(options);services.AddSingleton(childFixture.Deployment);services.AddSingleton(childFixture.Google);
     services.AddSingleton<IAndroidSigningKeyFactory>(new KeytoolAndroidSigningKeyFactory(options));services.AddScoped<TenantAndroidSigningKeys>();services.AddSingleton<IAndroidReleaseBuilder>(builder);
     services.AddSingleton(new FirebaseAppDistribution(new GoogleRestClient(new HttpClient(childFixture.Server,disposeHandler:false),new AndroidToken()),childFixture.Google));
+    services.AddSingleton(new FirebaseAppIdentity(new GoogleRestClient(new HttpClient(childFixture.Server,disposeHandler:false),new AndroidToken()),childFixture.Google));
     services.AddScoped<AndroidReleasePipeline>();services.AddScoped<IProvisioningGuard,AndroidReleaseGuard>();services.AddScoped<IProvisioningStep,AndroidReleaseStep>();
     using var provider=services.BuildServiceProvider();
     var worker=new ProvisioningWorker(childQueue,provider.GetRequiredService<IServiceScopeFactory>(),new(){LeaseDuration=TimeSpan.FromSeconds(3),MaxAttempts=1},new IntegrationWorkerLogger());
@@ -83,6 +84,7 @@ ServiceProvider WorkerProvider(ITenantSecrets store,IAndroidReleaseBuilder build
     var services=new ServiceCollection();services.AddSingleton(store);services.AddSingleton(options);services.AddSingleton(fixture.Deployment);services.AddSingleton(fixture.Google);
     services.AddSingleton<IAndroidSigningKeyFactory>(new KeytoolAndroidSigningKeyFactory(options));services.AddScoped<TenantAndroidSigningKeys>();services.AddSingleton(builder);
     services.AddSingleton(new FirebaseAppDistribution(new GoogleRestClient(new HttpClient(fixture.Server,disposeHandler:false),new AndroidToken()),fixture.Google));
+    services.AddSingleton(new FirebaseAppIdentity(new GoogleRestClient(new HttpClient(fixture.Server,disposeHandler:false),new AndroidToken()),fixture.Google));
     services.AddScoped<AndroidReleasePipeline>();services.AddScoped<IProvisioningGuard,AndroidReleaseGuard>();services.AddScoped<IProvisioningStep,AndroidReleaseStep>();return services.BuildServiceProvider();
 }
 async Task RunAsync(ServiceProvider provider,ProvisioningLease lease)
