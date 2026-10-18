@@ -22,15 +22,14 @@ public static class ManagedBaseInstallationRepair
             var permissions = scope.ServiceProvider.GetRequiredService<IPermissionProvider>();
             await scope.ServiceProvider.GetRequiredService<IMediator>()
                 .Send(new InstallPermissionsCommand { PermissionProvider = permissions });
-            var metadata = config["Provisioning:TenantOutput"]!;
-            var settings = Path.Combine(Path.GetDirectoryName(metadata)!, message.StoreSubDomain + ".tenant-settings.json");
             ManagedBaseInstallation.RequireComplete(scope, message.OwnerEmail!);
-            // Reconciliation starts tenant-settings in a new process so typed settings reload
-            // the restored base defaults. Keep the previous receipt as immutable history.
-            if (File.Exists(settings)) File.Move(settings, settings + ".before-base-repair." + Guid.NewGuid().ToString("N"));
             await scope.ServiceProvider.GetRequiredService<ICacheBase>().Clear();
         }
         var path = config["Provisioning:TenantOutput"]!;
+        // Also replay settings when a previous repair completed the base data but stopped
+        // before invalidating its old receipt. The next phase reloads typed settings.
+        var settings = Path.Combine(Path.GetDirectoryName(path)!, message.StoreSubDomain + ".tenant-settings.json");
+        if (File.Exists(settings)) File.Move(settings, settings + ".before-base-repair." + Guid.NewGuid().ToString("N"));
         var value = JsonNode.Parse(await File.ReadAllTextAsync(path))!.AsObject();
         if (value["baseInstallationVerified"]?.GetValue<bool>() != true)
         {
