@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-18",
+  "status": "verified-history-preserving-source-candidate",
+  "originalReviewedCommit": "b6ec9082cfc8887dd82f318a6680244c0022e225",
+  "filteredReviewedCommit": "d39103af06e5e6be73cb1a29d4920e39508d4b6c",
+  "historicalCommitsPreserved": 124,
+  "additionalPublicationRecordCommits": 1,
+  "removedFontPaths": 48,
+  "removedFontBlobIds": 48,
+  "authorsCommittersDatesMessagesAndParentOrderPreserved": true,
+  "everyHistoricalTreeComparedOutsideRemovalList": true,
+  "removedBinaryObjectsPhysicallyAbsentFromCandidate": true,
+  "originalHistoryBackupVerified": true,
+  "sourceUnstagedChangesIncluded": false,
+  "historyAndSnapshotGitleaksPassed": true,
+  "gitleaksVersion": "8.30.1",
+  "gitFilterRepoVersion": "2.47.0",
+  "linuxSourceChecks": {
+    "testsRun": 143,
+    "passed": 142,
+    "skipped": 1,
+    "failed": 0,
+    "network": "none",
+    "uid": 65534,
+    "containerRemoved": true
+  },
+  "sourceFileGuardPassed": true,
+  "assetInventoryPassed": true,
+  "existingAssetRetentionPolicyUnchanged": true,
+  "publicationTarget": {
+    "repository": "osman-kabasakal/multi-tenant-commerce-platform",
+    "branch": "main",
+    "oldGithubRepositoryAnd18ArtifactsRemainPrivate": true,
+    "visibilityChangeVerifiedSeparatelyAfterUpload": true
+  },
+  "notRetested": [
+    "Full .NET/Angular/Flutter application build after history-only cleanup",
+    "New mobile physical-device, push or payment acceptance"
+  ],
+  "applicationSourceScope": "Application blobs are unchanged by this cleanup. Previous source-bound runtime acceptance remains dated and separate; only publication tools, documentation and source CI changed."
+}
